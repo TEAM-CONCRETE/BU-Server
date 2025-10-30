@@ -121,18 +121,51 @@ java -jar build/libs/buildup-0.0.1-SNAPSHOT.jar
 
 ## 프로젝트 구조
 
+**기본 패키지:** `com.concrete.buildup`
+
+Domain 중심 구조를 채택하여 각 도메인별로 관련 레이어를 그룹화합니다.
+
 ```
 src/main/java/com/concrete/buildup/
-├── BuildupApplication.java     # 메인 애플리케이션
-├── config/                     # 설정 클래스 (Security, JPA, Web)
-├── controller/                 # REST API 컨트롤러
-├── service/                    # 비즈니스 로직
-├── repository/                 # JPA Repository
-├── domain/                     # Entity 클래스
-├── dto/                        # DTO (request, response)
-├── exception/                  # 예외 처리
-└── common/                     # 공통 유틸리티, 상수
+├── domain/                     # 도메인별 기능 모듈
+│   ├── auth/                   # 인증/인가 (회원가입, 로그인, 토큰)
+│   │   ├── controller/
+│   │   ├── service/
+│   │   ├── repository/
+│   │   ├── dto/
+│   │   └── entity/
+│   ├── employee/               # 사원 관리
+│   │   ├── controller/
+│   │   ├── service/
+│   │   ├── repository/
+│   │   ├── dto/
+│   │   └── entity/
+│   ├── site/                   # 현장 관리
+│   ├── contract/               # 계약 관리
+│   ├── payroll/                # 급여 관리
+│   ├── attendance/             # 근태 관리
+│   ├── workreport/             # 작업일보
+│   └── safetydoc/              # 안전교육일지
+├── global/                     # 전역 설정 및 공통 기능
+│   ├── config/                 # 설정 클래스 (Security, JPA, Web)
+│   ├── exception/              # 예외 처리
+│   ├── common/                 # 공통 유틸리티, 상수
+│   └── util/                   # 유틸리티 클래스
+└── BuildupApplication.java     # 메인 애플리케이션
 ```
+
+### 도메인 목록
+
+| 도메인 | 설명 | 주요 기능 |
+|--------|------|-----------|
+| **auth** | 인증/인가 | 회원가입, 로그인, 토큰 관리 |
+| **employee** | 사원 관리 | 사원 목록, 검색 |
+| **site** | 현장 관리 | 현장 등록, 조회, 대시보드 |
+| **contract** | 계약 관리 | 근로계약서 생성, 서명 |
+| **payroll** | 급여 관리 | 급여 목록, 명세서 생성 |
+| **attendance** | 근태 관리 | 출퇴근 기록 |
+| **workreport** | 작업일보 | 작업일보 생성, PDF |
+| **safetydoc** | 안전교육일지 | 안전교육 생성, 서명 |
 
 ## API 엔드포인트
 
@@ -200,12 +233,31 @@ API 엔드포인트는 다음과 같은 형식으로 문서화될 예정입니�
 
 ### 새 기능 개발 순서
 
-1. Entity 정의 (`domain/`)
-2. Repository 작성 (`repository/`)
-3. DTO 작성 (`dto/request`, `dto/response`)
-4. Service 작성 (`service/`)
-5. Controller 작성 (`controller/`)
-6. 테스트 코드 작성
+Domain 중심 구조에서의 개발 순서:
+
+1. 도메인 패키지 생성 (`domain/{domain-name}/`)
+2. Entity 정의 (`domain/{domain-name}/entity/`)
+3. Repository 작성 (`domain/{domain-name}/repository/`)
+4. DTO 작성 (`domain/{domain-name}/dto/`)
+5. Service 작성 (`domain/{domain-name}/service/`)
+6. Controller 작성 (`domain/{domain-name}/controller/`)
+7. 테스트 코드 작성
+
+**예시:** 새로운 `project` 도메인 추가 시
+```
+domain/project/
+├── controller/
+│   └── ProjectController.java
+├── service/
+│   └── ProjectService.java
+├── repository/
+│   └── ProjectRepository.java
+├── dto/
+│   ├── ProjectRequestDto.java
+│   └── ProjectResponseDto.java
+└── entity/
+    └── Project.java
+```
 
 ### 주의사항
 

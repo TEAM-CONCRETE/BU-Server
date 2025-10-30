@@ -1,4 +1,4 @@
-package com.concrete.buildup.config;
+package com.concrete.buildup.global.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;

@@ -1,0 +1,72 @@
+package com.concrete.buildup.global.exception;
+
+import com.concrete.buildup.global.common.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 전역 예외 처리 핸들러
+ *
+ * 모든 예외를 일관된 형식(ApiResponse)으로 처리하여 클라이언트에 반환합니다.
+ */
+@RestControllerAdvice
+@Slf4j
+public class GlobalExceptionHandler {
+
+    /**
+     * BusinessException 처리
+     * 비즈니스 로직에서 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+        log.error("[BusinessException] code={}, message={}",
+                  e.getErrorCode().getCode(), e.getMessage());
+
+        return ResponseEntity
+                .status(e.getErrorCode().getHttpStatus())
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    /**
+     * Validation 예외 처리
+     * @Valid, @Validated 어노테이션 사용 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
+            MethodArgumentNotValidException e) {
+
+        Map<String, String> errors = new HashMap<>();
+        e.getBindingResult().getAllErrors().forEach(error -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+
+        log.error("[ValidationException] errors={}", errors);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("필드 검증에 실패했습니다.", errors));
+    }
+
+    /**
+     * 예상치 못한 예외 처리
+     * 모든 예외의 최종 처리자입니다.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception e) {
+        log.error("[UnexpectedException] Unexpected exception occurred", e);
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("서버 내부 오류가 발생했습니다."));
+    }
+}
