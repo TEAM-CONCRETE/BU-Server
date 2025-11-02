@@ -36,6 +36,54 @@ spring:
       name: admin
       password: admin  # 개발용 기본 계정
 
+  # Spring DevTools 설정
+  devtools:
+    restart:
+      enabled: true
+      additional-paths: src/main/java
+      exclude: static/**,public/**
+    livereload:
+      enabled: true
+
+  # Flyway 설정
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    sql-migration-prefix: V
+    sql-migration-separator: __
+    sql-migration-suffixes: .sql
+    validate-on-migrate: true
+
+  # AWS S3 설정 (개발 환경에서는 비활성화)
+  cloud:
+    aws:
+      s3:
+        enabled: false  # 개발 환경에서 S3 비활성화
+      region:
+        auto: false
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      stack:
+        auto: false
+
+# ===================================
+# JWT 설정
+# ===================================
+jwt:
+  secret: ${JWT_SECRET:your-jwt-secret-key-must-be-at-least-64-characters-for-hs512-algorithm-change-this}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}  # 1시간
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}  # 7일
+
+# ===================================
+# 외부 API 설정 (FastAPI)
+# ===================================
+external:
+  fastapi:
+    base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
+    timeout: ${FASTAPI_TIMEOUT:30000}  # 30초
+
 # 서버 설정
 server:
   port: 8080
