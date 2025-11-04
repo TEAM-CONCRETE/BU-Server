@@ -1,5 +1,6 @@
 package com.concrete.buildup.domain.contract.entity;
 
+import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -72,7 +73,7 @@ public class Contract extends BaseEntity {
      * 계약 상태
      * - DRAFT: 작성 중
      * - SENT: 전송됨
-     * - CORP_SIGNED: 기업 서명 완료
+     * - ADMIN_SIGNED: 관리자 서명 완료
      * - FULLY_SIGNED: 양측 서명 완료
      * - TERMINATED: 계약 종료
      */
@@ -119,22 +120,6 @@ public class Contract extends BaseEntity {
     private ContractDetail contractDetail;
 
     /**
-     * 계약 상태 Enum
-     */
-    public enum ContractState {
-        /** 작성 중 */
-        DRAFT,
-        /** 전송됨 */
-        SENT,
-        /** 기업 서명 완료 */
-        CORP_SIGNED,
-        /** 양측 서명 완료 */
-        FULLY_SIGNED,
-        /** 계약 종료 */
-        TERMINATED
-    }
-
-    /**
      * Contract 생성자
      */
     @Builder
@@ -163,11 +148,11 @@ public class Contract extends BaseEntity {
     }
 
     /**
-     * 기업 서명 처리
+     * 관리자 서명 처리
      */
-    public void signByCorporation() {
+    public void signByAdmin() {
         this.corpSignedAt = LocalDateTime.now();
-        this.contractState = ContractState.CORP_SIGNED;
+        this.contractState = ContractState.ADMIN_SIGNED;
     }
 
     /**

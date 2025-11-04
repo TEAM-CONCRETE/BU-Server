@@ -196,7 +196,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `corporation_id` | BIGINT | FK, NOT NULL | 기업 ID |
 | `manager_id` | BIGINT | FK, NULL | 관리자 ID |
 | `role` | VARCHAR(30) | NULL | 계약 시 역할 |
-| `contract_state` | VARCHAR(30) | NULL | 계약 상태 (DRAFT/SENT/CORP_SIGNED/FULLY_SIGNED/TERMINATED) |
+| `contract_state` | VARCHAR(30) | NULL | 계약 상태 (DRAFT/SENT/ADMIN_SIGNED/FULLY_SIGNED/TERMINATED) |
 | `employee_start_date` | DATE | NOT NULL | 근로 시작일 |
 | `employee_end_date` | DATE | NULL | 근로 종료일 |
 | `written_at` | DATETIME | DEFAULT now() | 계약서 작성일 |

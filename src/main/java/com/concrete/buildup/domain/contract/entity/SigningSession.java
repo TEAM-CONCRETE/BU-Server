@@ -1,5 +1,6 @@
 package com.concrete.buildup.domain.contract.entity;
 
+import com.concrete.buildup.domain.contract.enums.SignerRole;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -97,16 +98,6 @@ public class SigningSession extends BaseEntity {
      */
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
-
-    /**
-     * 서명자 역할 Enum
-     */
-    public enum SignerRole {
-        /** 관리자 */
-        MANAGER,
-        /** 근로자 */
-        EMPLOYEE
-    }
 
     /**
      * 세션 상태 Enum

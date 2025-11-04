@@ -1,5 +1,7 @@
 package com.concrete.buildup.domain.contract.entity;
 
+import com.concrete.buildup.domain.contract.enums.SignerRole;
+import com.concrete.buildup.domain.contract.enums.VerificationStatus;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -114,30 +116,6 @@ public class ContractSignLog extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", length = 20)
     private VerificationStatus verificationStatus;
-
-    /**
-     * 서명자 역할 Enum
-     */
-    public enum SignerRole {
-        /** 근로자 */
-        EMPLOYEE,
-        /** 기업 */
-        CORPORATION,
-        /** 관리자 */
-        MANAGER
-    }
-
-    /**
-     * 검증 상태 Enum
-     */
-    public enum VerificationStatus {
-        /** 검증 대기 */
-        PENDING,
-        /** 검증 완료 */
-        VERIFIED,
-        /** 검증 실패 */
-        FAILED
-    }
 
     /**
      * ContractSignLog 생성자

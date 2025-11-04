@@ -1,5 +1,7 @@
 package com.concrete.buildup.domain.contract.entity;
 
+import com.concrete.buildup.domain.contract.enums.PayPeriod;
+import com.concrete.buildup.domain.contract.enums.PayType;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -216,28 +218,6 @@ public class ContractDetail extends BaseEntity {
      */
     @Column(name = "is_nhi_applicable")
     private Boolean isNhiApplicable;
-
-    /**
-     * 지급 주기 Enum
-     */
-    public enum PayPeriod {
-        /** 일급 */
-        DAILY,
-        /** 주급 */
-        WEEKLY,
-        /** 월급 */
-        MONTHLY
-    }
-
-    /**
-     * 지급 방법 Enum
-     */
-    public enum PayType {
-        /** 현금 */
-        CASH,
-        /** 계좌이체 */
-        TRANSFER
-    }
 
     /**
      * ContractDetail 생성자
