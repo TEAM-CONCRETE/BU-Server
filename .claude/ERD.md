@@ -28,6 +28,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `contracts` | 근로 계약 기본 정보 | employees, corporations, managers |
 | `contract_details` | 계약 상세 정보 (스냅샷) | 1:1 with contracts |
 | `contract_sign_logs` | 계약 서명 이력 | contracts → sign_logs |
+| `signing_sessions` | 전자서명 세션 관리 | contracts → signing_sessions |
 | `sites` | 현장 정보 | corporation, manager |
 | `attendances` | 근태 기록 | employee, contract, site |
 | `payrolls` | 급여 정보 | employee, contract, corporation |
@@ -237,8 +238,10 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `emp_name` | VARCHAR(50) | NOT NULL | 근로자 이름 (스냅샷) |
 | `work_place` | VARCHAR(255) | NULL | 근무 장소 |
 | `work_type` | VARCHAR(100) | NULL | 직종 |
-| `work_time` | VARCHAR(100) | NULL | 근로 시간 |
-| `break_time` | VARCHAR(100) | NULL | 휴게 시간 |
+| `work_start_time` | TIME | NULL | 근무 시작 시간 |
+| `work_end_time` | TIME | NULL | 근무 종료 시간 |
+| `break_start_time` | TIME | NULL | 휴게 시작 시간 |
+| `break_end_time` | TIME | NULL | 휴게 종료 시간 |
 | `work_on_day` | VARCHAR(100) | NULL | 근무일 |
 | `work_off_day` | VARCHAR(100) | NULL | 휴일 |
 | `work_pay` | DECIMAL(15,2) | NULL | 기본 임금 |
@@ -305,7 +308,44 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 9. sites (현장)
+
+### 9. signing_sessions (전자서명 세션)
+
+**설명:** 계약서별 역할별 1회성 서명 세션 관리
+
+**컬럼:**
+
+| 컬럼명 | 타입 | 제약조건 | 설명 |
+|--------|------|----------|------|
+| `id` | BIGINT | PK, AUTO_INCREMENT | 세션 ID |
+| `contract_id` | BIGINT | FK, NOT NULL | 계약 ID |
+| `signer_role` | VARCHAR(30) | NOT NULL | 서명자 역할 (MANAGER/EMPLOYEE) |
+| `signer_user_id` | BIGINT | FK, NULL | 서명자 사용자 ID (외부 서명자는 NULL) |
+| `state` | VARCHAR(20) | NOT NULL | 세션 상태 (PENDING/SIGNED/CANCELED/EXPIRED) |
+| `session_token_hash` | VARCHAR(128) | NOT NULL, UNIQUE | 1회성 세션 토큰 해시 (평문 저장 금지) |
+| `callback_url` | VARCHAR(255) | NULL | 서명 완료 시 호출할 webhook URL |
+| `expires_at` | DATETIME | NULL | 세션 만료 시각 (예: 48시간) |
+| `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+
+**인덱스:**
+- PRIMARY KEY: `id`
+- UNIQUE INDEX: `session_token_hash`
+- INDEX: `contract_id`, `signer_user_id`
+- INDEX: `(contract_id, signer_role)` - 복합 인덱스
+- INDEX: `state`
+- INDEX: `expires_at`
+- FOREIGN KEY: `contract_id` REFERENCES `contracts(id)`
+- FOREIGN KEY: `signer_user_id` REFERENCES `users(id)`
+
+**관계:**
+- N:1 → contracts
+- N:1 → users
+
+---
+
+
+### 10. sites (현장)
 
 **설명:** 건설 현장 정보
 
@@ -334,7 +374,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 10. attendances (근태)
+### 11. attendances (근태)
 
 **설명:** 근로자 근태 기록
 
@@ -376,7 +416,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 11. payrolls (급여)
+### 12. payrolls (급여)
 
 **설명:** 급여 정보
 
@@ -421,7 +461,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 12. payslip_items (급여 명세 항목)
+### 13. payslip_items (급여 명세 항목)
 
 **설명:** 급여명세 세부 항목 (각 급여 항목별 금액 및 타입 저장)
 
@@ -447,7 +487,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 13. safety_docs (안전교육 문서)
+### 14. safety_docs (안전교육 문서)
 
 **설명:** 안전교육 일지
 
@@ -480,7 +520,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 14. safety_doc_attendees (안전교육 참석자)
+### 15. safety_doc_attendees (안전교육 참석자)
 
 **설명:** 안전교육 참석 근로자 목록
 
@@ -510,7 +550,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 15. safety_sign_logs (안전교육 서명 로그)
+### 16. safety_sign_logs (안전교육 서명 로그)
 
 **설명:** 안전교육 전자서명 증적 데이터
 
@@ -542,7 +582,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 16. work_reports (작업일보)
+### 17. work_reports (작업일보)
 
 **설명:** 일일 작업 보고서
 
@@ -583,7 +623,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 17. work_report_employees (작업일보 투입 인력)
+### 18. work_report_employees (작업일보 투입 인력)
 
 **설명:** 작업일보별 투입된 근로자 정보
 
@@ -612,7 +652,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 18. work_report_materials (작업일보 자재)
+### 19. work_report_materials (작업일보 자재)
 
 **설명:** 작업일보별 자재 투입 기록
 
@@ -641,7 +681,6 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 ---
 
 ## ERD 다이어그램
-
 ```
 ┌─────────────┐       ┌──────────────┐       ┌──────────────┐
 │    roles    │◄──────│    users     │──────►│  employees   │
@@ -661,12 +700,12 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
               │   contracts    │◄───────────────────│     sites      │
               └───────┬────────┘                    └────────────────┘
                       │
-         ┌────────────┼────────────┐
-         │            │            │
-  ┌──────▼─────┐ ┌───▼────────┐ ┌▼─────────────┐
-  │contract_   │ │contract_   │ │attendances   │
-  │details     │ │sign_logs   │ └──────────────┘
-  └────────────┘ └────────────┘
+         ┌────────────┼────────────────┐
+         │            │                │
+  ┌──────▼─────┐ ┌───▼────────┐ ┌────▼─────────┐ ┌──────────────┐
+  │contract_   │ │contract_   │ │signing_      │ │attendances   │
+  │details     │ │sign_logs   │ │sessions      │ └──────────────┘
+  └────────────┘ └────────────┘ └──────────────┘
 ```
 
 ---
@@ -686,6 +725,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 - `corporations` → `contracts`
 - `managers` → `contracts`
 - `contracts` → `contract_sign_logs`
+- `contracts` → `signing_sessions`
 - `contracts` → `attendances`
 - `employees` → `attendances`
 - `sites` → `attendances`
@@ -710,6 +750,10 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 CREATE INDEX idx_sign_logs_contract_signer 
 ON contract_sign_logs(contract_id, signer_role);
 
+-- 서명 세션 조회 최적화
+CREATE INDEX idx_signing_sessions_contract_role
+    ON signing_sessions(contract_id, signer_role);
+
 -- 근태 조회 최적화
 CREATE INDEX idx_attendances_employee_date 
 ON attendances(employee_id, search_date);
@@ -727,6 +771,14 @@ CREATE INDEX idx_contracts_state ON contracts(contract_state);
 -- 서명 검증 상태별 조회
 CREATE INDEX idx_sign_logs_verification 
 ON contract_sign_logs(verification_status);
+
+-- 세션 상태별 조회
+CREATE INDEX idx_signing_sessions_state
+    ON signing_sessions(state);
+
+-- 세션 만료 시각 조회
+CREATE INDEX idx_signing_sessions_expires
+    ON signing_sessions(expires_at);
 
 -- 급여 지급 상태별 조회
 CREATE INDEX idx_payrolls_status ON payrolls(pay_status);
@@ -748,5 +800,7 @@ ON work_reports(work_report_status);
 |------|-----------|--------|
 | 2025-11-03 | ERD 문서 초안 작성 | 문현민 |
 | 2025-11-03 | contract_sign_logs 테이블 추가 | 문현민 |
+| 2025-11-04 | signing_sessions 테이블 추가 | 문현민 |
+| 2025-11-04 | contract_details 근무시간/휴게시간 필드 세분화 (TIME 타입) | 문현민 |
 
 ---
