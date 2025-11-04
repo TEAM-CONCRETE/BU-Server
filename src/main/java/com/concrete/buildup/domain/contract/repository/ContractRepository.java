@@ -18,11 +18,13 @@ import java.util.Optional;
  *
  * <p>근로계약 엔티티에 대한 데이터 접근 계층입니다.</p>
  *
+ * <p>QueryDSL을 사용한 동적 쿼리는 {@link ContractRepositoryCustom}을 통해 제공됩니다.</p>
+ *
  * @author Build-Up Team
  * @since 1.0
  */
 @Repository
-public interface ContractRepository extends JpaRepository<Contract, Long> {
+public interface ContractRepository extends JpaRepository<Contract, Long>, ContractRepositoryCustom {
 
     /**
      * 근로자 ID로 계약 목록 조회 (페이징)
