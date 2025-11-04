@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalTime;
 
 /**
@@ -358,6 +359,6 @@ public class ContractDetail extends BaseEntity {
     public BigDecimal calculateWorkHours() {
         long minutes = calculateWorkMinutes();
         return BigDecimal.valueOf(minutes)
-            .divide(BigDecimal.valueOf(60), 2, BigDecimal.ROUND_HALF_UP);
+            .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
     }
 }

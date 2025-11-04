@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 /**
  * 계약 서명 로그 엔티티
  *
- * contract_sign_logs 테이블과 매핑되며, 계약서별 서명 이력 및 증적 데이터를 관리합니다.
+ * contract_sign_logs 테이블과 매핑되며, 계약서별 서명 이력 및 증거 데이터를 관리합니다.
  *
  * 주요 기능:
  * - 서명자별 서명 이력 기록
