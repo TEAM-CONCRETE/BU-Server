@@ -1,0 +1,53 @@
+# EditorConfig for Build-Up Backend Project
+# https://editorconfig.org
+
+root = true
+
+# 모든 파일에 적용
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Java 파일
+[*.java]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+continuation_indent_size = 8
+
+# XML 파일 (pom.xml, 설정 파일 등)
+[*.xml]
+indent_style = space
+indent_size = 2
+
+# YAML 파일 (application.yml 등)
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Properties 파일
+[*.properties]
+indent_style = space
+indent_size = 2
+
+# Markdown 파일
+[*.md]
+max_line_length = off
+trim_trailing_whitespace = false
+
+# Gradle 파일
+[*.gradle]
+indent_style = tab
+indent_size = 4
+
+# JSON 파일
+[*.json]
+indent_style = space
+indent_size = 2
+
+# SQL 파일
+[*.sql]
+indent_style = space
+indent_size = 2

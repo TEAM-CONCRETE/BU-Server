@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
@@ -30,6 +28,7 @@ services:
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
+    platform: linux/amd64  # ARM64 Mac에서 amd64 에뮬레이션 명시
     container_name: buildup-phpmyadmin
     restart: unless-stopped
     ports:

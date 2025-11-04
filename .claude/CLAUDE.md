@@ -1,4 +1,4 @@
-# CLAUDE.md
+/# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -145,7 +145,7 @@ src/main/java/com/concrete/buildup/
   "success": true,
   "message": "요청이 성공적으로 처리되었습니다",
   "data": {
-    // 응답 데이터
+    
   }
 }
 ```
