@@ -1,0 +1,202 @@
+name: Create GitHub Issue from Jira
+
+on:
+  repository_dispatch:
+    types: [jira-issue]
+
+# 같은 Jira 키로 중복 생성 방지
+concurrency:
+  group: jira-create-${{ github.event.client_payload.key || 'unknown' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # (선택) 들어온 payload 확인
+      - name: Debug payload (optional)
+        run: echo "${{ toJson(github.event.client_payload) }}"
+
+      - name: Render template and create issue (with Jira fallback)
+        uses: actions/github-script@v7
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const fetch = global.fetch || ((...args) => import('node-fetch').then(({default: f}) => f(...args)));
+
+            const p = context.payload.client_payload || {};
+
+            // --- helpers ---
+            const esc = (s) => (s ?? '').toString();
+            const has = (s) => !!esc(s).trim();
+
+            // URL 인코딩(%xx) 복원 (+ → 공백)
+            const decodeMaybe = (s) => {
+              const str = esc(s);
+              try {
+                const decoded = /%[0-9A-Fa-f]{2}/.test(str) ? decodeURIComponent(str) : str;
+                return decoded.replace(/\+/g, ' ');
+              } catch { return str; }
+            };
+
+            // Jira rendered description(HTML) 보강
+            async function fetchJiraDescriptionHTML(issueKey) {
+              const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
+              if (!base || !issueKey) return '';
+              const url = `${base}/rest/api/3/issue/${encodeURIComponent(issueKey)}?expand=renderedFields&fields=description`;
+              const resp = await fetch(url, {
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': 'Basic ' + Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')
+                }
+              });
+              if (!resp.ok) { core.info(`Jira GET desc failed: ${resp.status} ${await resp.text()}`); return ''; }
+              const data = await resp.json();
+              return (data.renderedFields && data.renderedFields.description) ? data.renderedFields.description : '';
+            }
+
+            // 커스텀 필드(구현대상/참고자료) 보강
+            async function fetchJiraCustomFields(issueKey, fieldIds = []) {
+              const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
+              if (!base || !issueKey || !fieldIds.length) return {};
+              const q = encodeURIComponent(fieldIds.join(','));
+              const url = `${base}/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=${q}&expand=renderedFields`;
+              const resp = await fetch(url, {
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': 'Basic ' + Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')
+                }
+              });
+              if (!resp.ok) { core.info(`Jira GET fields failed: ${resp.status} ${await resp.text()}`); return {}; }
+              const data = await resp.json();
+              const rf = data.renderedFields || {};
+              const f  = data.fields || {};
+              const out = {};
+              for (const id of fieldIds) {
+                const v = rf[id] ?? f[id] ?? '';
+                out[id] = (v == null) ? '' : v.toString();
+              }
+              return out;
+            }
+
+            // 체크리스트를 깃허브 마크다운 체크박스로 정규화
+            function normalizeChecklist(input) {
+              const raw = decodeMaybe(input);
+              if (!has(raw)) return '';
+              const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+              return lines.map(line => {
+                if (/^- \[.\] /.test(line)) return line;            // 이미 규격이면 pass
+                if (/^\[\s?\]\s*/.test(line)) return line.replace(/^\[\s?\]\s*/, '- [ ] ');
+                if (/^[\*\-]\s+/.test(line))   return line.replace(/^[\*\-]\s+/, '- [ ] ');
+                return `- [ ] ${line}`;
+              }).join('\n');
+            }
+
+            // 1) 템플릿 선택
+            const kindRaw = esc(p.kind).toLowerCase();
+            const mapping = {
+              story: '.github/ISSUE_TEMPLATE/automation-story.md',
+              bug:   '.github/ISSUE_TEMPLATE/automation-bug.md',
+              task:  '.github/ISSUE_TEMPLATE/automation-task.md'
+            };
+            const file = mapping[kindRaw] || mapping.task;
+            const templatePath = path.join(process.cwd(), file);
+            if (!fs.existsSync(templatePath)) {
+              core.setFailed(`Template not found: ${file}`);
+              return;
+            }
+            const tpl = fs.readFileSync(templatePath, 'utf8');
+
+            // 2) 값 준비 (+ 디코딩)
+            const key        = esc(p.key);
+            const url        = esc(p.url);                           // 생성 플로우는 url을 payload로 받음
+            const summary    = decodeMaybe(p.summary);
+            let   description= decodeMaybe(p.description);
+            let   detail     = decodeMaybe(p.detail);
+            let   reference  = decodeMaybe(p.reference);
+            const initiator  = decodeMaybe(p.initiator);
+            const checklist  = normalizeChecklist(p.checklist);
+
+            // 3) 보강: description / customfield_10113 / 10114
+            if (!has(description) && has(key)) {
+              const html = await fetchJiraDescriptionHTML(key);
+              if (has(html)) description = html;
+            }
+            if ((!has(detail) || !has(reference)) && has(key)) {
+              const got = await fetchJiraCustomFields(key, ['customfield_10113','customfield_10114']);
+              if (!has(detail) && has(got['customfield_10113'])) {
+                const v = decodeMaybe(got['customfield_10113']);
+                if (has(v)) detail = v;
+              }
+              if (!has(reference) && has(got['customfield_10114'])) {
+                const v = decodeMaybe(got['customfield_10114']);
+                if (has(v)) reference = v;
+              }
+            }
+
+            // 4) 템플릿 치환
+            let body = tpl
+              .replaceAll('{{issue.key}}', key)
+              .replaceAll('{{key}}', key)
+              .replaceAll('{{issue.url}}', url)
+              .replaceAll('{{url}}', url)
+              .replaceAll('{{issue.summary}}', summary)
+              .replaceAll('{{summary}}', summary)
+              .replaceAll('{{description}}', has(description) ? description : '')
+              .replaceAll('{{initiator}}', has(initiator) ? initiator : '')
+              .replaceAll('{{detail}}', has(detail) ? detail : '')
+              .replaceAll('{{issue.reference}}', reference)
+              .replaceAll('{{reference}}', reference);
+
+            // 체크리스트는 앞뒤 개행으로 안정 렌더
+            const checklistBlock = has(checklist) ? `\n${checklist}\n` : '';
+            if (tpl.includes('{{checklist}}')) {
+              body = body.replaceAll('{{checklist}}', checklistBlock);
+            } else if (has(checklist)) {
+              body += `\n\n---\n\n### ✅ 완료조건 (To-do)\n\n${checklist}\n`;
+            }
+            body = body.trim();
+
+            // 5) 라벨 결정
+            const allowed = new Set(['Feature','Refactor','Documentation','Story','Bug','Task']);
+            let labels = [];
+            if (kindRaw === 'story') labels = ['Story'];
+            else if (kindRaw === 'bug') labels = ['Bug'];
+            else {
+              let incoming = [];
+              if (Array.isArray(p.labels)) incoming = p.labels;
+              else if (typeof p.labels === 'string') {
+                try {
+                  const parsed = JSON.parse(p.labels);
+                  incoming = Array.isArray(parsed) ? parsed : esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean);
+                } catch {
+                  incoming = esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean);
+                }
+              }
+              labels = incoming.map(v => v && v[0].toUpperCase()+v.slice(1).toLowerCase())
+                               .filter(v => allowed.has(v));
+              if (!labels.length) labels = ['Task'];
+            }
+
+            // 6) 이슈 생성
+            const title = `[${key}] ${summary}`;
+            const res = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels
+            });
+
+            core.info(`Created issue #${res.data.number}`);
