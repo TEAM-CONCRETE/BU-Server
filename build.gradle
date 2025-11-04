@@ -62,7 +62,7 @@ dependencies {
 
 	// Database Driver
 	runtimeOnly 'com.mysql:mysql-connector-j'
-	testRuntimeOnly 'com.h2database:h2'  // 테스트용 H2 Database
+	testRuntimeOnly 'com.h2database:h2' // 테스트용 H2 Database
 
 	// Test Dependencies
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
