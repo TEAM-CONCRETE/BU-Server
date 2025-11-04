@@ -46,3 +46,6 @@ out/
 
 ### macOS ###
 .DS_Store
+
+### QueryDSL ###
+src/main/generated/
