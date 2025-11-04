@@ -4,6 +4,8 @@ import com.concrete.buildup.domain.contract.entity.ContractSignLog;
 import com.concrete.buildup.domain.contract.enums.SignerRole;
 import com.concrete.buildup.domain.contract.enums.VerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -70,4 +72,46 @@ public interface ContractSignLogRepository extends JpaRepository<ContractSignLog
      * @return 서명 로그 목록
      */
     List<ContractSignLog> findByContractIdAndVerificationStatus(Long contractId, VerificationStatus verificationStatus);
+
+    // ========== 정렬 쿼리 ==========
+
+    /**
+     * 계약 ID로 서명 로그 목록 조회 (서명 시간 내림차순 정렬)
+     * 최신 서명부터 조회
+     *
+     * @param contractId 계약 ID
+     * @return 서명 로그 목록 (서명 시간 내림차순)
+     */
+    List<ContractSignLog> findByContractIdOrderBySignedAtDesc(Long contractId);
+
+    /**
+     * 계약 ID로 서명 로그 목록 조회 (서명 시간 오름차순 정렬)
+     * 오래된 서명부터 조회 (서명 순서)
+     *
+     * @param contractId 계약 ID
+     * @return 서명 로그 목록 (서명 시간 오름차순)
+     */
+    List<ContractSignLog> findByContractIdOrderBySignedAtAsc(Long contractId);
+
+    // ========== Fetch Join 쿼리 (N+1 문제 방지) ==========
+
+    /**
+     * 계약 ID로 서명 로그 + 계약 정보 조회 (Fetch Join)
+     * N+1 문제 방지를 위해 Contract를 함께 조회
+     *
+     * @param contractId 계약 ID
+     * @return 서명 로그 + 계약 정보 목록
+     */
+    @Query("SELECT csl FROM ContractSignLog csl JOIN FETCH csl.contract WHERE csl.contract.id = :contractId ORDER BY csl.signedAt DESC")
+    List<ContractSignLog> findByContractIdWithContract(@Param("contractId") Long contractId);
+
+    /**
+     * 서명자 ID로 서명 로그 + 계약 정보 조회 (Fetch Join)
+     * N+1 문제 방지를 위해 Contract를 함께 조회
+     *
+     * @param signerId 서명자 ID
+     * @return 서명 로그 + 계약 정보 목록
+     */
+    @Query("SELECT csl FROM ContractSignLog csl JOIN FETCH csl.contract WHERE csl.signerId = :signerId ORDER BY csl.signedAt DESC")
+    List<ContractSignLog> findBySignerIdWithContract(@Param("signerId") Long signerId);
 }
