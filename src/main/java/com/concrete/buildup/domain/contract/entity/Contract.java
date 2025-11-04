@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
  * - Manager (N:1): 한 관리자가 여러 계약을 관리할 수 있음
  * - ContractDetail (1:1): 계약 상세 정보 (스냅샷)
  * - ContractSignLog (1:N): 계약 서명 이력
+ * - SigningSession (1:N): 전자서명 세션
  */
 @Entity
 @Table(name = "contracts", indexes = {
