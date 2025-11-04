@@ -1,0 +1,244 @@
+name: Update issue from Jira
+
+on:
+  repository_dispatch:
+    types: [jira-issue-updated]
+
+# 같은 Jira 키로 중복 실행 방지
+concurrency:
+  group: jira-${{ github.event.client_payload.key || 'unknown' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  update-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # (선택) 들어온 payload를 확인
+      - name: Debug payload (optional)
+        run: echo "${{ toJson(github.event.client_payload) }}"
+
+      - name: Render via template and safe patch (with Jira fetch fallback)
+        uses: actions/github-script@v7
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const fetch = global.fetch || ((...args) => import('node-fetch').then(({default: f}) => f(...args)));
+
+            const p   = context.payload.client_payload || {};
+            const esc = (s) => (s ?? '').toString();
+            const nz  = (s, f='') => { const v = esc(s).trim(); return v ? v : f; };
+            const has = (s) => !!esc(s).trim();
+
+            // URL 인코딩(%xx) 복원 (+ → 공백)
+            const decodeMaybe = (s) => {
+              const str = esc(s);
+              try {
+                const decoded = /%[0-9A-Fa-f]{2}/.test(str) ? decodeURIComponent(str) : str;
+                return decoded.replace(/\+/g, ' ');
+              } catch { return str; }
+            };
+
+            // Jira rendered description(HTML) 보강
+            async function fetchJiraDescriptionHTML(issueKey) {
+              const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
+              if (!base || !issueKey) return '';
+              const url = `${base}/rest/api/3/issue/${encodeURIComponent(issueKey)}?expand=renderedFields&fields=description`;
+              const resp = await fetch(url, {
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': 'Basic ' + Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')
+                }
+              });
+              if (!resp.ok) { core.info(`Jira GET failed: ${resp.status} ${await resp.text()}`); return ''; }
+              const data = await resp.json();
+              return (data.renderedFields && data.renderedFields.description) ? data.renderedFields.description : '';
+            }
+
+            // ✅ 커스텀 필드(구현대상/참고자료) 보강
+            async function fetchJiraCustomFields(issueKey, fieldIds = []) {
+              const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
+              if (!base || !issueKey || !fieldIds.length) return {};
+              const q = encodeURIComponent(fieldIds.join(','));
+              const url = `${base}/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=${q}&expand=renderedFields`;
+              const resp = await fetch(url, {
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': 'Basic ' + Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')
+                }
+              });
+              if (!resp.ok) { core.info(`Jira GET fields failed: ${resp.status} ${await resp.text()}`); return {}; }
+              const data = await resp.json();
+              const rf = data.renderedFields || {};
+              const f  = data.fields || {};
+              const out = {};
+              for (const id of fieldIds) {
+                const v = rf[id] ?? f[id] ?? '';
+                out[id] = (v == null) ? '' : v.toString();
+              }
+              return out;
+            }
+
+            // 체크리스트를 깃허브 마크다운 체크박스로 정규화
+            function normalizeChecklist(input) {
+              const raw = decodeMaybe(input);
+              if (!has(raw)) return '';
+              const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+              return lines.map(line => {
+                if (/^- \[.\] /.test(line)) return line;            // 이미 규격이면 pass
+                if (/^\[\s?\]\s*/.test(line)) return line.replace(/^\[\s?\]\s*/, '- [ ] ');
+                if (/^[\*\-]\s+/.test(line))   return line.replace(/^[\*\-]\s+/, '- [ ] ');
+                return `- [ ] ${line}`;
+              }).join('\n');
+            }
+
+            // 0) 필수값: GH 이슈번호
+            let issue_number = Number(p.issue_number);
+            if (!issue_number) { core.setFailed('Missing issue_number in payload'); return; }
+
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+
+            // 1) 현재 GH 이슈 읽기
+            const cur = await github.rest.issues.get({ owner, repo, issue_number });
+            const curTitle  = cur.data.title || '';
+            const curBody   = cur.data.body  || '';
+
+            // 2) kind 정규화
+            const rawKind = esc(p.kind).toLowerCase();
+            const isStory = /^(story|스토리)/.test(rawKind);
+            const isBug   = /^(bug|버그)/.test(rawKind);
+            const kind    = isStory ? 'story' : (isBug ? 'bug' : 'task');
+
+            // 3) 템플릿 선택
+            const mapping = {
+              story: '.github/ISSUE_TEMPLATE/automation-story.md',
+              bug:   '.github/ISSUE_TEMPLATE/automation-bug.md',
+              task:  '.github/ISSUE_TEMPLATE/automation-task.md'
+            };
+            const file = mapping[kind] || mapping.task;
+            const templatePath = path.join(process.cwd(), file);
+            const hasTemplate = fs.existsSync(templatePath);
+            const tpl = hasTemplate ? fs.readFileSync(templatePath, 'utf8') : '';
+
+            // 4) 값 준비 (+ Jira 보강 및 디코딩)
+            const base       = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
+            const key        = esc(p.key);
+            const urlLink    = (key && base) ? `${base}/browse/${key}` : '';
+            const summary    = decodeMaybe(p.summary);           // summary는 인코딩 없어도 처리 가능
+            let   description= decodeMaybe(p.description);       // 웹훅값 → 비면 API 보강
+            let   detail     = decodeMaybe(p.detail);            // customfield_10113
+            let   reference  = decodeMaybe(p.reference);         // customfield_10114
+            const initiator  = decodeMaybe(p.initiator);
+            const checklistMD= normalizeChecklist(p.checklist);
+
+            // description 보강 (rendered HTML)
+            if (!has(description) && has(key)) {
+              const html = await fetchJiraDescriptionHTML(key);
+              if (has(html)) description = html;
+            }
+
+            // ✅ detail/reference 보강 (customfield_10113 / 10114)
+            if ((!has(detail) || !has(reference)) && has(key)) {
+              const got = await fetchJiraCustomFields(key, ['customfield_10113','customfield_10114']);
+              if (!has(detail) && has(got['customfield_10113'])) {
+                const v = decodeMaybe(got['customfield_10113']);
+                if (has(v)) detail = v;
+              }
+              if (!has(reference) && has(got['customfield_10114'])) {
+                const v = decodeMaybe(got['customfield_10114']);
+                if (has(v)) reference = v;
+              }
+            }
+
+            let producedBody = '';
+            if (hasTemplate) {
+              let body = tpl
+                .replaceAll('{{issue.key}}', key)
+                .replaceAll('{{key}}', key)
+                .replaceAll('{{issue.url}}', urlLink)
+                .replaceAll('{{url}}', urlLink)
+                .replaceAll('{{issue.summary}}', summary)
+                .replaceAll('{{summary}}', summary)
+                .replaceAll('{{description}}', has(description) ? description : '')
+                .replaceAll('{{detail}}', has(detail) ? detail : '')
+                .replaceAll('{{issue.reference}}', reference)
+                .replaceAll('{{reference}}', reference)
+                .replaceAll('{{initiator}}', has(initiator) ? initiator : '');
+
+              // 체크리스트는 앞뒤 개행을 줘서 안정 렌더
+              const checklistBlock = has(checklistMD) ? `\n${checklistMD}\n` : '';
+              const checklistKeys = ['{{checklist}}','{{ checklist }}','{{ issue.checklist }}','{{issue.checklist}}'];
+              let replaced = false;
+              for (const k of checklistKeys) {
+                if (body.includes(k)) { body = body.replaceAll(k, checklistBlock); replaced = true; }
+              }
+              if (!replaced && has(checklistMD)) {
+                body += `\n\n---\n\n### ✅ 완료조건 (To-do)\n\n${checklistMD}\n`;
+              }
+
+              producedBody = body.trim();
+            } else {
+              // 템플릿이 없으면 최소 조립
+              const parts = [];
+              if (has(description)) parts.push('## 🚀 이슈 개요 (Description)', description, '');
+              if (has(detail))      parts.push('---', '', '## 🎯 구현 대상', detail, '');
+              if (has(checklistMD)) parts.push('---', '', '### ✅ 완료조건 (To-do)', '', checklistMD, '');
+              if (has(reference))   parts.push('---', '', '### 📎 참고', reference, '');
+              if (has(key) || has(urlLink)) {
+                const link = has(urlLink) ? `[**${key}**](${urlLink})` : key;
+                parts.push('---', '', '### 🔗 Jira Link', link);
+              }
+              producedBody = parts.join('\n').trim();
+            }
+
+            // 6) 본문 교체 여부
+            const shouldReplaceBody =
+              has(description) || has(checklistMD) || has(detail) || has(reference) || has(key) || has(urlLink) || !curBody;
+            const nextBody = shouldReplaceBody ? (producedBody || curBody) : curBody;
+
+            // 7) 제목
+            const nextTitle = (has(key) || has(summary))
+              ? `[${nz(key, curTitle)}] ${nz(summary, curTitle)}`
+              : curTitle;
+
+            // 8) 라벨 (Story/Bug는 고정, 그 외는 들어온 값 필터)
+            const allowed = new Set(['Feature','Refactor','Documentation','Story','Bug']);
+            let computed = [];
+            if (isStory) computed = ['Story'];
+            else if (isBug) computed = ['Bug'];
+            else {
+              let incoming = [];
+              if (Array.isArray(p.labels)) incoming = p.labels;
+              else if (typeof p.labels === 'string') {
+                try {
+                  const parsed = JSON.parse(p.labels);
+                  incoming = Array.isArray(parsed) ? parsed : esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean);
+                } catch {
+                  incoming = esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean);
+                }
+              }
+              const toTitle = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+              computed = incoming.map(toTitle).filter(v => allowed.has(v) && v !== 'Story' && v !== 'Bug');
+            }
+            const setLabels = computed.length > 0;
+
+            // 9) 패치
+            if (nextTitle !== curTitle || nextBody !== curBody) {
+              await github.rest.issues.update({ owner, repo, issue_number, title: nextTitle, body: nextBody });
+            }
+            if (setLabels) {
+              await github.rest.issues.setLabels({ owner, repo, issue_number, labels: computed });
+            }
+
+            core.info(`Patched #${issue_number} titleChanged=${nextTitle!==curTitle} bodyChanged=${nextBody!==curBody} labelsSet=${setLabels} kind=${kind} computed=${JSON.stringify(computed)}`);
