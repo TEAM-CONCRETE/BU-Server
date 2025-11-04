@@ -124,11 +124,30 @@ src/main/java/com/concrete/buildup/
 - 공통 기능은 `global` 패키지에 배치
 
 ### 레이어별 역할
-- **Entity** (`domain/{domain}/entity/`): JPA 엔티티, `@Entity` 사용, Lombok 활용
-- **Repository** (`domain/{domain}/repository/`): `JpaRepository` 상속, 메서드명 기반 쿼리
-- **Service** (`domain/{domain}/service/`): `@Service`, `@Transactional` 활용, 비즈니스 로직
-- **Controller** (`domain/{domain}/controller/`): `@RestController`, RESTful API, ResponseEntity 사용
-- **DTO** (`domain/{domain}/dto/`): 요청/응답 데이터 전송 객체
+
+프로젝트는 **Rich Domain Model (DDD 패턴)**을 따릅니다.
+
+- **Entity** (`domain/{domain}/entity/`):
+  - JPA 엔티티, `@Entity` 사용, Lombok 활용
+  - **도메인 로직 포함**: 엔티티 자신의 데이터를 다루는 비즈니스 로직 (상태 변경, 계산, 검증 등)
+  - 예: `contract.signByCorporation()`, `contractDetail.calculateTotalPay()`
+
+- **Repository** (`domain/{domain}/repository/`):
+  - `JpaRepository` 상속, 메서드명 기반 쿼리
+  - 데이터 접근 계층, 영속성 관리
+
+- **Service** (`domain/{domain}/service/`):
+  - `@Service`, `@Transactional` 활용
+  - **애플리케이션 비즈니스 로직**: 여러 엔티티 조합, 외부 시스템 연동, 트랜잭션 관리
+  - 엔티티의 도메인 로직을 호출하여 유스케이스 구현
+
+- **Controller** (`domain/{domain}/controller/`):
+  - `@RestController`, RESTful API, ResponseEntity 사용
+  - 요청/응답 처리, DTO 변환
+
+- **DTO** (`domain/{domain}/dto/`):
+  - 요청/응답 데이터 전송 객체
+  - 계층 간 데이터 전달
 
 ### 네이밍
 - 클래스: PascalCase (UserService, OrderController)
