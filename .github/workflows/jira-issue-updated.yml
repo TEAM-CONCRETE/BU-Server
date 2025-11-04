@@ -4,7 +4,6 @@ on:
   repository_dispatch:
     types: [jira-issue-updated]
 
-# 같은 Jira 키 중복 실행 방지
 concurrency:
   group: jira-${{ github.event.client_payload.key || 'unknown' }}
   cancel-in-progress: true
@@ -23,29 +22,50 @@ jobs:
       - name: Debug payload (optional)
         run: echo "${{ toJson(github.event.client_payload) }}"
 
-      - name: Update issue by Jira key (with fallbacks)
+      - name: Update (or create) by Jira key
         uses: actions/github-script@v7
         env:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          ALLOW_CREATE_IF_MISSING: "false"   # ← 필요하면 "true"로 변경
+          ALLOW_CREATE_IF_MISSING: "true"     # ← 없는 경우 생성
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
             const fetch = global.fetch || ((...args) => import('node-fetch').then(({default: f}) => f(...args)));
 
-            // ---------- helpers ----------
             const p   = context.payload.client_payload || {};
             const esc = (s) => (s ?? '').toString();
             const has = (s) => !!esc(s).trim();
-            const nz  = (s, f='') => { const v = esc(s).trim(); return v ? v : f; };
-            const decodeMaybe = (s) => {
-              const str = esc(s);
-              try { const d = /%[0-9A-Fa-f]{2}/.test(str) ? decodeURIComponent(str) : str; return d.replace(/\+/g,' '); }
-              catch { return str; }
-            };
+            const nz  = (s,f='') => { const v = esc(s).trim(); return v ? v : f; };
+            const decodeMaybe = (s) => { const str = esc(s); try { const d=/%[0-9A-Fa-f]{2}/.test(str)?decodeURIComponent(str):str; return d.replace(/\+/g,' ');} catch {return str;} };
+
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const key   = esc(p.key);
+
+            async function findIssueByKey(k) {
+              if (!k) return 0;
+              // 1) 정확 매치: [KEY]
+              let q = `repo:${owner}/${repo} is:issue in:title "[${k}]"`;
+              let res = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
+              let hit = (res.data.items || []).find(i => i.title.startsWith(`[${k}] `));
+              if (hit) return hit.number;
+              // 2) 느슨 매치
+              q = `repo:${owner}/${repo} is:issue in:title "${k}"`;
+              res = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
+              hit = (res.data.items || []).find(i => i.title.includes(k));
+              if (hit) return hit.number;
+              // 3) 인덱싱 지연 회피: 리스트 스캔(state: all)
+              for (let page=1; page<=3; page++) {
+                const list = await github.rest.issues.listForRepo({ owner, repo, state:'all', per_page:100, page });
+                const cand = (list.data || []).find(i => typeof i.title === 'string' && (i.title.startsWith(`[${k}]`) || i.title.includes(k)));
+                if (cand) return cand.number;
+                if ((list.data || []).length < 100) break;
+              }
+              return 0;
+            }
 
             async function jiraFetch(path) {
               const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
@@ -58,23 +78,20 @@ jobs:
               });
               return res.ok ? res.json() : null;
             }
-
-            async function fetchJiraDescriptionHTML(key) {
-              const data = await jiraFetch(`/rest/api/3/issue/${encodeURIComponent(key)}?expand=renderedFields&fields=description`);
-              return data && data.renderedFields && data.renderedFields.description ? data.renderedFields.description : '';
+            async function fetchJiraDescriptionHTML(k) {
+              const data = await jiraFetch(`/rest/api/3/issue/${encodeURIComponent(k)}?expand=renderedFields&fields=description`);
+              return data?.renderedFields?.description || '';
             }
-
-            async function fetchJiraCustomFields(key, ids=[]) {
+            async function fetchJiraCustomFields(k, ids=[]) {
               if (!ids.length) return {};
               const q = encodeURIComponent(ids.join(','));
-              const data = await jiraFetch(`/rest/api/3/issue/${encodeURIComponent(key)}?fields=${q}&expand=renderedFields`);
-              const rf = (data && data.renderedFields) || {};
-              const f  = (data && data.fields) || {};
+              const data = await jiraFetch(`/rest/api/3/issue/${encodeURIComponent(k)}?fields=${q}&expand=renderedFields`);
+              const rf = data?.renderedFields || {};
+              const f  = data?.fields || {};
               const out = {};
               for (const id of ids) out[id] = (rf[id] ?? f[id] ?? '') + '';
               return out;
             }
-
             function normalizeChecklist(input) {
               const raw = decodeMaybe(input);
               if (!has(raw)) return '';
@@ -87,39 +104,7 @@ jobs:
               }).join('\n');
             }
 
-            // ---------- identify target issue by Jira key ----------
-            const owner = context.repo.owner;
-            const repo  = context.repo.repo;
-            const key   = esc(p.key);
-
-            async function findIssueByKey(k) {
-              if (!k) return 0;
-              // 1) 정확 매치: [KEY] 로 시작
-              let q = `repo:${owner}/${repo} is:issue in:title "[${k}]"`;
-              let res = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
-              let hit = (res.data.items || []).find(i => i.title.startsWith(`[${k}] `));
-              if (hit) return hit.number;
-
-              // 2) 느슨 매치: 제목에 KEY 포함
-              q = `repo:${owner}/${repo} is:issue in:title "${k}"`;
-              res = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
-              hit = (res.data.items || []).find(i => i.title.includes(k));
-              if (hit) return hit.number;
-
-              // 3) 인덱싱 지연 회피: 리스트 스캔(state: all)
-              for (let page=1; page<=3; page++) {
-                const list = await github.rest.issues.listForRepo({ owner, repo, state: 'all', per_page: 100, page });
-                const cand = (list.data || []).find(i => typeof i.title === 'string' && (i.title.startsWith(`[${k}]`) || i.title.includes(k)));
-                if (cand) return cand.number;
-                if ((list.data || []).length < 100) break;
-              }
-              return 0;
-            }
-
-            let issue_number = await findIssueByKey(key);
-            const allowCreate = process.env.ALLOW_CREATE_IF_MISSING === 'true';
-
-            // ---------- prepare values (decode + fallbacks) ----------
+            // 값 준비
             const baseURL    = (process.env.JIRA_BASE_URL || '').replace(/\/+$/,'');
             const urlLink    = (key && baseURL) ? `${baseURL}/browse/${key}` : '';
             const rawKind    = esc(p.kind).toLowerCase();
@@ -132,6 +117,7 @@ jobs:
             const initiator  = decodeMaybe(p.initiator);
             const checklist  = normalizeChecklist(p.checklist);
 
+            // Jira 보강
             if (!has(description) && has(key)) {
               const html = await fetchJiraDescriptionHTML(key);
               if (has(html)) description = html;
@@ -142,7 +128,7 @@ jobs:
               if (!has(reference) && has(got['customfield_10114'])) reference = decodeMaybe(got['customfield_10114']);
             }
 
-            // ---------- template ----------
+            // 템플릿 로드
             const mapping = {
               story: '.github/ISSUE_TEMPLATE/automation-story.md',
               bug:   '.github/ISSUE_TEMPLATE/automation-bug.md',
@@ -183,27 +169,30 @@ jobs:
               return body.trim();
             }
 
-            // ---------- create if missing (optional) ----------
-            if (!issue_number) {
-              if (!allowCreate) {
-                core.setFailed(`Target GitHub issue not found by key=${key}`);
-                return;
-              }
+            // 대상 이슈 찾기 → 없으면 생성
+            let issue_number = await findIssueByKey(key);
+            if (!issue_number && process.env.ALLOW_CREATE_IF_MISSING === 'true') {
+              // 인덱싱 지연 대비: 한 번 더 재시도(짧게 대기)
+              await new Promise(r => setTimeout(r, 1500));
+              issue_number = await findIssueByKey(key);
+            }
+
+            if (!issue_number && process.env.ALLOW_CREATE_IF_MISSING === 'true') {
               const title = `[${key}] ${summary || ''}`.trim();
               const body  = buildBody();
 
               // 라벨
               const allowed = new Set(['Feature','Refactor','Documentation','Story','Bug','Task']);
               let labels = [];
-              const rawLabels = p.labels;
-              if (/^(story|스토리)/.test(rawKind)) labels = ['Story'];
-              else if (/^(bug|버그)/.test(rawKind)) labels = ['Bug'];
+              if (kind === 'story') labels = ['Story'];
+              else if (kind === 'bug') labels = ['Bug'];
               else {
                 let incoming = [];
-                if (Array.isArray(rawLabels)) incoming = rawLabels;
-                else if (typeof rawLabels === 'string') {
-                  try { const parsed = JSON.parse(rawLabels); if (Array.isArray(parsed)) incoming = parsed; }
-                  catch { incoming = esc(rawLabels).split(',').map(s=>s.trim()).filter(Boolean); }
+                const raw = p.labels;
+                if (Array.isArray(raw)) incoming = raw;
+                else if (typeof raw === 'string') {
+                  try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) incoming = parsed; }
+                  catch { incoming = esc(raw).split(',').map(s=>s.trim()).filter(Boolean); }
                 }
                 labels = incoming.map(v => v && v[0].toUpperCase()+v.slice(1).toLowerCase())
                                  .filter(v => allowed.has(v));
@@ -215,31 +204,36 @@ jobs:
               core.info(`Created issue #${issue_number} for ${key}`);
             }
 
-            // ---------- update existing ----------
+            if (!issue_number) {
+              core.setFailed(`Target GitHub issue not found by key=${key}`);
+              return;
+            }
+
+            // 업데이트 적용
             const cur = await github.rest.issues.get({ owner, repo, issue_number });
             const curTitle = cur.data.title || '';
             const curBody  = cur.data.body  || '';
-
-            const nextTitle = (has(key) || has(summary)) ? `[${nz(key, curTitle)}] ${nz(summary, curTitle)}` : curTitle;
+            const nextTitle = `[${nz(key, curTitle)}] ${nz(summary, curTitle)}`;
             const nextBody  = buildBody();
 
             if (nextTitle !== curTitle || nextBody !== curBody) {
               await github.rest.issues.update({ owner, repo, issue_number, title: nextTitle, body: nextBody });
             }
 
-            // 라벨 갱신(Story/Bug는 고정)
+            // 라벨 갱신(Story/Bug 고정)
             const allowed = new Set(['Feature','Refactor','Documentation','Story','Bug']);
             let computed = [];
-            if (/^(story|스토리)/.test(rawKind)) computed = ['Story'];
-            else if (/^(bug|버그)/.test(rawKind)) computed = ['Bug'];
+            if (kind === 'story') computed = ['Story'];
+            else if (kind === 'bug') computed = ['Bug'];
             else {
               let incoming = [];
-              if (Array.isArray(p.labels)) incoming = p.labels;
-              else if (typeof p.labels === 'string') {
-                try { const parsed = JSON.parse(p.labels); incoming = Array.isArray(parsed) ? parsed : esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean); }
-                catch { incoming = esc(p.labels).split(',').map(s=>s.trim()).filter(Boolean); }
+              const raw = p.labels;
+              if (Array.isArray(raw)) incoming = raw;
+              else if (typeof raw === 'string') {
+                try { const parsed = JSON.parse(raw); incoming = Array.isArray(parsed) ? parsed : esc(raw).split(',').map(s=>s.trim()).filter(Boolean); }
+                catch { incoming = esc(raw).split(',').map(s=>s.trim()).filter(Boolean); }
               }
-              const toTitle = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+              const toTitle = s => s ? s[0].toUpperCase()+s.slice(1).toLowerCase() : s;
               computed = incoming.map(toTitle).filter(v => allowed.has(v) && v !== 'Story' && v !== 'Bug');
             }
             if (computed.length) {
