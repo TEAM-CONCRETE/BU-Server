@@ -638,13 +638,13 @@ public class ContractController {
     /**
      * 상용직 계약 생성
      */
-    @PostMapping("/regular")
+    @PostMapping("/permanent")
     @Operation(summary = "상용직 계약 생성", description = "상용직 근로계약서 초안을 생성합니다.")
-    public ResponseEntity<ApiResponse<ContractResponse>> createRegularContract(
+    public ResponseEntity<ApiResponse<ContractResponse>> createPermanentContract(
             @PathVariable Long siteId,
-            @Valid @RequestBody RegularContractCreateRequest request) {
-        log.info("[ContractController] createRegularContract - siteId={}", siteId);
-        ContractResponse contract = contractService.createRegularContract(siteId, request);
+            @Valid @RequestBody PermanentContractCreateRequest request) {
+        log.info("[ContractController] createPermanentContract - siteId={}", siteId);
+        ContractResponse contract = contractService.createPermanentContract(siteId, request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success(contract, "계약서가 생성되었습니다."));

@@ -433,7 +433,7 @@ public class Employee extends BaseEntity {
     @NotNull(message = "사원 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
     @Column(name = "employee_type", nullable = false, length = 20)
-    private EmployeeType employeeType;  // REGULAR, DAILY
+    private EmployeeType employeeType;  // DAILY, PERMANENT
 
     @Column(name = "joined_date")
     private LocalDate joinedDate;
@@ -454,8 +454,8 @@ public class Employee extends BaseEntity {
     private User user;
 
     // 비즈니스 메서드
-    public boolean isRegular() {
-        return EmployeeType.REGULAR.equals(this.employeeType);
+    public boolean isPermanent() {
+        return EmployeeType.PERMANENT.equals(this.employeeType);
     }
 
     public boolean isDaily() {
@@ -586,7 +586,7 @@ public class Contract extends BaseEntity {
     @NotNull(message = "계약 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
     @Column(name = "contract_type", nullable = false, length = 20)
-    private ContractType contractType;  // REGULAR, DAILY
+    private ContractType contractType;  // DAILY, PERMANENT
 
     @NotNull(message = "계약 시작일은 필수입니다")
     @Column(name = "start_date", nullable = false)

@@ -112,7 +112,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `sub_phone` | VARCHAR(20) | NULL | 비상 연락망 |
 | `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
 | `emp_address` | VARCHAR(255) | NULL | 주소 |
-| `emp_type` | VARCHAR(30) | NULL | 근로자 유형 (REGULAR/DAILY) |
+| `emp_type` | VARCHAR(30) | NULL | 근로자 유형 (DAILY/PERMANENT) |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 

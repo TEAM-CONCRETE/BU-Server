@@ -607,7 +607,7 @@ public class ContractCreateRequest {
     private Long employeeId;
 
     @NotBlank(message = "계약 유형은 필수입니다")
-    private String contractType;  // REGULAR, DAILY
+    private String contractType;  // DAILY, PERMANENT
 
     @NotNull(message = "계약 시작일은 필수입니다")
     private LocalDate startDate;
@@ -912,8 +912,8 @@ private LocalDateTime dateTime;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum EmployeeType {
-    REGULAR("정규직"),
-    DAILY("일용직");
+    DAILY("일용직"),
+    PERMANENT("상용직");
 
     private final String description;
 
