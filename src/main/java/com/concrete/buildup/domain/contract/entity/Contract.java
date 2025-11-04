@@ -112,6 +112,13 @@ public class Contract extends BaseEntity {
     private LocalDateTime empSignedAt;
 
     /**
+     * 계약 상세 정보 (1:1 양방향)
+     * 계약 조회 시 상세 정보도 함께 필요한 경우가 많아 양방향 관계 설정
+     */
+    @OneToOne(mappedBy = "contract", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private ContractDetail contractDetail;
+
+    /**
      * 계약 상태 Enum
      */
     public enum ContractState {

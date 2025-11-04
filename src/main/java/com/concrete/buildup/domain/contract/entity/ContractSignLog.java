@@ -36,11 +36,13 @@ import java.time.LocalDateTime;
 public class ContractSignLog extends BaseEntity {
 
     /**
-     * 계약 ID
-     * TODO: Contract 엔티티 구현 후 @ManyToOne 연관관계로 변경
+     * 계약 (N:1 단방향)
+     * 서명 로그는 계약을 참조하지만, 계약에서 서명 로그 목록을 탐색할 필요는 적음
+     * 필요시 Repository로 조회
      */
-    @Column(name = "contract_id", nullable = false)
-    private Long contractId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_id", nullable = false)
+    private Contract contract;
 
     /**
      * 서명자 역할
@@ -142,7 +144,7 @@ public class ContractSignLog extends BaseEntity {
      */
     @Builder
     public ContractSignLog(
-        Long contractId,
+        Contract contract,
         SignerRole signerRole,
         Long signerId,
         String signerName,
@@ -154,7 +156,7 @@ public class ContractSignLog extends BaseEntity {
         LocalDateTime verifiedAt,
         VerificationStatus verificationStatus
     ) {
-        this.contractId = contractId;
+        this.contract = contract;
         this.signerRole = signerRole;
         this.signerId = signerId;
         this.signerName = signerName;

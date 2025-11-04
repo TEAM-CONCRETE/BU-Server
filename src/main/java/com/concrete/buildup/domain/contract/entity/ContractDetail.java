@@ -35,11 +35,12 @@ import java.time.LocalTime;
 public class ContractDetail extends BaseEntity {
 
     /**
-     * 계약 ID (1:1 관계)
-     * TODO: Contract 엔티티 구현 후 @OneToOne 연관관계로 변경
+     * 계약 (1:1 양방향)
+     * 계약 상세 정보는 계약의 생명주기에 종속됨
      */
-    @Column(name = "contract_id", nullable = false, unique = true)
-    private Long contractId;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_id", nullable = false, unique = true)
+    private Contract contract;
 
     // ========== 스냅샷 필드 (계약 당시 정보) ==========
 
@@ -242,7 +243,7 @@ public class ContractDetail extends BaseEntity {
      */
     @Builder
     public ContractDetail(
-        Long contractId,
+        Contract contract,
         String corpName,
         String empName,
         String corpAddress,
@@ -269,7 +270,7 @@ public class ContractDetail extends BaseEntity {
         Boolean isNpsApplicable,
         Boolean isNhiApplicable
     ) {
-        this.contractId = contractId;
+        this.contract = contract;
         this.corpName = corpName;
         this.empName = empName;
         this.corpAddress = corpAddress;
