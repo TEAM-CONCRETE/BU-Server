@@ -1,12 +1,15 @@
 package com.concrete.buildup.domain.auth.repository;
 
 import com.concrete.buildup.domain.auth.entity.Role;
+import com.concrete.buildup.global.config.QueryDslConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
@@ -19,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
+@EnableJpaAuditing
+@Import(QueryDslConfig.class) // QueryDSL 설정 포함
 @DisplayName("RoleRepository 테스트")
 class RoleRepositoryTest {
 
