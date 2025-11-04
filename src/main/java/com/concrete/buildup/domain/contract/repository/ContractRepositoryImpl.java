@@ -21,12 +21,14 @@ import static com.concrete.buildup.domain.contract.entity.QContract.contract;
  *
  * <p>QueryDSL을 사용한 동적 쿼리 및 복잡한 조회 기능을 구현합니다.</p>
  *
+ * <p>Spring Data JPA가 자동으로 인식하는 네이밍 패턴: {RepositoryName}Impl</p>
+ *
  * @author Build-Up Team
  * @since 1.0
  */
 @Repository
 @RequiredArgsConstructor
-public class ContractRepositoryCustomImpl implements ContractRepositoryCustom {
+public class ContractRepositoryImpl implements ContractRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 

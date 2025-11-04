@@ -83,12 +83,17 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
      * 특정 날짜에 활성화된 계약 조회
      * (근로 시작일 <= 특정날짜 AND (근로 종료일 >= 특정날짜 OR 근로 종료일 IS NULL))
      *
+     * <p>메서드 네이밍으로는 OR 조건의 괄호 그룹핑이 불가능하므로 @Query 사용</p>
+     *
      * @param employeeId 근로자 ID
      * @param date 확인할 날짜
      * @return 활성 계약 목록
      */
-    List<Contract> findByEmployeeIdAndEmployeeStartDateLessThanEqualAndEmployeeEndDateGreaterThanEqualOrEmployeeEndDateIsNull(
-            Long employeeId, LocalDate date, LocalDate date2);
+    @Query("SELECT c FROM Contract c WHERE c.employeeId = :employeeId " +
+           "AND c.employeeStartDate <= :date " +
+           "AND (c.employeeEndDate >= :date OR c.employeeEndDate IS NULL)")
+    List<Contract> findActiveContractsByEmployeeIdAndDate(@Param("employeeId") Long employeeId,
+                                                            @Param("date") LocalDate date);
 
     // ========== Fetch Join 쿼리 (N+1 문제 방지) ==========
 
