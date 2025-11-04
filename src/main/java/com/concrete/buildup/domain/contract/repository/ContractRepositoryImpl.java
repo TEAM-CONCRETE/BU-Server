@@ -2,16 +2,21 @@ package com.concrete.buildup.domain.contract.repository;
 
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.enums.ContractState;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.concrete.buildup.domain.contract.entity.QContract.contract;
@@ -53,7 +58,7 @@ public class ContractRepositoryImpl implements ContractRepositoryCustom {
             Pageable pageable
     ) {
         // 동적 쿼리 생성
-        List<Contract> content = queryFactory
+        JPAQuery<Contract> query = queryFactory
                 .selectFrom(contract)
                 .where(
                         employeeIdEq(employeeId),
@@ -61,7 +66,15 @@ public class ContractRepositoryImpl implements ContractRepositoryCustom {
                         contractStateEq(contractState),
                         employeeStartDateGoe(startDate),
                         employeeEndDateLoe(endDate)
-                )
+                );
+
+        // 정렬 적용
+        for (OrderSpecifier<?> order : getOrderSpecifiers(pageable.getSort())) {
+            query.orderBy(order);
+        }
+
+        // 페이징 적용
+        List<Contract> content = query
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -135,5 +148,32 @@ public class ContractRepositoryImpl implements ContractRepositoryCustom {
      */
     private BooleanExpression employeeEndDateLoe(LocalDate endDate) {
         return endDate != null ? contract.employeeEndDate.loe(endDate) : null;
+    }
+
+    /**
+     * Pageable의 Sort를 QueryDSL OrderSpecifier로 변환
+     *
+     * @param sort Spring Data Sort 객체
+     * @return QueryDSL OrderSpecifier 리스트
+     */
+    private List<OrderSpecifier<?>> getOrderSpecifiers(Sort sort) {
+        List<OrderSpecifier<?>> orders = new ArrayList<>();
+
+        if (sort.isEmpty()) {
+            return orders;
+        }
+
+        PathBuilder<Contract> pathBuilder = new PathBuilder<>(Contract.class, "contract");
+
+        for (Sort.Order order : sort) {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+            OrderSpecifier<?> orderSpecifier = new OrderSpecifier(
+                    direction,
+                    pathBuilder.get(order.getProperty())
+            );
+            orders.add(orderSpecifier);
+        }
+
+        return orders;
     }
 }
