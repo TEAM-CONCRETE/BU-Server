@@ -45,13 +45,13 @@ public class SecurityConfig {
 
             // URL별 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
-                // 공개 엔드포인트
+                // 공개 엔드포인트 (context-path 제외)
                 .requestMatchers(
-                    "/api/auth/**",           // 인증 관련 API
-                    "/api/public/**",         // 공개 API
-                    "/api/swagger-ui/**",     // Swagger UI
-                    "/api/v3/api-docs/**",    // Swagger API Docs
-                    "/api/actuator/health"    // Health Check
+                    "/auth/**",           // 인증 관련 API
+                    "/public/**",         // 공개 API
+                    "/swagger-ui/**",     // Swagger UI
+                    "/v3/api-docs/**",    // Swagger API Docs
+                    "/actuator/health"    // Health Check
                 ).permitAll()
 
                 // 그 외 모든 요청은 인증 필요
