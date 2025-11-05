@@ -2,11 +2,13 @@ package com.concrete.buildup.domain.auth.controller;
 
 import com.concrete.buildup.domain.auth.dto.UserExistsResponse;
 import com.concrete.buildup.domain.auth.service.AuthService;
+import com.concrete.buildup.global.config.SecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AuthController 단위 테스트
  */
 @WebMvcTest(AuthController.class)
+@Import(SecurityConfig.class)
 @ActiveProfiles("test")
 @DisplayName("AuthController 테스트")
 class AuthControllerTest {
