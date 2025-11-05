@@ -4,34 +4,26 @@ import com.concrete.buildup.global.util.AesEncryptionUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * 주민등록번호 암호화 컨버터
  *
  * JPA Entity의 주민등록번호 필드를 DB에 저장할 때 자동으로 암호화하고,
  * 조회 시 자동으로 복호화합니다.
+ *
+ * @see ConverterInjector - Spring Bean 주입을 위한 헬퍼 클래스
  */
 @Slf4j
-@Component
 @Converter
 public class ResidentNumConverter implements AttributeConverter<String, String> {
 
-    private AesEncryptionUtil aesEncryptionUtil;
+    private static AesEncryptionUtil aesEncryptionUtil;
 
     /**
-     * JPA를 위한 기본 생성자
+     * Spring Bean 주입 (ConverterInjector에서 호출)
      */
-    protected ResidentNumConverter() {
-    }
-
-    /**
-     * Spring을 통한 의존성 주입
-     */
-    @Autowired
-    public void setAesEncryptionUtil(AesEncryptionUtil aesEncryptionUtil) {
-        this.aesEncryptionUtil = aesEncryptionUtil;
+    public static void setAesEncryptionUtil(AesEncryptionUtil aesEncryptionUtil) {
+        ResidentNumConverter.aesEncryptionUtil = aesEncryptionUtil;
     }
 
     /**
@@ -42,6 +34,11 @@ public class ResidentNumConverter implements AttributeConverter<String, String> 
         if (attribute == null) {
             return null;
         }
+
+        if (aesEncryptionUtil == null) {
+            throw new IllegalStateException("AesEncryptionUtil이 초기화되지 않았습니다.");
+        }
+
         log.debug("주민등록번호 암호화 수행");
         return aesEncryptionUtil.encrypt(attribute);
     }
@@ -54,6 +51,11 @@ public class ResidentNumConverter implements AttributeConverter<String, String> 
         if (dbData == null) {
             return null;
         }
+
+        if (aesEncryptionUtil == null) {
+            throw new IllegalStateException("AesEncryptionUtil이 초기화되지 않았습니다.");
+        }
+
         log.debug("주민등록번호 복호화 수행");
         return aesEncryptionUtil.decrypt(dbData);
     }
