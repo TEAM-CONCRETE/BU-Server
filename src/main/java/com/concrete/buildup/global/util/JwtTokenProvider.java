@@ -149,6 +149,10 @@ public class JwtTokenProvider {
      * @return 토큰 타입
      */
     public String getTokenType(String token) {
+        if (!validateToken(token)) {
+            throw new IllegalArgumentException("Invalid or expired JWT token");
+        }
+        
         Claims claims = Jwts.parser()
                 .verifyWith(key)
                 .build()
