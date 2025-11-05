@@ -11,6 +11,7 @@ import com.concrete.buildup.domain.auth.repository.RoleRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
+import com.concrete.buildup.global.util.AesEncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +36,7 @@ public class AuthService {
     private final EmployeeRepository employeeRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AesEncryptionUtil aesEncryptionUtil;
 
     /**
      * 아이디 중복 확인
@@ -99,17 +101,20 @@ public class AuthService {
         User savedUser = userRepository.save(user);
         log.debug("User 저장 완료: id={}, userId={}", savedUser.getId(), savedUser.getUserId());
 
-        // 6. Employee 생성 및 저장
+        // 6. Employee 생성 및 저장 (주민등록번호 AES-256-GCM 암호화)
+        String encryptedResidentNum = aesEncryptionUtil.encrypt(request.getResidentNum());
+
         Employee employee = Employee.builder()
                 .user(savedUser)
                 .empName(request.getEmpName())
-                .residentNum(request.getResidentNum())
+                .residentNum(encryptedResidentNum)
                 .subPhone(request.getEmergencyPhone())
                 .empAddress(request.getEmpAddress())
                 .build();
 
         Employee savedEmployee = employeeRepository.save(employee);
-        log.debug("Employee 저장 완료: id={}, empName={}", savedEmployee.getId(), savedEmployee.getEmpName());
+        log.debug("Employee 저장 완료: id={}, empName={} (주민등록번호 암호화 완료)",
+                savedEmployee.getId(), savedEmployee.getEmpName());
 
         // 7. Response 생성
         SignUpResponse response = buildSignUpResponse(savedUser, savedEmployee, request.getSecretKey());
