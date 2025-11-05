@@ -348,7 +348,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ### 10. sites (현장)
 
-**설명:** 건설 현장 정보
+**설명:** 건설 현장 정보 및 시크릿키 관리
 
 **컬럼:**
 
@@ -359,11 +359,16 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `site_address` | VARCHAR(255) | NULL | 현장 주소 |
 | `corporation_id` | BIGINT | FK, NULL | 소속 기업 ID |
 | `manager_id` | BIGINT | FK, NULL | 현장 관리자 ID |
+| `manager_secret_key` | VARCHAR(100) | UNIQUE, NULL | 현장 관리자용 시크릿키 (회원가입용) |
+| `employee_secret_key` | VARCHAR(100) | UNIQUE, NULL | 근로자용 시크릿키 (회원가입용) |
+| `secret_key_expires_at` | DATETIME | NULL | 시크릿키 만료 시간 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
+- UNIQUE INDEX: `manager_secret_key`
+- UNIQUE INDEX: `employee_secret_key`
 - INDEX: `corporation_id`, `manager_id`
 - FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
 - FOREIGN KEY: `manager_id` REFERENCES `managers(id)`
@@ -806,5 +811,6 @@ ON work_reports(work_report_status);
 | 2025-11-05 | employees.resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 AES-256-GCM 암호화 적용 | 김세원 |
 | 2025-11-05 | attendances, payrolls 테이블 resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 암호화 정책 통일 | 김세원 |
 | 2025-11-06 | roles 테이블 updated_at 컬럼 추가 | 김세원 |
+| 2025-11-06 | sites 테이블 manager_secret_key, employee_secret_key, secret_key_expires_at 컬럼 추가 (현장 관리자 회원가입 기능) | 김세원 |
 
 ---
