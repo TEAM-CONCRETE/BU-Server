@@ -56,7 +56,7 @@ public class SecurityConfig {
 
                 // 인증 필요 엔드포인트
                 .requestMatchers(
-                    "/api/uploads/**"         // 파일 업로드 API (Presigned URL 발급)
+                    "/api/v1/uploads/**"      // 파일 업로드 API (Presigned URL 발급)
                 ).authenticated()
 
                 // 그 외 모든 요청은 인증 필요

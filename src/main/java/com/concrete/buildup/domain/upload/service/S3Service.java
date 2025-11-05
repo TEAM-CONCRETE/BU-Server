@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -24,11 +25,15 @@ import java.time.LocalDateTime;
 
 /**
  * S3 파일 업로드 서비스
- * Presigned URL 발급 및 파일 다운로드 기능을 제공합니다.
+ *
+ * 주요 기능:
+ * - Presigned URL 발급 (클라이언트 직접 업로드용)
+ * - 이미지 다운로드 (서명 검증용)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class S3Service {
 
     private final S3Client s3Client;

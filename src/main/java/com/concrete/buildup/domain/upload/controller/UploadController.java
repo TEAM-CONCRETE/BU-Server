@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/uploads")
+@RequestMapping("/v1/uploads")
 @RequiredArgsConstructor
 @Tag(name = "Upload", description = "파일 업로드 API")
 public class UploadController {
@@ -44,7 +44,7 @@ public class UploadController {
      * <p>업로드 예시 (JavaScript):</p>
      * <pre>
      * // 1. Presigned URL 발급
-     * const response = await fetch('/api/uploads/signatures', {
+     * const response = await fetch('/api/v1/uploads/signatures', {
      *   method: 'POST',
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({
