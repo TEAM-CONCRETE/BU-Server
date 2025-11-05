@@ -31,10 +31,10 @@ spring:
     open-in-view: false  # OSIV 비활성화 권장
 
   # Spring Security 설정
-  security:
-    user:
-      name: admin
-      password: admin  # 개발용 기본 계정
+  # security:
+  #   user:
+  #     name: admin
+  #     password: admin  # 개발용 기본 계정 (Swagger 접근을 위해 비활성화)
 
   # Spring DevTools 설정
   devtools:
@@ -56,10 +56,11 @@ spring:
     validate-on-migrate: true
 
   # AWS S3 설정 (개발 환경)
+  # S3를 사용하려면 AWS_S3_ENABLED=true 환경 변수와 함께 AWS 자격 증명을 설정하세요
   cloud:
     aws:
       s3:
-        enabled: true
+        enabled: ${AWS_S3_ENABLED:false}  # 기본값: false (S3 비활성화)
         bucket: ${AWS_S3_BUCKET:build-up-contracts}
       region:
         static: ap-northeast-2  # 서울 리전
@@ -116,10 +117,10 @@ logging:
 # SpringDoc (Swagger) 설정
 springdoc:
   api-docs:
-    path: /api-docs
+    path: /v3/api-docs  # context-path /api가 자동으로 적용됨
     enabled: true
   swagger-ui:
-    path: /swagger-ui.html
+    path: /swagger-ui.html  # context-path /api가 자동으로 적용됨
     enabled: true
     operations-sorter: alpha
     tags-sorter: alpha
