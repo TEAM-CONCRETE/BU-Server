@@ -46,7 +46,7 @@ jwt:
 # 암호화 테스트 설정
 security:
   encryption:
-    key: test-encryption-key-32bytes!!
+    key: 0123456789abcdef0123456789abcdef
 
 # 로깅 설정
 logging:
