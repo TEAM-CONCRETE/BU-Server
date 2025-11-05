@@ -1,6 +1,9 @@
 package com.concrete.buildup.domain.auth.entity;
 
 import com.concrete.buildup.global.common.BaseEntity;
+import com.concrete.buildup.global.converter.ResidentNumConverter;
+import com.concrete.buildup.global.serializer.ResidentNumMaskingSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,9 +43,11 @@ public class Employee extends BaseEntity {
     private String subPhone;
 
     /**
-     * 주민등록번호
+     * 주민등록번호 (AES-256 암호화, API 응답 시 마스킹)
      */
-    @Column(name = "resident_num", length = 20)
+    @Convert(converter = ResidentNumConverter.class)
+    @JsonSerialize(using = ResidentNumMaskingSerializer.class)
+    @Column(name = "resident_num", length = 500)
     private String residentNum;
 
     /**
