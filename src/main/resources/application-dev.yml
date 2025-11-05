@@ -55,13 +55,14 @@ spring:
     sql-migration-suffixes: .sql
     validate-on-migrate: true
 
-  # AWS S3 설정 (개발 환경에서는 비활성화)
+  # AWS S3 설정 (개발 환경)
   cloud:
     aws:
       s3:
-        enabled: false  # 개발 환경에서 S3 비활성화
+        enabled: true
+        bucket: ${AWS_S3_BUCKET:build-up-contracts}
       region:
-        auto: false
+        static: ap-northeast-2  # 서울 리전
       credentials:
         access-key: ${AWS_ACCESS_KEY_ID:}
         secret-key: ${AWS_SECRET_ACCESS_KEY:}

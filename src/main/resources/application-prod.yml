@@ -40,6 +40,20 @@ spring:
       name: ${ADMIN_USERNAME:admin}
       password: ${ADMIN_PASSWORD}
 
+  # AWS S3 설정 (운영 환경)
+  cloud:
+    aws:
+      s3:
+        enabled: true
+        bucket: ${AWS_S3_BUCKET}
+      region:
+        static: ap-northeast-2  # 서울 리전
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+      stack:
+        auto: false
+
 # 서버 설정
 server:
   port: 8080
