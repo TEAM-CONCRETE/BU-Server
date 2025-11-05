@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Auth", description = "인증/인가 API")
