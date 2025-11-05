@@ -48,7 +48,7 @@ public class ResidentNumMaskingSerializer extends JsonSerializer<String> {
             // 주민등록번호 길이 체크 (13자리)
             if (cleanNum.length() != 13) {
                 log.warn("주민등록번호 형식이 올바르지 않습니다. 길이: {}", cleanNum.length());
-                return residentNum; // 원본 반환
+                return MASKED_CHARS + HYPHEN + MASKED_CHARS; // 전체 마스킹 반환 (민감 데이터 노출 방지)
             }
 
             // 앞 6자리 + '-' + 뒤 첫 자리 + '******'
