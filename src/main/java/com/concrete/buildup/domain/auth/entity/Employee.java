@@ -78,6 +78,19 @@ public class Employee extends BaseEntity {
     }
 
     /**
+     * 근로자 프로필 완성 (2단계 상세 정보 입력)
+     */
+    public void updateProfile(String residentNum, String subPhone, String empAddress) {
+        this.residentNum = residentNum;
+        if (subPhone != null) {
+            this.subPhone = subPhone;
+        }
+        if (empAddress != null) {
+            this.empAddress = empAddress;
+        }
+    }
+
+    /**
      * 근로자 유형 변경
      */
     public void changeEmpType(String empType) {

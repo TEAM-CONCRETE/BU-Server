@@ -4,6 +4,9 @@ import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 /**
  * 사용자 엔티티
  *
@@ -59,6 +62,25 @@ public class User extends BaseEntity {
     private Role role;
 
     /**
+     * 프로필 완성 토큰 (2단계 근로자 정보 입력용)
+     */
+    @Column(name = "profile_token", unique = true, length = 36)
+    private String profileToken;
+
+    /**
+     * 프로필 완성 토큰 만료 시간
+     */
+    @Column(name = "profile_token_expires_at")
+    private LocalDateTime profileTokenExpiresAt;
+
+    /**
+     * 프로필 완성 여부
+     */
+    @Column(name = "profile_completed", nullable = false)
+    @Builder.Default
+    private Boolean profileCompleted = false;
+
+    /**
      * 비밀번호 변경
      */
     public void updatePassword(String newPassword) {
@@ -80,5 +102,32 @@ public class User extends BaseEntity {
         if (email != null) {
             this.email = email;
         }
+    }
+
+    /**
+     * 프로필 완성 토큰 생성 (30분 유효)
+     */
+    public void generateProfileToken() {
+        this.profileToken = UUID.randomUUID().toString();
+        this.profileTokenExpiresAt = LocalDateTime.now().plusMinutes(30);
+    }
+
+    /**
+     * 프로필 완성 토큰 유효성 확인
+     */
+    public boolean isProfileTokenValid() {
+        if (this.profileToken == null || this.profileTokenExpiresAt == null) {
+            return false;
+        }
+        return LocalDateTime.now().isBefore(this.profileTokenExpiresAt);
+    }
+
+    /**
+     * 프로필 완성 처리
+     */
+    public void completeProfile() {
+        this.profileCompleted = true;
+        this.profileToken = null;
+        this.profileTokenExpiresAt = null;
     }
 }
