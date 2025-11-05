@@ -3,8 +3,8 @@ package com.concrete.buildup.global.converter;
 import com.concrete.buildup.global.util.AesEncryptionUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,10 +16,23 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Converter
-@RequiredArgsConstructor
 public class ResidentNumConverter implements AttributeConverter<String, String> {
 
-    private final AesEncryptionUtil aesEncryptionUtil;
+    private AesEncryptionUtil aesEncryptionUtil;
+
+    /**
+     * JPA를 위한 기본 생성자
+     */
+    protected ResidentNumConverter() {
+    }
+
+    /**
+     * Spring을 통한 의존성 주입
+     */
+    @Autowired
+    public void setAesEncryptionUtil(AesEncryptionUtil aesEncryptionUtil) {
+        this.aesEncryptionUtil = aesEncryptionUtil;
+    }
 
     /**
      * Entity -> DB 변환 (암호화)
