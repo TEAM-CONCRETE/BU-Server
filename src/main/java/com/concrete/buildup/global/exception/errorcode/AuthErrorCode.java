@@ -23,11 +23,13 @@ public enum AuthErrorCode implements BaseErrorCode {
     // 404 Not Found
     ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, 1003, "역할을 찾을 수 없습니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, 1004, "사용자를 찾을 수 없습니다."),
+    REGISTRATION_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, 1009, "등록 토큰을 찾을 수 없습니다."),
 
     // 401 Unauthorized
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, 1005, "아이디 또는 비밀번호가 올바르지 않습니다."),
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, 1006, "만료된 토큰입니다."),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, 1007, "유효하지 않은 토큰입니다."),
+    REGISTRATION_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, 1010, "등록 토큰이 만료되었습니다. 1단계부터 다시 진행해주세요."),
 
     // 403 Forbidden
     ACCESS_DENIED(HttpStatus.FORBIDDEN, 1008, "접근 권한이 없습니다.");
