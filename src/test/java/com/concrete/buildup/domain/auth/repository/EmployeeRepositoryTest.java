@@ -4,7 +4,6 @@ import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Role;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.global.config.QueryDslConfig;
-import com.concrete.buildup.global.util.AesEncryptionUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 @EnableJpaAuditing
-@Import({QueryDslConfig.class, AesEncryptionUtil.class}) // QueryDSL 설정 및 암호화 유틸리티 포함
+@Import(QueryDslConfig.class) // QueryDSL 설정
 @DisplayName("EmployeeRepository 테스트")
 class EmployeeRepositoryTest {
 
