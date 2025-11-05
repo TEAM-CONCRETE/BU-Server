@@ -1,4 +1,8 @@
 spring:
+  application:
+    name: buildup-test
+
+  # 테스트용 데이터베이스 설정 (H2)
   datasource:
     driver-class-name: org.h2.Driver
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -21,10 +25,29 @@ spring:
   flyway:
     enabled: false
 
+  # H2 Console 활성화
   h2:
     console:
       enabled: true
 
+  # AWS S3 자동 설정 비활성화
+  autoconfigure:
+    exclude:
+      - io.awspring.cloud.autoconfigure.s3.S3AutoConfiguration
+
+# JWT 테스트 설정
+jwt:
+  secret: test-secret-key-min-256-bits-long-for-hs256-algorithm-test
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
+  refresh-token-remember-me-expiration: 2592000000
+
+# 암호화 테스트 설정
+security:
+  encryption:
+    key: 0123456789abcdef0123456789abcdef
+
+# 로깅 설정
 logging:
   level:
     root: INFO

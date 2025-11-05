@@ -33,6 +33,13 @@ logging:
     root: INFO
     com.concrete.buildup: INFO
 
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-min-256-bits-long-for-hs256-algorithm}
+  access-token-expiration: 3600000  # 1시간 (ms)
+  refresh-token-expiration: 604800000  # 7일 (ms)
+  refresh-token-remember-me-expiration: 2592000000  # 30일 (ms)
+
 # 보안 설정
 security:
   encryption:
