@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 @EnableJpaAuditing
-@Import(QueryDslConfig.class) // QueryDSL 설정 포함
+@Import(QueryDslConfig.class) // QueryDSL 설정
 @DisplayName("EmployeeRepository 테스트")
 class EmployeeRepositoryTest {
 
