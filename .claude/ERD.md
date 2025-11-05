@@ -110,7 +110,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `user_id` | BIGINT | FK, NOT NULL | 사용자 ID |
 | `emp_name` | VARCHAR(50) | NOT NULL | 근로자 이름 |
 | `sub_phone` | VARCHAR(20) | NULL | 비상 연락망 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `emp_address` | VARCHAR(255) | NULL | 주소 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 (DAILY/PERMANENT) |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
@@ -389,7 +389,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `search_date` | DATE | NOT NULL | 근무일자 (yyyy-mm-dd) |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
 | `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `attendance_status` | VARCHAR(20) | NULL | 출근 상태 (NORMAL/LATE/EARLY_LEAVE/ABSENT/DAY_OFF) |
 | `check_in_time` | DATETIME | NULL | 출근 시간 |
 | `check_out_time` | DATETIME | NULL | 퇴근 시간 |
@@ -432,7 +432,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `pay_due_date` | DATE | NULL | 지급 예정일 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
 | `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `total_work_hour` | DECIMAL(8,2) | NULL | 총 근로시간 |
 | `total_pay` | DECIMAL(15,2) | NULL | 총 지급액 |
 | `total_pay_by_day` | DECIMAL(15,2) | NULL | 일급 기준 지급액 |
@@ -802,5 +802,7 @@ ON work_reports(work_report_status);
 | 2025-11-03 | contract_sign_logs 테이블 추가 | 문현민 |
 | 2025-11-04 | signing_sessions 테이블 추가 | 문현민 |
 | 2025-11-04 | contract_details 근무시간/휴게시간 필드 세분화 (TIME 타입) | 문현민 |
+| 2025-11-05 | employees.resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 AES-256-GCM 암호화 적용 | 김세원 |
+| 2025-11-05 | attendances, payrolls 테이블 resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 암호화 정책 통일 | 김세원 |
 
 ---

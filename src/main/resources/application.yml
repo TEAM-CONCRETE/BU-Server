@@ -32,3 +32,12 @@ logging:
   level:
     root: INFO
     com.concrete.buildup: INFO
+
+# 보안 설정
+security:
+  encryption:
+    # AES-256 암호화 키 (32바이트, 환경변수 필수)
+    # 반드시 ENCRYPTION_KEY 환경변수를 설정해야 합니다
+    # 키 생성: openssl rand -hex 32
+    # 설정 예: export ENCRYPTION_KEY="your_32_byte_secure_key_here!!"
+    key: ${ENCRYPTION_KEY}
