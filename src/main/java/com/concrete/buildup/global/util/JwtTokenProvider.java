@@ -42,8 +42,8 @@ public class JwtTokenProvider {
         byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
             throw new IllegalArgumentException(
-                "JWT secret key must be at least 256 bits (32 bytes) long for HS256 algorithm. Current length: " 
-                 keyBytes.length + " bytes");
+                "JWT secret key must be at least 256 bits (32 bytes) long for HS256 algorithm. Current length: " +
+                keyBytes.length + " bytes");
         }
         this.key = Keys.hmacShaKeyFor(keyBytes);
         log.info("JWT TokenProvider 초기화 완료");
