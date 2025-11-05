@@ -77,6 +77,13 @@ jwt:
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}  # 7일
 
 # ===================================
+# 암호화 설정
+# ===================================
+security:
+  encryption:
+    key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef}  # 개발용 기본 키 (32바이트)
+
+# ===================================
 # 외부 API 설정 (FastAPI)
 # ===================================
 external:
