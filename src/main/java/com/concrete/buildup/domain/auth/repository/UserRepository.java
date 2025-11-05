@@ -62,4 +62,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return 사용자 엔티티 (Optional)
      */
     Optional<User> findByProfileToken(String profileToken);
+
+    /**
+     * 시크릿키 존재 여부 확인
+     *
+     * @param secretKey 시크릿키
+     * @return 존재 여부
+     */
+    boolean existsBySecretKey(String secretKey);
 }

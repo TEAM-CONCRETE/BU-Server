@@ -2,13 +2,18 @@ package com.concrete.buildup.domain.auth.service;
 
 import com.concrete.buildup.domain.auth.dto.*;
 import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.auth.entity.Role;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.RoleRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.site.entity.Site;
+import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
+import com.concrete.buildup.global.exception.errorcode.SiteErrorCode;
 import com.concrete.buildup.global.util.AesEncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +40,9 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
+    private final ManagerRepository managerRepository;
     private final RoleRepository roleRepository;
+    private final SiteRepository siteRepository;
     private final PasswordEncoder passwordEncoder;
     private final AesEncryptionUtil aesEncryptionUtil;
 
@@ -259,7 +266,90 @@ public class AuthService {
     }
 
     /**
-     * 회원가입 응답 생성
+     * 현장 관리자 회원가입
+     *
+     * @param request 현장 관리자 회원가입 요청 정보
+     * @return SignUpResponse - 생성된 사용자 및 관리자 정보
+     */
+    @Transactional
+    public SignUpResponse registerManager(ManagerSignUpRequest request) {
+        log.info("현장 관리자 회원가입 시작: userId={}, managerName={}", request.getUserId(), request.getManagerName());
+
+        // 1. 비밀번호 일치 확인
+        if (!request.isPasswordMatching()) {
+            log.warn("비밀번호 불일치: userId={}", request.getUserId());
+            throw new BusinessException(AuthErrorCode.PASSWORD_MISMATCH);
+        }
+
+        // 2. 아이디 중복 확인
+        if (userRepository.existsByUserId(request.getUserId())) {
+            log.warn("중복된 아이디: userId={}", request.getUserId());
+            throw new BusinessException(AuthErrorCode.DUPLICATE_USER_ID);
+        }
+
+        // 3. secretKey로 Site 검증
+        Site site = siteRepository.findByManagerSecretKey(request.getSecretKey())
+                .orElseThrow(() -> {
+                    log.warn("시크릿키를 찾을 수 없음: secretKey={}", request.getSecretKey());
+                    return new BusinessException(SiteErrorCode.SECRET_KEY_NOT_FOUND_OR_EXPIRED);
+                });
+
+        // 4. 시크릿키 유효성 확인
+        if (!site.isSecretKeyValid()) {
+            log.warn("시크릿키 만료: secretKey={}, siteId={}", request.getSecretKey(), site.getId());
+            throw new BusinessException(SiteErrorCode.SECRET_KEY_NOT_FOUND_OR_EXPIRED);
+        }
+
+        // 5. 시크릿키 점유 확인
+        if (userRepository.existsBySecretKey(request.getSecretKey())) {
+            log.warn("이미 사용 중인 시크릿키: secretKey={}", request.getSecretKey());
+            throw new BusinessException(SiteErrorCode.SECRET_KEY_ALREADY_USED);
+        }
+
+        // 6. 역할 조회 (MANAGER)
+        Role managerRole = roleRepository.findByRoleName("MANAGER")
+                .orElseThrow(() -> {
+                    log.error("MANAGER 역할을 찾을 수 없습니다");
+                    return new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+                });
+
+        // 7. 비밀번호 암호화
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+        // 8. User 생성 및 저장
+        User user = User.builder()
+                .userId(request.getUserId())
+                .password(encodedPassword)
+                .phone(request.getPhone())
+                .email(null)
+                .secretKey(request.getSecretKey())
+                .role(managerRole)
+                .profileCompleted(true)  // 현장 관리자는 프로필 완성 상태로 시작
+                .build();
+
+        User savedUser = userRepository.save(user);
+        log.debug("User 저장 완료: id={}, userId={}", savedUser.getId(), savedUser.getUserId());
+
+        // 9. Manager 생성 및 저장
+        Manager manager = Manager.builder()
+                .user(savedUser)
+                .managerName(request.getManagerName())
+                .build();
+
+        Manager savedManager = managerRepository.save(manager);
+        log.debug("Manager 저장 완료: id={}, managerName={}", savedManager.getId(), savedManager.getManagerName());
+
+        // 10. Response 생성
+        SignUpResponse response = buildManagerSignUpResponse(savedUser, savedManager, site);
+
+        log.info("현장 관리자 회원가입 완료: userId={}, managerId={}, siteId={}",
+                savedUser.getUserId(), savedManager.getId(), site.getId());
+
+        return response;
+    }
+
+    /**
+     * 회원가입 응답 생성 (근로자)
      *
      * @param user 생성된 사용자
      * @param employee 생성된 근로자
@@ -294,6 +384,55 @@ public class AuthService {
         SignUpResponse.LinkingInfo linkingInfo = SignUpResponse.LinkingInfo.builder()
                 .secretKeyUsed(secretKey != null && !secretKey.isBlank())
                 .siteLinked(null)  // 추후 현장 연동 구현 시 설정
+                .build();
+
+        return SignUpResponse.builder()
+                .user(userInfo)
+                .profile(profileInfo)
+                .verificationRequired(verificationInfo)
+                .linking(linkingInfo)
+                .build();
+    }
+
+    /**
+     * 회원가입 응답 생성 (현장 관리자)
+     *
+     * @param user 생성된 사용자
+     * @param manager 생성된 관리자
+     * @param site 연결된 현장
+     * @return SignUpResponse
+     */
+    private SignUpResponse buildManagerSignUpResponse(User user, Manager manager, Site site) {
+        // User 정보
+        SignUpResponse.UserInfo userInfo = SignUpResponse.UserInfo.builder()
+                .id(user.getId())
+                .userId(user.getUserId())
+                .role(user.getRole().getRoleName())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .build();
+
+        // Profile 정보 (관리자)
+        SignUpResponse.ProfileInfo profileInfo = SignUpResponse.ProfileInfo.builder()
+                .managerId(manager.getId())
+                .managerName(manager.getManagerName())
+                .build();
+
+        // 연락처 검증 필요 여부
+        SignUpResponse.VerificationInfo verificationInfo = SignUpResponse.VerificationInfo.builder()
+                .phone(true)  // 항상 휴대폰 검증 필요
+                .email(false)  // 관리자는 이메일 선택사항
+                .build();
+
+        // 시크릿키 처리 결과 (현장 연동 성공)
+        SignUpResponse.SiteInfo siteInfo = SignUpResponse.SiteInfo.builder()
+                .siteId(site.getId())
+                .siteName(site.getSiteName())
+                .build();
+
+        SignUpResponse.LinkingInfo linkingInfo = SignUpResponse.LinkingInfo.builder()
+                .secretKeyUsed(true)
+                .siteLinked(siteInfo)
                 .build();
 
         return SignUpResponse.builder()

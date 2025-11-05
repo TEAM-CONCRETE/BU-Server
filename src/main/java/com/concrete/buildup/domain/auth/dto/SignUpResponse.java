@@ -59,18 +59,18 @@ public class SignUpResponse {
     }
 
     /**
-     * 근로자 프로필 정보
+     * 프로필 정보 (근로자/관리자 공통)
      */
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    @Schema(description = "근로자 프로필 정보")
+    @Schema(description = "프로필 정보")
     public static class ProfileInfo {
         @Schema(description = "근로자 ID (PK)", example = "5011")
         private Long employeeId;
 
-        @Schema(description = "이름", example = "김철수")
+        @Schema(description = "근로자 이름", example = "김철수")
         private String empName;
 
         @Schema(description = "주소", example = "서울 강남구 테헤란로 123")
@@ -78,6 +78,12 @@ public class SignUpResponse {
 
         @Schema(description = "비상 연락망", example = "01098765432")
         private String emergencyPhone;
+
+        @Schema(description = "관리자 ID (PK)", example = "3005")
+        private Long managerId;
+
+        @Schema(description = "관리자 이름", example = "박영희")
+        private String managerName;
     }
 
     /**
