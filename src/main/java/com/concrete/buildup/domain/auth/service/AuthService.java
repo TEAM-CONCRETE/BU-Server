@@ -154,7 +154,25 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.DUPLICATE_USER_ID);
         }
 
-        // 3. 역할 조회 (EMPLOYEE)
+        // 3. secretKey 검증 (선택적)
+        Site site = null;
+        if (request.getSecretKey() != null && !request.getSecretKey().isBlank()) {
+            site = siteRepository.findByEmployeeSecretKey(request.getSecretKey())
+                    .orElseThrow(() -> {
+                        log.warn("시크릿키를 찾을 수 없음: secretKey={}", request.getSecretKey());
+                        return new BusinessException(SiteErrorCode.SECRET_KEY_NOT_FOUND_OR_EXPIRED);
+                    });
+
+            // 시크릿키 유효성 확인
+            if (!site.isSecretKeyValid()) {
+                log.warn("시크릿키 만료: secretKey={}, siteId={}", request.getSecretKey(), site.getId());
+                throw new BusinessException(SiteErrorCode.SECRET_KEY_NOT_FOUND_OR_EXPIRED);
+            }
+
+            log.debug("시크릿키 검증 완료: siteId={}, siteName={}", site.getId(), site.getSiteName());
+        }
+
+        // 4. 역할 조회 (EMPLOYEE)
         Role employeeRole = roleRepository.findByRoleName("EMPLOYEE")
                 .orElseThrow(() -> {
                     log.error("EMPLOYEE 역할을 찾을 수 없습니다");
@@ -197,15 +215,30 @@ public class AuthService {
         log.info("근로자 회원가입 1단계 완료 (회원가입 완료): userId={}, employeeId={}", savedUser.getUserId(), savedEmployee.getId());
 
         // 8. Response 생성
-        return SignUpPhase1Response.of(
-                savedUser.getId(),
-                savedUser.getUserId(),
-                savedUser.getRole().getRoleName(),
-                savedEmployee.getId(),
-                savedEmployee.getEmpName(),
-                savedUser.getProfileToken(),
-                savedUser.getProfileTokenExpiresAt()
-        );
+        if (site != null) {
+            log.debug("현장 연동 정보 포함: siteId={}, siteName={}", site.getId(), site.getSiteName());
+            return SignUpPhase1Response.of(
+                    savedUser.getId(),
+                    savedUser.getUserId(),
+                    savedUser.getRole().getRoleName(),
+                    savedEmployee.getId(),
+                    savedEmployee.getEmpName(),
+                    savedUser.getProfileToken(),
+                    savedUser.getProfileTokenExpiresAt(),
+                    site.getId(),
+                    site.getSiteName()
+            );
+        } else {
+            return SignUpPhase1Response.of(
+                    savedUser.getId(),
+                    savedUser.getUserId(),
+                    savedUser.getRole().getRoleName(),
+                    savedEmployee.getId(),
+                    savedEmployee.getEmpName(),
+                    savedUser.getProfileToken(),
+                    savedUser.getProfileTokenExpiresAt()
+            );
+        }
     }
 
     /**
