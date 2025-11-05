@@ -143,6 +143,10 @@ public class JwtTokenProvider {
      * @return 사용자 역할
      */
     public String getRoleFromToken(String token) {
+        if (!validateToken(token)) {
+            throw new IllegalArgumentException("Invalid or expired JWT token");
+        }
+        
         Claims claims = Jwts.parser()
                 .verifyWith(key)
                 .build()
