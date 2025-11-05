@@ -1,9 +1,7 @@
 package com.concrete.buildup.domain.auth.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 /**
@@ -49,6 +47,16 @@ public class EmployeeSignUpPhase1Request {
     @Size(max = 100, message = "시크릿키는 100자 이하여야 합니다")
     @Schema(description = "현장 연동용 시크릿키 (선택)", example = "SECRET-KEY-12345", required = false)
     private String secretKey;
+
+    @NotNull(message = "서비스 이용약관 동의는 필수입니다")
+    @AssertTrue(message = "서비스 이용약관에 동의해야 합니다")
+    @Schema(description = "서비스 이용약관 동의", example = "true", required = true)
+    private Boolean agreeTerms;
+
+    @NotNull(message = "개인정보 처리방침 동의는 필수입니다")
+    @AssertTrue(message = "개인정보 처리방침에 동의해야 합니다")
+    @Schema(description = "개인정보 처리방침 동의", example = "true", required = true)
+    private Boolean agreePrivacy;
 
     /**
      * 비밀번호 일치 여부 확인

@@ -44,14 +44,4 @@ public class EmployeeSignUpPhase2Request {
     @Pattern(regexp = "^\\d{11}$", message = "비상연락망 형식이 올바르지 않습니다 (예: 01087654321)")
     @Schema(description = "비상연락망 (숫자만, 하이픈 없이, 선택)", example = "01087654321", required = false)
     private String emergencyPhone;
-
-    @NotNull(message = "서비스 이용약관 동의는 필수입니다")
-    @AssertTrue(message = "서비스 이용약관에 동의해야 합니다")
-    @Schema(description = "서비스 이용약관 동의", example = "true", required = true)
-    private Boolean agreeTerms;
-
-    @NotNull(message = "개인정보 처리방침 동의는 필수입니다")
-    @AssertTrue(message = "개인정보 처리방침에 동의해야 합니다")
-    @Schema(description = "개인정보 처리방침 동의", example = "true", required = true)
-    private Boolean agreePrivacy;
 }

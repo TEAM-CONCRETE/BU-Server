@@ -1,6 +1,7 @@
 package com.concrete.buildup.domain.auth.repository;
 
 import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -67,4 +68,12 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
            "LEFT JOIN FETCH u.role " +
            "WHERE u.id = :userId")
     Optional<Employee> findByUserIdWithUserAndRole(@Param("userId") Long userId);
+
+    /**
+     * User 엔티티로 근로자 조회
+     *
+     * @param user User 엔티티
+     * @return 근로자 엔티티 (Optional)
+     */
+    Optional<Employee> findByUser(User user);
 }

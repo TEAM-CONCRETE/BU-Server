@@ -3,11 +3,9 @@ package com.concrete.buildup.domain.auth.service;
 import com.concrete.buildup.domain.auth.dto.*;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Role;
-import com.concrete.buildup.domain.auth.entity.TemporaryRegistration;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.RoleRepository;
-import com.concrete.buildup.domain.auth.repository.TemporaryRegistrationRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
@@ -38,7 +36,6 @@ public class AuthService {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final RoleRepository roleRepository;
-    private final TemporaryRegistrationRepository temporaryRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AesEncryptionUtil aesEncryptionUtil;
 
@@ -129,14 +126,14 @@ public class AuthService {
     }
 
     /**
-     * 근로자 회원가입 1단계 (기본 정보 입력)
+     * 근로자 회원가입 1단계 (회원가입 완료)
      *
      * @param request 1단계 회원가입 요청 정보
-     * @return SignUpPhase1Response - 등록 토큰 및 만료 시간
+     * @return SignUpPhase1Response - 회원가입 완료 정보 및 프로필 토큰
      */
     @Transactional
     public SignUpPhase1Response registerEmployeePhase1(EmployeeSignUpPhase1Request request) {
-        log.info("근로자 회원가입 1단계 시작: userId={}, empName={}", request.getUserId(), request.getEmpName());
+        log.info("근로자 회원가입 1단계 시작 (회원가입 완료): userId={}, empName={}", request.getUserId(), request.getEmpName());
 
         // 1. 비밀번호 일치 확인
         if (!request.isPasswordMatching()) {
@@ -144,77 +141,10 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.PASSWORD_MISMATCH);
         }
 
-        // 2. 아이디 중복 확인 (User, TemporaryRegistration 모두 체크)
-        if (userRepository.existsByUserId(request.getUserId()) ||
-                temporaryRegistrationRepository.existsByUserId(request.getUserId())) {
+        // 2. 아이디 중복 확인
+        if (userRepository.existsByUserId(request.getUserId())) {
             log.warn("중복된 아이디: userId={}", request.getUserId());
             throw new BusinessException(AuthErrorCode.DUPLICATE_USER_ID);
-        }
-
-        // 3. 기존 임시 등록 정보가 있다면 삭제 (재시도 케이스)
-        temporaryRegistrationRepository.findByUserId(request.getUserId())
-                .ifPresent(existing -> {
-                    log.debug("기존 임시 등록 정보 삭제: userId={}", request.getUserId());
-                    temporaryRegistrationRepository.delete(existing);
-                });
-
-        // 4. 비밀번호 암호화
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-
-        // 5. 등록 토큰 생성 (UUID)
-        String registrationToken = UUID.randomUUID().toString();
-
-        // 6. 만료 시간 설정 (30분)
-        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(30);
-
-        // 7. 임시 등록 정보 저장
-        TemporaryRegistration temporaryRegistration = TemporaryRegistration.builder()
-                .userId(request.getUserId())
-                .passwordHash(encodedPassword)
-                .empName(request.getEmpName())
-                .secretKey(request.getSecretKey())
-                .registrationToken(registrationToken)
-                .expiresAt(expiresAt)
-                .build();
-
-        TemporaryRegistration saved = temporaryRegistrationRepository.save(temporaryRegistration);
-        log.debug("임시 등록 정보 저장 완료: id={}, userId={}, token={}",
-                saved.getId(), saved.getUserId(), saved.getRegistrationToken());
-
-        log.info("근로자 회원가입 1단계 완료: userId={}, token={}", request.getUserId(), registrationToken);
-
-        // 8. Response 생성
-        return SignUpPhase1Response.of(
-                registrationToken,
-                expiresAt,
-                request.getUserId(),
-                request.getEmpName()
-        );
-    }
-
-    /**
-     * 근로자 회원가입 2단계 (상세 정보 입력 및 최종 완료)
-     *
-     * @param request 2단계 회원가입 요청 정보
-     * @return SignUpResponse - 생성된 사용자 및 프로필 정보
-     */
-    @Transactional
-    public SignUpResponse registerEmployeePhase2(EmployeeSignUpPhase2Request request) {
-        log.info("근로자 회원가입 2단계 시작: token={}", request.getRegistrationToken());
-
-        // 1. 등록 토큰으로 임시 등록 정보 조회
-        TemporaryRegistration tempReg = temporaryRegistrationRepository
-                .findByRegistrationToken(request.getRegistrationToken())
-                .orElseThrow(() -> {
-                    log.warn("등록 토큰을 찾을 수 없음: token={}", request.getRegistrationToken());
-                    return new BusinessException(AuthErrorCode.REGISTRATION_TOKEN_NOT_FOUND);
-                });
-
-        // 2. 토큰 만료 확인
-        if (tempReg.isExpired()) {
-            log.warn("등록 토큰 만료: token={}, expiresAt={}", request.getRegistrationToken(), tempReg.getExpiresAt());
-            temporaryRegistrationRepository.delete(tempReg); // 만료된 토큰 삭제
-            throw new BusinessException(AuthErrorCode.REGISTRATION_TOKEN_EXPIRED);
         }
 
         // 3. 역할 조회 (EMPLOYEE)
@@ -224,42 +154,106 @@ public class AuthService {
                     return new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
                 });
 
-        // 4. User 생성 및 저장 (1단계 정보 + 2단계 정보)
+        // 4. 비밀번호 암호화
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+        // 5. User 생성 및 저장 (기본 정보만, phone과 email은 null)
         User user = User.builder()
-                .userId(tempReg.getUserId())
-                .password(tempReg.getPasswordHash()) // 이미 암호화된 비밀번호
-                .phone(request.getPhone())
-                .email(request.getEmail())
-                .secretKey(tempReg.getSecretKey())
+                .userId(request.getUserId())
+                .password(encodedPassword)
+                .phone(null)  // 2단계에서 입력
+                .email(null)  // 2단계에서 입력
+                .secretKey(request.getSecretKey())
                 .role(employeeRole)
+                .profileCompleted(false)  // 아직 프로필 미완성
                 .build();
 
         User savedUser = userRepository.save(user);
         log.debug("User 저장 완료: id={}, userId={}", savedUser.getId(), savedUser.getUserId());
 
-        // 5. Employee 생성 및 저장 (주민등록번호 AES-256-GCM 암호화)
-        String encryptedResidentNum = aesEncryptionUtil.encrypt(request.getResidentNum());
+        // 6. 프로필 완성 토큰 생성 (30분 유효)
+        savedUser.generateProfileToken();
+        log.debug("프로필 토큰 생성 완료: token={}", savedUser.getProfileToken());
 
+        // 7. Employee 생성 및 저장 (empName만, 나머지는 2단계에서 입력)
         Employee employee = Employee.builder()
                 .user(savedUser)
-                .empName(tempReg.getEmpName())
-                .residentNum(encryptedResidentNum)
-                .subPhone(request.getEmergencyPhone())
-                .empAddress(request.getEmpAddress())
+                .empName(request.getEmpName())
+                .residentNum(null)  // 2단계에서 입력 및 암호화
+                .subPhone(null)  // 2단계에서 입력
+                .empAddress(null)  // 2단계에서 입력
                 .build();
 
         Employee savedEmployee = employeeRepository.save(employee);
-        log.debug("Employee 저장 완료: id={}, empName={} (주민등록번호 암호화 완료)",
-                savedEmployee.getId(), savedEmployee.getEmpName());
+        log.debug("Employee 저장 완료: id={}, empName={}", savedEmployee.getId(), savedEmployee.getEmpName());
 
-        // 6. 임시 등록 정보 삭제
-        temporaryRegistrationRepository.delete(tempReg);
-        log.debug("임시 등록 정보 삭제 완료: userId={}", tempReg.getUserId());
+        log.info("근로자 회원가입 1단계 완료 (회원가입 완료): userId={}, employeeId={}", savedUser.getUserId(), savedEmployee.getId());
 
-        // 7. Response 생성
-        SignUpResponse response = buildSignUpResponse(savedUser, savedEmployee, tempReg.getSecretKey());
+        // 8. Response 생성
+        return SignUpPhase1Response.of(
+                savedUser.getId(),
+                savedUser.getUserId(),
+                savedUser.getRole().getRoleName(),
+                savedEmployee.getId(),
+                savedEmployee.getEmpName(),
+                savedUser.getProfileToken(),
+                savedUser.getProfileTokenExpiresAt()
+        );
+    }
 
-        log.info("근로자 회원가입 2단계 완료: userId={}, employeeId={}", savedUser.getUserId(), savedEmployee.getId());
+    /**
+     * 근로자 회원가입 2단계 (상세 정보 입력)
+     *
+     * @param request 2단계 회원가입 요청 정보
+     * @return SignUpResponse - 업데이트된 사용자 및 프로필 정보
+     */
+    @Transactional
+    public SignUpResponse registerEmployeePhase2(EmployeeSignUpPhase2Request request) {
+        log.info("근로자 상세 정보 입력 시작: token={}", request.getRegistrationToken());
+
+        // 1. 프로필 토큰으로 사용자 조회
+        User user = userRepository.findByProfileToken(request.getRegistrationToken())
+                .orElseThrow(() -> {
+                    log.warn("프로필 토큰을 찾을 수 없음: token={}", request.getRegistrationToken());
+                    return new BusinessException(AuthErrorCode.REGISTRATION_TOKEN_NOT_FOUND);
+                });
+
+        // 2. 토큰 유효성 확인
+        if (!user.isProfileTokenValid()) {
+            log.warn("프로필 토큰 만료 또는 무효: token={}, userId={}", request.getRegistrationToken(), user.getUserId());
+            throw new BusinessException(AuthErrorCode.REGISTRATION_TOKEN_EXPIRED);
+        }
+
+        // 3. User 정보 업데이트 (phone, email)
+        user.updateInfo(request.getPhone(), request.getEmail());
+        log.debug("User 정보 업데이트 완료: id={}, userId={}", user.getId(), user.getUserId());
+
+        // 4. Employee 조회 및 정보 업데이트 (주민등록번호 AES-256-GCM 암호화)
+        Employee employee = employeeRepository.findByUser(user)
+                .orElseThrow(() -> {
+                    log.error("Employee를 찾을 수 없습니다: userId={}", user.getUserId());
+                    return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                });
+
+        String encryptedResidentNum = aesEncryptionUtil.encrypt(request.getResidentNum());
+
+        // Employee 정보 업데이트
+        employee.updateProfile(
+                encryptedResidentNum,
+                request.getEmergencyPhone(),
+                request.getEmpAddress()
+        );
+        log.debug("Employee 정보 업데이트 완료: id={}, empName={} (주민등록번호 암호화 완료)",
+                employee.getId(), employee.getEmpName());
+
+        // 5. 프로필 완성 처리
+        user.completeProfile();
+        log.debug("프로필 완성 처리: userId={}", user.getUserId());
+
+        // 6. Response 생성
+        SignUpResponse response = buildSignUpResponse(user, employee, user.getSecretKey());
+
+        log.info("근로자 상세 정보 입력 완료: userId={}, employeeId={}", user.getUserId(), employee.getId());
 
         return response;
     }

@@ -61,17 +61,17 @@ public class AuthController {
     }
 
     /**
-     * 근로자 회원가입 1단계 API (기본 정보 입력)
+     * 근로자 회원가입 1단계 API (회원가입 완료)
      *
-     * <p>이름, 아이디, 비밀번호, 시크릿키를 입력받아 임시 저장하고 등록 토큰을 발급합니다.</p>
+     * <p>이름, 아이디, 비밀번호, 시크릿키, 약관동의를 입력받아 회원가입을 완료합니다.</p>
      *
      * @param request 1단계 회원가입 요청 정보
-     * @return SignUpPhase1Response - 등록 토큰 및 만료 시간
+     * @return SignUpPhase1Response - 회원가입 완료 정보 및 프로필 토큰
      */
     @Operation(
-            summary = "근로자 회원가입 1단계 (기본 정보)",
-            description = "이름, 아이디, 비밀번호, 시크릿키를 입력받아 임시 저장합니다. " +
-                    "등록 토큰이 발급되며 30분간 유효합니다. 2단계에서 이 토큰을 사용하여 상세 정보를 입력해야 합니다."
+            summary = "근로자 회원가입 1단계 (회원가입 완료)",
+            description = "이름, 아이디, 비밀번호, 시크릿키, 약관동의를 입력받아 회원가입을 완료합니다. " +
+                    "프로필 토큰이 발급되며 30분간 유효합니다. 2단계에서 이 토큰을 사용하여 상세 정보를 입력할 수 있습니다."
     )
     @PostMapping("/register/employee/step1")
     public ResponseEntity<ApiResponse<SignUpPhase1Response>> registerEmployeeStep1(
@@ -82,21 +82,21 @@ public class AuthController {
         SignUpPhase1Response response = authService.registerEmployeePhase1(request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "1단계 완료. 2단계에서 상세 정보를 입력해주세요"));
+                .body(ApiResponse.success(response, "회원가입이 완료되었습니다"));
     }
 
     /**
-     * 근로자 회원가입 2단계 API (상세 정보 입력 및 완료)
+     * 근로자 회원가입 2단계 API (상세 정보 입력)
      *
-     * <p>1단계에서 발급받은 등록 토큰과 함께 상세 정보를 입력하여 회원가입을 완료합니다.</p>
+     * <p>1단계에서 발급받은 프로필 토큰과 함께 상세 정보를 입력합니다.</p>
      *
      * @param request 2단계 회원가입 요청 정보
-     * @return SignUpResponse - 생성된 사용자 및 프로필 정보
+     * @return SignUpResponse - 업데이트된 사용자 및 프로필 정보
      */
     @Operation(
-            summary = "근로자 회원가입 2단계 (상세 정보)",
-            description = "1단계에서 발급받은 등록 토큰과 함께 주민등록번호, 연락처, 주소 등 상세 정보를 입력합니다. " +
-                    "회원가입이 완료되고 users, employees 테이블에 저장됩니다."
+            summary = "근로자 회원가입 2단계 (상세 정보 입력)",
+            description = "1단계에서 발급받은 프로필 토큰과 함께 주민등록번호, 연락처, 주소 등 상세 정보를 입력합니다. " +
+                    "근로자 정보가 업데이트됩니다."
     )
     @PostMapping("/register/employee/step2")
     public ResponseEntity<ApiResponse<SignUpResponse>> registerEmployeeStep2(
@@ -106,8 +106,8 @@ public class AuthController {
 
         SignUpResponse response = authService.registerEmployeePhase2(request);
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "회원가입이 완료되었습니다"));
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success(response, "근로자 정보가 업데이트되었습니다"));
     }
 
     /**

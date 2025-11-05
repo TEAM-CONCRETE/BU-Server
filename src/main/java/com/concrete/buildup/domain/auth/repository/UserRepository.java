@@ -54,4 +54,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.role WHERE u.id = :id")
     Optional<User> findByIdWithRole(@Param("id") Long id);
+
+    /**
+     * 프로필 완성 토큰으로 사용자 조회
+     *
+     * @param profileToken 프로필 완성 토큰
+     * @return 사용자 엔티티 (Optional)
+     */
+    Optional<User> findByProfileToken(String profileToken);
 }
