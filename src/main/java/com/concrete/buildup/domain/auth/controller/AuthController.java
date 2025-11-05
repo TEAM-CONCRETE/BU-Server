@@ -135,4 +135,30 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "회원가입이 완료되었습니다"));
     }
+
+    /**
+     * 현장 관리자 회원가입 API
+     *
+     * <p>현장 관리자(Manager) 계정을 생성합니다. users 테이블과 managers 테이블에 동시에 데이터가 저장됩니다.</p>
+     * <p>시크릿키를 통해 현장과 자동으로 연동됩니다.</p>
+     *
+     * @param request 현장 관리자 회원가입 요청 정보
+     * @return SignUpResponse - 생성된 사용자 및 관리자 정보
+     */
+    @Operation(
+            summary = "현장 관리자 회원가입",
+            description = "현장 관리자 계정을 생성합니다. users와 managers 테이블에 동시 저장되며, " +
+                    "MANAGER 역할이 자동으로 할당됩니다. 시크릿키를 통해 현장과 연동됩니다."
+    )
+    @PostMapping("/register/manager")
+    public ResponseEntity<ApiResponse<SignUpResponse>> registerManager(
+            @Valid @RequestBody ManagerSignUpRequest request
+    ) {
+        log.info("현장 관리자 회원가입 API 호출: userId={}, managerName={}", request.getUserId(), request.getManagerName());
+
+        SignUpResponse response = authService.registerManager(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "현장 관리자 회원가입이 완료되었습니다"));
+    }
 }
