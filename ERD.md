@@ -55,23 +55,35 @@
 
 ### 1. 개인정보 암호화
 
-#### AES-256 암호화 적용 대상
+#### AES-256-GCM 암호화 적용 대상
 - **주민등록번호 (resident_num)**
-  - 알고리즘: AES-256 (ECB 모드, PKCS5Padding)
-  - 저장 형식: Base64 인코딩된 암호문
-  - 컬럼 길이: VARCHAR(500) (암호화 후 데이터 길이 고려)
+  - 알고리즘: AES-256-GCM (Galois/Counter Mode)
+  - IV: 12바이트 랜덤 생성 (SecureRandom.getInstanceStrong())
+  - 인증 태그: 128비트
+  - 저장 형식: Base64(IV + 암호문)
+  - 컬럼 길이: VARCHAR(500) (IV + 암호문 + 인증 태그 고려)
   - 적용 레이어: JPA AttributeConverter (자동 암호화/복호화)
 
+#### 보안 강화 포인트
+- **ECB 모드 제거**: 패턴 노출 취약점 해결
+- **GCM 모드 적용**: 무결성 검증 + 기밀성 보장
+- **랜덤 IV**: 매 암호화마다 새로운 IV 생성 (재사용 공격 방지)
+- **키 길이 검증**: 애플리케이션 시작 시 32바이트 검증
+
 #### 암호화 키 관리
-- 암호화 키는 **환경변수**로 관리
+- 암호화 키는 **환경변수 필수**
 - application.yml 설정:
   ```yaml
   security:
     encryption:
-      key: ${ENCRYPTION_KEY:default_32_byte_key_value}
+      key: ${ENCRYPTION_KEY}  # 기본값 없음 (필수)
   ```
-- 운영 환경에서는 반드시 `ENCRYPTION_KEY` 환경변수를 설정해야 함
-- 키 길이: 32바이트 (256비트)
+- **모든 환경**에서 반드시 `ENCRYPTION_KEY` 환경변수를 설정해야 함
+- 키 길이: 32바이트 (256비트) - 길이 검증 로직 포함
+- 설정 예시:
+  ```bash
+  export ENCRYPTION_KEY="your_32_byte_secure_key_here!!"
+  ```
 
 ### 2. API 응답 데이터 마스킹
 
@@ -100,13 +112,20 @@ private String residentNum;
     ↓
 [평문 주민등록번호: 901234-1234567]
     ↓
-[JPA AttributeConverter] ← AES-256 암호화
+[JPA AttributeConverter] ← AES-256-GCM 암호화
+    ├─ 랜덤 IV 생성 (12바이트)
+    ├─ 평문 암호화
+    └─ IV + 암호문 결합
     ↓
-[DB 저장: Base64 암호문]
+[DB 저장: Base64(IV + 암호문)]
     ↓
-[DB 조회: Base64 암호문]
+[DB 조회: Base64(IV + 암호문)]
     ↓
-[JPA AttributeConverter] ← AES-256 복호화
+[JPA AttributeConverter] ← AES-256-GCM 복호화
+    ├─ Base64 디코딩
+    ├─ IV 추출 (12바이트)
+    ├─ 암호문 추출
+    └─ 복호화 + 무결성 검증
     ↓
 [평문 주민등록번호: 901234-1234567]
     ↓
@@ -120,19 +139,29 @@ private String residentNum;
 1. **암호화 키 보안**
    - 암호화 키는 절대 코드에 하드코딩하지 않음
    - 환경변수 또는 보안 저장소(AWS Secrets Manager 등)에서 관리
+   - 키 길이: 반드시 32바이트 (애플리케이션 시작 시 검증)
    - 키 유출 시 즉시 교체 및 재암호화 필요
 
 2. **데이터 마이그레이션**
    - 기존 평문 데이터가 있는 경우 암호화 마이그레이션 필요
+   - **ECB → GCM 전환 시**: 기존 데이터 재암호화 필요
    - 마이그레이션 전 백업 필수
+   - 다운타임 최소화 전략 수립 권장
 
-3. **성능 고려사항**
+3. **GCM 모드 특성**
+   - IV는 절대 재사용하면 안 됨 (SecureRandom으로 매번 새로 생성)
+   - 인증 태그를 통한 무결성 검증 자동 수행
+   - 복호화 실패 시 데이터 변조 가능성 의심
+
+4. **성능 고려사항**
    - 암호화/복호화는 CPU 연산이 필요하므로 대량 조회 시 성능 영향 가능
+   - GCM 모드는 ECB보다 약간 느리지만 보안성이 월등히 높음
    - 필요 시 조회 쿼리 최적화 (인덱스, 페이징 등)
 
-4. **규정 준수**
+5. **규정 준수**
    - 개인정보보호법에 따른 암호화 조치
    - PIPA(개인정보보호법) 준수
+   - NIST 권장 암호화 알고리즘 (AES-256-GCM) 준수
 
 ---
 
@@ -158,3 +187,4 @@ private String residentNum;
 |------|------|-----------|
 | 2025-11-05 | 1.0 | 초기 ERD 작성 및 보안 정책 수립 |
 | 2025-11-05 | 1.1 | Employee.resident_num 암호화/마스킹 처리 추가 |
+| 2025-11-05 | 1.2 | AES-256-GCM 보안 강화 (ECB→GCM, IV 랜덤 생성, 키 검증, 환경변수 필수화) |
