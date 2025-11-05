@@ -32,3 +32,9 @@ logging:
   level:
     root: INFO
     com.concrete.buildup: INFO
+
+# 보안 설정
+security:
+  encryption:
+    # AES-256 암호화 키 (32바이트, 환경변수로 관리 권장)
+    key: ${ENCRYPTION_KEY:0123456789abcdef0123456789abcdef}
