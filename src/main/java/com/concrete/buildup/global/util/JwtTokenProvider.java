@@ -123,6 +123,10 @@ public class JwtTokenProvider {
      * @return 사용자 ID
      */
     public String getUserIdFromToken(String token) {
+        if (!validateToken(token)) {
+            throw new IllegalArgumentException("Invalid or expired JWT token");
+        }
+        
         Claims claims = Jwts.parser()
                 .verifyWith(key)
                 .build()
