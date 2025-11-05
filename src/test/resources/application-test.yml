@@ -9,7 +9,6 @@ spring:
     username: sa
     password:
 
-  # JPA 설정
   jpa:
     hibernate:
       ddl-auto: create-drop
