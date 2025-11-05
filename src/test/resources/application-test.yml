@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: buildup-test
+
+  # 테스트용 데이터베이스 설정 (H2)
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+
+  # JPA 설정
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+    show-sql: false
+    open-in-view: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        format_sql: false
+
+  # Flyway 비활성화
+  flyway:
+    enabled: false
+
+  # AWS S3 자동 설정 비활성화
+  autoconfigure:
+    exclude:
+      - io.awspring.cloud.autoconfigure.s3.S3AutoConfiguration
+
+# JWT 테스트 설정
+jwt:
+  secret: test-secret-key-min-256-bits-long-for-hs256-algorithm-test
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
+  refresh-token-remember-me-expiration: 2592000000
+
+# 로깅 설정
+logging:
+  level:
+    root: ERROR
+    com.concrete.buildup: DEBUG
