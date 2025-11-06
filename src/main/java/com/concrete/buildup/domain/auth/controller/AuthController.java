@@ -6,6 +6,8 @@ import com.concrete.buildup.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -160,5 +162,45 @@ public class AuthController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "현장 관리자 회원가입이 완료되었습니다"));
+    }
+
+    /**
+     * 로그인 API
+     *
+     * <p>근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다.</p>
+     * <p>Access Token은 응답 Body에, Refresh Token은 HttpOnly 쿠키로 전달됩니다.</p>
+     *
+     * @param request 로그인 요청 정보
+     * @param response HTTP 응답 (쿠키 설정용)
+     * @return LoginResponse - Access Token과 사용자 정보
+     */
+    @Operation(
+            summary = "로그인",
+            description = "근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다. " +
+                    "Access Token은 응답 Body에 포함되며, Refresh Token은 HttpOnly 쿠키로 전달됩니다."
+    )
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response
+    ) {
+        log.info("로그인 API 호출: username={}", request.getUsername());
+
+        // 로그인 처리
+        LoginResult loginResult = authService.login(request);
+
+        // Refresh Token을 HttpOnly 쿠키로 설정
+        Cookie refreshTokenCookie = new Cookie("refreshToken", loginResult.getRefreshToken());
+        refreshTokenCookie.setHttpOnly(true);  // XSS 공격 방어
+        refreshTokenCookie.setSecure(true);     // HTTPS에서만 전송
+        refreshTokenCookie.setPath("/");        // 모든 경로에서 접근 가능
+        refreshTokenCookie.setMaxAge(loginResult.getRefreshTokenMaxAge().intValue());  // 만료 시간 설정
+        response.addCookie(refreshTokenCookie);
+
+        log.debug("Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(loginResult.getLoginResponse(), "로그인 성공")
+        );
     }
 }
