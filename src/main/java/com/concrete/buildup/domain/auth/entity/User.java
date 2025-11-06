@@ -81,6 +81,18 @@ public class User extends BaseEntity {
     private Boolean profileCompleted = false;
 
     /**
+     * Refresh Token
+     */
+    @Column(name = "refresh_token", length = 500)
+    private String refreshToken;
+
+    /**
+     * Refresh Token 만료 시간
+     */
+    @Column(name = "refresh_token_expires_at")
+    private LocalDateTime refreshTokenExpiresAt;
+
+    /**
      * 비밀번호 변경
      */
     public void updatePassword(String newPassword) {
@@ -129,5 +141,21 @@ public class User extends BaseEntity {
         this.profileCompleted = true;
         this.profileToken = null;
         this.profileTokenExpiresAt = null;
+    }
+
+    /**
+     * Refresh Token 업데이트
+     */
+    public void updateRefreshToken(String refreshToken, LocalDateTime expiresAt) {
+        this.refreshToken = refreshToken;
+        this.refreshTokenExpiresAt = expiresAt;
+    }
+
+    /**
+     * Refresh Token 제거
+     */
+    public void clearRefreshToken() {
+        this.refreshToken = null;
+        this.refreshTokenExpiresAt = null;
     }
 }
