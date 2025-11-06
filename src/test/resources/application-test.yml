@@ -35,6 +35,11 @@ spring:
     exclude:
       - io.awspring.cloud.autoconfigure.s3.S3AutoConfiguration
 
+# 서버 설정 (테스트 환경)
+server:
+  servlet:
+    context-path: /api
+
 # JWT 테스트 설정
 jwt:
   secret: test-secret-key-min-256-bits-long-for-hs256-algorithm-test
