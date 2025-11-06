@@ -47,19 +47,17 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 공개 엔드포인트 (context-path 제외)
                 .requestMatchers(
-                    "/auth/**",           // 인증 관련 API
-                    "/public/**",         // 공개 API
-                    "/swagger-ui/**",     // Swagger UI
-                    "/v3/api-docs/**",    // Swagger API Docs
-                    "/actuator/health"    // Health Check
+                    "/auth/register/**",     // 회원가입
+                    "/auth/login",           // 로그인
+                    "/auth/exists",          // 중복 확인
+                    "/auth/token/refresh",   // 토큰 갱신
+                    "/swagger-ui/**",        // Swagger UI
+                    "/v3/api-docs/**"        // Swagger API Docs
                 ).permitAll()
 
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()
-            )
-
-            // HTTP Basic 인증 활성화 (개발 편의용, 운영에서는 제거 고려)
-            .httpBasic(basic -> {});
+            );
 
         return http.build();
     }
