@@ -23,7 +23,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.UUID;
 
 /**
@@ -492,10 +496,10 @@ public class AuthService {
      * 로그인
      *
      * @param request 로그인 요청 정보
-     * @return LoginResponse - Access Token과 사용자 정보
+     * @return LoginResult - Access Token, 사용자 정보, Refresh Token
      */
     @Transactional
-    public LoginResponse login(LoginRequest request) {
+    public LoginResult login(LoginRequest request) {
         log.info("로그인 시도: username={}", request.getUsername());
 
         // 1. userId로 User 조회 (Fetch Join으로 Role도 함께 조회)
@@ -523,22 +527,50 @@ public class AuthService {
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), rememberMe);
         log.debug("Refresh Token 생성 완료: userId={}, rememberMe={}", user.getUserId(), rememberMe);
 
-        // 5. Refresh Token을 DB에 저장
+        // 5. Refresh Token을 SHA-256으로 해시하여 DB에 저장
+        String hashedRefreshToken = hashToken(refreshToken);
         long expiration = rememberMe ? refreshTokenRememberMeExpiration : refreshTokenExpiration;
         LocalDateTime refreshTokenExpiresAt = LocalDateTime.now().plusSeconds(expiration / 1000);
-        user.updateRefreshToken(refreshToken, refreshTokenExpiresAt);
-        log.debug("Refresh Token DB 저장 완료: userId={}", user.getUserId());
+        user.updateRefreshToken(hashedRefreshToken, refreshTokenExpiresAt);
+        log.debug("Refresh Token 해시 후 DB 저장 완료: userId={}", user.getUserId());
 
         // 6. Response 생성
-        LoginResponse response = LoginResponse.builder()
+        LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(accessToken)
                 .userId(user.getUserId())
                 .role(user.getRole().getRoleName())
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .build();
 
+        // 7. LoginResult 생성 (refreshToken 포함, 평문)
+        LoginResult result = LoginResult.builder()
+                .loginResponse(loginResponse)
+                .refreshToken(refreshToken)  // 평문 토큰 (쿠키로 전달용)
+                .refreshTokenMaxAge(expiration / 1000)  // 초 단위로 변환
+                .build();
+
         log.info("로그인 성공: userId={}, role={}", user.getUserId(), user.getRole().getRoleName());
 
-        return response;
+        return result;
+    }
+
+    /**
+     * 토큰을 SHA-256으로 해시 처리
+     *
+     * <p>Refresh Token을 DB에 안전하게 저장하기 위해 SHA-256으로 해시합니다.</p>
+     * <p>DB 해킹 시에도 원본 토큰을 알 수 없도록 보호합니다.</p>
+     *
+     * @param token 원본 토큰
+     * @return SHA-256 해시값 (Hex 형식)
+     */
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            log.error("SHA-256 알고리즘을 찾을 수 없습니다", e);
+            throw new RuntimeException("토큰 해시 처리 중 오류 발생", e);
+        }
     }
 }
