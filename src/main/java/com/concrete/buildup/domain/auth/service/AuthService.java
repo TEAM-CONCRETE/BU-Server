@@ -15,8 +15,10 @@ import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.SiteErrorCode;
 import com.concrete.buildup.global.util.AesEncryptionUtil;
+import com.concrete.buildup.global.util.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +47,16 @@ public class AuthService {
     private final SiteRepository siteRepository;
     private final PasswordEncoder passwordEncoder;
     private final AesEncryptionUtil aesEncryptionUtil;
+    private final JwtTokenProvider jwtTokenProvider;
+
+    @Value("${jwt.access-token-expiration}")
+    private long accessTokenExpiration;
+
+    @Value("${jwt.refresh-token-expiration}")
+    private long refreshTokenExpiration;
+
+    @Value("${jwt.refresh-token-remember-me-expiration}")
+    private long refreshTokenRememberMeExpiration;
 
     /**
      * 아이디 중복 확인
@@ -474,5 +486,59 @@ public class AuthService {
                 .verificationRequired(verificationInfo)
                 .linking(linkingInfo)
                 .build();
+    }
+
+    /**
+     * 로그인
+     *
+     * @param request 로그인 요청 정보
+     * @return LoginResponse - Access Token과 사용자 정보
+     */
+    @Transactional
+    public LoginResponse login(LoginRequest request) {
+        log.info("로그인 시도: username={}", request.getUsername());
+
+        // 1. userId로 User 조회 (Fetch Join으로 Role도 함께 조회)
+        User user = userRepository.findByUserIdWithRole(request.getUsername())
+                .orElseThrow(() -> {
+                    log.warn("사용자를 찾을 수 없음: username={}", request.getUsername());
+                    return new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+                });
+
+        // 2. 비밀번호 검증
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("비밀번호 불일치: username={}", request.getUsername());
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+        }
+
+        // 3. Access Token 생성
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getUserId(),
+                user.getRole().getRoleName()
+        );
+        log.debug("Access Token 생성 완료: userId={}", user.getUserId());
+
+        // 4. Refresh Token 생성 (rememberMe 고려)
+        boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), rememberMe);
+        log.debug("Refresh Token 생성 완료: userId={}, rememberMe={}", user.getUserId(), rememberMe);
+
+        // 5. Refresh Token을 DB에 저장
+        long expiration = rememberMe ? refreshTokenRememberMeExpiration : refreshTokenExpiration;
+        LocalDateTime refreshTokenExpiresAt = LocalDateTime.now().plusSeconds(expiration / 1000);
+        user.updateRefreshToken(refreshToken, refreshTokenExpiresAt);
+        log.debug("Refresh Token DB 저장 완료: userId={}", user.getUserId());
+
+        // 6. Response 생성
+        LoginResponse response = LoginResponse.builder()
+                .accessToken(accessToken)
+                .userId(user.getUserId())
+                .role(user.getRole().getRoleName())
+                .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
+                .build();
+
+        log.info("로그인 성공: userId={}, role={}", user.getUserId(), user.getRole().getRoleName());
+
+        return response;
     }
 }

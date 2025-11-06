@@ -161,4 +161,31 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "현장 관리자 회원가입이 완료되었습니다"));
     }
+
+    /**
+     * 로그인 API
+     *
+     * <p>근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다.</p>
+     * <p>Access Token은 응답 Body에, Refresh Token은 HttpOnly 쿠키로 전달됩니다.</p>
+     *
+     * @param request 로그인 요청 정보
+     * @return LoginResponse - Access Token과 사용자 정보
+     */
+    @Operation(
+            summary = "로그인",
+            description = "근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다. " +
+                    "Access Token은 응답 Body에 포함되며, Refresh Token은 HttpOnly 쿠키로 전달됩니다."
+    )
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request
+    ) {
+        log.info("로그인 API 호출: username={}", request.getUsername());
+
+        LoginResponse response = authService.login(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "로그인 성공")
+        );
+    }
 }
