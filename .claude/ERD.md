@@ -82,6 +82,8 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `email` | VARCHAR(100) | NULL | 이메일 |
 | `secret_key` | VARCHAR(100) | NULL | 인증용 시크릿키 |
 | `role_id` | BIGINT | FK, NULLABLE | 역할 (계약 시 할당) |
+| `refresh_token` | VARCHAR(500) | NULL | Refresh Token (JWT) |
+| `refresh_token_expires_at` | DATETIME | NULL | Refresh Token 만료 시간 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
@@ -812,5 +814,6 @@ ON work_reports(work_report_status);
 | 2025-11-05 | attendances, payrolls 테이블 resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 암호화 정책 통일 | 김세원 |
 | 2025-11-06 | roles 테이블 updated_at 컬럼 추가 | 김세원 |
 | 2025-11-06 | sites 테이블 manager_secret_key, employee_secret_key, secret_key_expires_at 컬럼 추가 (현장 관리자 회원가입 기능) | 김세원 |
+| 2025-11-07 | users 테이블 refresh_token, refresh_token_expires_at 컬럼 추가 (로그인 API 구현) | 김세원 |
 
 ---
