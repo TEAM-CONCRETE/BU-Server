@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Role;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.global.config.QueryDslConfig;
+import com.concrete.buildup.global.util.AesEncryptionUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,6 +38,9 @@ class EmployeeRepositoryTest {
 
     @Autowired
     private EmployeeRepository employeeRepository;
+
+    @MockBean
+    private AesEncryptionUtil aesEncryptionUtil;
 
     private User testUser;
     private Role testRole;
