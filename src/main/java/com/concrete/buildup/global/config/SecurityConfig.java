@@ -83,8 +83,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                     // 공개 엔드포인트
                     .requestMatchers(
-                        "/api/v1/auth/**",       // 인증 관련 API
-                        "/api/v1/public/**",     // 공개 API
+                        "/v1/auth/**",           // 인증 관련 API
+                        "/v1/public/**",         // 공개 API
                         "/swagger-ui/**",        // Swagger UI
                         "/v3/api-docs/**",       // Swagger API Docs
                         "/actuator/health"       // Health Check

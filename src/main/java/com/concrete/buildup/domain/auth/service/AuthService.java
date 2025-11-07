@@ -1,10 +1,12 @@
 package com.concrete.buildup.domain.auth.service;
 
 import com.concrete.buildup.domain.auth.dto.*;
+import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.auth.entity.Role;
 import com.concrete.buildup.domain.auth.entity.User;
+import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.RoleRepository;
@@ -47,6 +49,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final ManagerRepository managerRepository;
+    private final CorporationRepository corporationRepository;
     private final RoleRepository roleRepository;
     private final SiteRepository siteRepository;
     private final PasswordEncoder passwordEncoder;
@@ -552,6 +555,133 @@ public class AuthService {
         log.info("로그인 성공: userId={}, role={}", user.getUserId(), user.getRole().getRoleName());
 
         return result;
+    }
+
+    /**
+     * 내 정보 조회
+     *
+     * <p>인증된 사용자의 기본 정보 및 역할별 추가 정보를 조회합니다.</p>
+     *
+     * @param userId 사용자 ID (로그인 ID)
+     * @return UserInfoResponse - 사용자 정보 및 역할별 추가 정보
+     */
+    public UserInfoResponse getMyInfo(String userId) {
+        log.info("내 정보 조회 시작: userId={}", userId);
+
+        // 1. userId로 User 조회 (Fetch Join으로 Role도 함께 조회)
+        User user = userRepository.findByUserIdWithRole(userId)
+                .orElseThrow(() -> {
+                    log.warn("사용자를 찾을 수 없음: userId={}", userId);
+                    return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                });
+
+        // 2. 역할별 추가 정보 조회
+        String roleName = user.getRole().getRoleName();
+        Object additionalInfo = null;
+        String name = null;
+
+        switch (roleName) {
+            case "EMPLOYEE":
+                // 근로자 정보 조회
+                Employee employee = employeeRepository.findByUser(user)
+                        .orElseThrow(() -> {
+                            log.error("Employee를 찾을 수 없습니다: userId={}", userId);
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+                name = employee.getEmpName();
+
+                // 현장 정보 조회 (secretKey로)
+                UserInfoResponse.SiteInfo siteInfo = null;
+                if (user.getSecretKey() != null && !user.getSecretKey().isBlank()) {
+                    siteInfo = siteRepository.findByEmployeeSecretKey(user.getSecretKey())
+                            .map(site -> {
+                                log.debug("현장 정보 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
+                                return UserInfoResponse.SiteInfo.builder()
+                                        .siteId(site.getId())
+                                        .siteName(site.getSiteName())
+                                        .siteAddress(site.getSiteAddress())
+                                        .build();
+                            })
+                            .orElse(null);
+                }
+
+                additionalInfo = UserInfoResponse.EmployeeInfo.builder()
+                        .employeeId(employee.getId())
+                        .empName(employee.getEmpName())
+                        .residentNum(employee.getResidentNum())  // 이미 마스킹 처리됨 (Serializer)
+                        .emergencyPhone(employee.getSubPhone())
+                        .empAddress(employee.getEmpAddress())
+                        .empType(employee.getEmpType())
+                        .site(siteInfo)
+                        .build();
+                break;
+
+            case "MANAGER":
+                // 현장 관리자 정보 조회
+                Manager manager = managerRepository.findByUser(user)
+                        .orElseThrow(() -> {
+                            log.error("Manager를 찾을 수 없습니다: userId={}", userId);
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+                name = manager.getManagerName();
+
+                // 현장 정보 조회 (secretKey로)
+                UserInfoResponse.SiteInfo managerSiteInfo = null;
+                if (user.getSecretKey() != null && !user.getSecretKey().isBlank()) {
+                    managerSiteInfo = siteRepository.findByManagerSecretKey(user.getSecretKey())
+                            .map(site -> UserInfoResponse.SiteInfo.builder()
+                                    .siteId(site.getId())
+                                    .siteName(site.getSiteName())
+                                    .siteAddress(site.getSiteAddress())
+                                    .build())
+                            .orElse(null);
+                }
+
+                additionalInfo = UserInfoResponse.ManagerInfo.builder()
+                        .managerId(manager.getId())
+                        .managerName(manager.getManagerName())
+                        .site(managerSiteInfo)
+                        .build();
+                break;
+
+            case "CORPORATION":
+                // 기업 정보 조회
+                Corporation corporation = corporationRepository.findByUserId(user.getId())
+                        .orElseThrow(() -> {
+                            log.error("Corporation을 찾을 수 없습니다: userId={}", userId);
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+                name = corporation.getCorpName();
+
+                additionalInfo = UserInfoResponse.CorporationInfo.builder()
+                        .corporationId(corporation.getId())
+                        .corpName(corporation.getCorpName())
+                        .corpAddress(corporation.getCorpAddress())
+                        .corpCeoName(corporation.getCorpCeoName())
+                        .build();
+                break;
+
+            default:
+                log.warn("알 수 없는 역할: role={}", roleName);
+                break;
+        }
+
+        // 3. Response 생성
+        UserInfoResponse response = UserInfoResponse.builder()
+                .userId(user.getUserId())
+                .role(roleName)
+                .name(name)
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .additionalInfo(additionalInfo)
+                .build();
+
+        log.info("내 정보 조회 완료: userId={}, role={}", userId, roleName);
+
+        return response;
     }
 
     /**
