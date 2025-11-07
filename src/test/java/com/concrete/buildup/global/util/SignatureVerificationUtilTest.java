@@ -556,4 +556,160 @@ class SignatureVerificationUtilTest {
             assertThat(result).isFalse();
         }
     }
+
+    @Nested
+    @DisplayName("전체 플로우 통합 테스트")
+    class IntegrationTest {
+
+        @Test
+        @DisplayName("서명 업로드 → 해시 계산 → 저장 → 검증 전체 플로우")
+        void fullFlow_SignatureUploadAndVerification() {
+            // Given - 클라이언트가 서명 이미지 업로드
+            byte[] signatureImageData = createTestSignatureImage();
+            InputStream uploadedImage = new ByteArrayInputStream(signatureImageData);
+
+            // When - Step 1: 서버가 업로드된 이미지의 해시 계산
+            String calculatedHash = SignatureVerificationUtil.calculateSHA256(uploadedImage);
+
+            // Then - Step 1 검증
+            assertThat(calculatedHash).isNotNull();
+            assertThat(calculatedHash).hasSize(64);
+            assertThat(SignatureVerificationUtil.isValidHashFormat(calculatedHash)).isTrue();
+
+            // When - Step 2: DB에 저장된 해시를 다시 조회했다고 가정
+            String savedHash = calculatedHash; // DB에 저장했다가 다시 조회
+
+            // When - Step 3: 검증 시점에 S3에서 이미지를 다시 다운로드하여 해시 계산
+            InputStream downloadedImage = new ByteArrayInputStream(signatureImageData);
+            String verificationHash = SignatureVerificationUtil.calculateSHA256(downloadedImage);
+
+            // When - Step 4: 두 해시 비교
+            boolean isValid = SignatureVerificationUtil.verifySignatureHash(savedHash, verificationHash);
+
+            // Then - 검증 성공
+            assertThat(isValid).isTrue();
+        }
+
+        @Test
+        @DisplayName("전체 플로우 - 이미지 변조 검출")
+        void fullFlow_TamperedImageDetection() {
+            // Given - 원본 서명 이미지 업로드
+            byte[] originalImageData = "Original Signature Image Data".getBytes(StandardCharsets.UTF_8);
+            InputStream originalImage = new ByteArrayInputStream(originalImageData);
+
+            // When - Step 1: 원본 이미지의 해시 계산 및 저장
+            String savedHash = SignatureVerificationUtil.calculateSHA256(originalImage);
+
+            // Given - 이미지가 변조됨 (S3에서 파일이 변경되거나 손상됨)
+            byte[] tamperedImageData = "Tampered Signature Image Data".getBytes(StandardCharsets.UTF_8);
+            InputStream tamperedImage = new ByteArrayInputStream(tamperedImageData);
+
+            // When - Step 2: 변조된 이미지의 해시 계산
+            String tamperedHash = SignatureVerificationUtil.calculateSHA256(tamperedImage);
+
+            // When - Step 3: 저장된 해시와 변조된 이미지의 해시 비교
+            boolean isValid = SignatureVerificationUtil.verifySignatureHash(savedHash, tamperedHash);
+
+            // Then - 검증 실패 (변조 검출)
+            assertThat(isValid).isFalse();
+        }
+
+        @Test
+        @DisplayName("전체 플로우 - 대소문자 다른 해시로 검증 성공")
+        void fullFlow_CaseInsensitiveVerification() {
+            // Given
+            byte[] imageData = "Test Signature".getBytes(StandardCharsets.UTF_8);
+            InputStream image1 = new ByteArrayInputStream(imageData);
+            InputStream image2 = new ByteArrayInputStream(imageData);
+
+            // When - 두 번 해시 계산 (소문자로 반환)
+            String hash1 = SignatureVerificationUtil.calculateSHA256(image1);
+            String hash2 = SignatureVerificationUtil.calculateSHA256(image2);
+
+            // 임의로 대문자로 변환 (클라이언트가 대문자로 보냈다고 가정)
+            String uppercaseHash = hash1.toUpperCase();
+
+            // When - 대소문자가 다른 해시로 검증
+            boolean isValid = SignatureVerificationUtil.verifySignatureHash(uppercaseHash, hash2);
+
+            // Then - 검증 성공 (대소문자 무시)
+            assertThat(isValid).isTrue();
+        }
+
+        @Test
+        @DisplayName("전체 플로우 - 복수의 서명 검증")
+        void fullFlow_MultipleSignaturesVerification() {
+            // Given - 3개의 서로 다른 서명 이미지
+            byte[] signature1 = "Employee Signature".getBytes(StandardCharsets.UTF_8);
+            byte[] signature2 = "Manager Signature".getBytes(StandardCharsets.UTF_8);
+            byte[] signature3 = "Corporation Signature".getBytes(StandardCharsets.UTF_8);
+
+            // When - 각 서명의 해시 계산
+            String hash1 = SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature1));
+            String hash2 = SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature2));
+            String hash3 = SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature3));
+
+            // Then - 모두 유효한 형식
+            assertThat(SignatureVerificationUtil.isValidHashFormat(hash1)).isTrue();
+            assertThat(SignatureVerificationUtil.isValidHashFormat(hash2)).isTrue();
+            assertThat(SignatureVerificationUtil.isValidHashFormat(hash3)).isTrue();
+
+            // Then - 각 해시는 서로 다름
+            assertThat(hash1).isNotEqualTo(hash2);
+            assertThat(hash2).isNotEqualTo(hash3);
+            assertThat(hash1).isNotEqualTo(hash3);
+
+            // When - 각 서명 재검증
+            boolean valid1 = SignatureVerificationUtil.verifySignatureHash(
+                    hash1,
+                    SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature1))
+            );
+            boolean valid2 = SignatureVerificationUtil.verifySignatureHash(
+                    hash2,
+                    SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature2))
+            );
+            boolean valid3 = SignatureVerificationUtil.verifySignatureHash(
+                    hash3,
+                    SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(signature3))
+            );
+
+            // Then - 모든 검증 성공
+            assertThat(valid1).isTrue();
+            assertThat(valid2).isTrue();
+            assertThat(valid3).isTrue();
+        }
+
+        @Test
+        @DisplayName("전체 플로우 - 잘못된 해시 형식 조기 검출")
+        void fullFlow_InvalidHashFormatEarlyDetection() {
+            // Given - 클라이언트가 잘못된 형식의 해시를 전송
+            String invalidHash = "not-a-valid-hash-format";
+
+            // When - 형식 검증
+            boolean isValidFormat = SignatureVerificationUtil.isValidHashFormat(invalidHash);
+
+            // Then - 형식 검증 실패
+            assertThat(isValidFormat).isFalse();
+
+            // When - 검증 시도 (실제 이미지 다운로드 전에 조기 검출)
+            byte[] imageData = "Some Image".getBytes(StandardCharsets.UTF_8);
+            String actualHash = SignatureVerificationUtil.calculateSHA256(
+                    new ByteArrayInputStream(imageData)
+            );
+
+            boolean isValid = SignatureVerificationUtil.verifySignatureHash(invalidHash, actualHash);
+
+            // Then - 검증 실패 (불필요한 처리 방지)
+            assertThat(isValid).isFalse();
+        }
+
+        /**
+         * 테스트용 서명 이미지 데이터 생성
+         */
+        private byte[] createTestSignatureImage() {
+            // 실제로는 PNG/JPEG 등의 이미지 데이터
+            // 테스트에서는 간단한 바이트 배열 사용
+            return "Test Signature Image - Employee John Doe - 2024-01-01".getBytes(StandardCharsets.UTF_8);
+        }
+    }
 }

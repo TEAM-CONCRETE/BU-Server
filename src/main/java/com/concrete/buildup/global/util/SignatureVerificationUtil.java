@@ -10,14 +10,52 @@ import java.security.NoSuchAlgorithmException;
 /**
  * SHA-256 해시 기반 전자서명 검증 유틸리티 클래스
  *
- * 전자서명 이미지의 무결성을 검증하기 위해 SHA-256 해시를 계산하고 비교합니다.
+ * <p>전자서명 이미지의 무결성을 검증하기 위해 SHA-256 해시를 계산하고 비교합니다.
  * 클라이언트가 업로드한 서명 이미지의 해시값과 서버에 저장된 해시값을 비교하여
- * 서명의 위변조 여부를 확인합니다.
+ * 서명의 위변조 여부를 확인합니다.</p>
  *
- * SHA-256 해시 형식:
- * - 256비트 (32바이트) 해시 값
- * - 64자리 16진수 문자열 (0-9, a-f, A-F)
- * - 예: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ * <h3>SHA-256 해시 형식:</h3>
+ * <ul>
+ *     <li>256비트 (32바이트) 해시 값</li>
+ *     <li>64자리 16진수 문자열 (0-9, a-f, A-F)</li>
+ *     <li>예: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"</li>
+ * </ul>
+ *
+ * <h3>사용 예제:</h3>
+ * <pre>{@code
+ * // 1. 서명 이미지 업로드 시 해시 계산 및 저장
+ * InputStream signatureImage = ... // S3에서 다운로드하거나 클라이언트로부터 받은 이미지
+ * String hash = SignatureVerificationUtil.calculateSHA256(signatureImage);
+ * // DB에 hash 저장
+ *
+ * // 2. 서명 검증 시 해시 비교
+ * String savedHash = "e3b0c442..."; // DB에서 조회한 해시
+ * InputStream currentImage = ... // 현재 S3에 저장된 이미지
+ * String currentHash = SignatureVerificationUtil.calculateSHA256(currentImage);
+ *
+ * boolean isValid = SignatureVerificationUtil.verifySignatureHash(savedHash, currentHash);
+ * if (isValid) {
+ *     // 서명이 유효함 (위변조 없음)
+ * } else {
+ *     // 서명이 변조되었거나 일치하지 않음
+ * }
+ *
+ * // 3. 해시 형식 검증
+ * if (SignatureVerificationUtil.isValidHashFormat(hashString)) {
+ *     // 올바른 SHA-256 해시 형식
+ * }
+ * }</pre>
+ *
+ * <h3>검증 플로우:</h3>
+ * <ol>
+ *     <li>클라이언트가 서명 이미지 업로드 및 해시 전송</li>
+ *     <li>서버가 S3에 저장된 이미지의 해시 계산</li>
+ *     <li>클라이언트가 보낸 해시와 서버가 계산한 해시 비교</li>
+ *     <li>일치하면 서명 유효, 불일치하면 위변조로 간주</li>
+ * </ol>
+ *
+ * @since 1.0
+ * @see java.security.MessageDigest
  */
 @Slf4j
 public class SignatureVerificationUtil {
