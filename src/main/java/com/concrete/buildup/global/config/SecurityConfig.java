@@ -60,8 +60,8 @@ public class SecurityConfig {
             );
 
         // 프로파일별 인증 설정
-        if ("dev".equals(activeProfile)) {
-            // dev 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
+        if ("dev".equals(activeProfile) || "test".equals(activeProfile)) {
+            // dev/test 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
             http.authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
             );

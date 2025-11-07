@@ -2,13 +2,13 @@ package com.concrete.buildup.domain.auth.controller;
 
 import com.concrete.buildup.domain.auth.dto.UserExistsResponse;
 import com.concrete.buildup.domain.auth.service.AuthService;
-import com.concrete.buildup.global.config.SecurityConfig;
+import com.concrete.buildup.global.security.JwtAuthenticationFilter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AuthController 단위 테스트
  */
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 @DisplayName("AuthController 테스트")
 class AuthControllerTest {
@@ -33,6 +33,9 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     @DisplayName("아이디 중복 확인 API - 존재하는 아이디")
@@ -45,7 +48,7 @@ class AuthControllerTest {
         given(authService.checkUserIdExists(userId)).willReturn(response);
 
         // when & then
-        mockMvc.perform(get("/auth/exists")
+        mockMvc.perform(get("/api/v1/auth/exists")
                         .param("userId", userId))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -67,7 +70,7 @@ class AuthControllerTest {
         given(authService.checkUserIdExists(userId)).willReturn(response);
 
         // when & then
-        mockMvc.perform(get("/auth/exists")
+        mockMvc.perform(get("/api/v1/auth/exists")
                         .param("userId", userId))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -84,7 +87,7 @@ class AuthControllerTest {
         // when & then
         // NOTE: MissingServletRequestParameterException 처리가 GlobalExceptionHandler에 없어서 현재는 500 반환
         // TODO: 추후 GlobalExceptionHandler에 해당 예외 처리 추가하여 400으로 변경 필요
-        mockMvc.perform(get("/auth/exists"))
+        mockMvc.perform(get("/api/v1/auth/exists"))
                 .andDo(print())
                 .andExpect(status().isInternalServerError());
     }
