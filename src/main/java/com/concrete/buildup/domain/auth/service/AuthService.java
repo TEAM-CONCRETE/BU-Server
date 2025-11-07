@@ -594,17 +594,15 @@ public class AuthService {
                 // 현장 정보 조회 (secretKey로)
                 UserInfoResponse.SiteInfo siteInfo = null;
                 if (user.getSecretKey() != null && !user.getSecretKey().isBlank()) {
-                    siteRepository.findByEmployeeSecretKey(user.getSecretKey())
-                            .ifPresent(site -> {
-                                log.debug("현장 정보 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
-                            });
-
                     siteInfo = siteRepository.findByEmployeeSecretKey(user.getSecretKey())
-                            .map(site -> UserInfoResponse.SiteInfo.builder()
-                                    .siteId(site.getId())
-                                    .siteName(site.getSiteName())
-                                    .siteAddress(site.getSiteAddress())
-                                    .build())
+                            .map(site -> {
+                                log.debug("현장 정보 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
+                                return UserInfoResponse.SiteInfo.builder()
+                                        .siteId(site.getId())
+                                        .siteName(site.getSiteName())
+                                        .siteAddress(site.getSiteAddress())
+                                        .build();
+                            })
                             .orElse(null);
                 }
 
