@@ -56,6 +56,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `role_name` | VARCHAR(50) | NOT NULL, UNIQUE | 역할명 |
 | `description` | TEXT | NULL | 역할 설명 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
@@ -81,6 +82,8 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `email` | VARCHAR(100) | NULL | 이메일 |
 | `secret_key` | VARCHAR(100) | NULL | 인증용 시크릿키 |
 | `role_id` | BIGINT | FK, NULLABLE | 역할 (계약 시 할당) |
+| `refresh_token` | VARCHAR(500) | NULL | Refresh Token (JWT) |
+| `refresh_token_expires_at` | DATETIME | NULL | Refresh Token 만료 시간 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
@@ -110,7 +113,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `user_id` | BIGINT | FK, NOT NULL | 사용자 ID |
 | `emp_name` | VARCHAR(50) | NOT NULL | 근로자 이름 |
 | `sub_phone` | VARCHAR(20) | NULL | 비상 연락망 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `emp_address` | VARCHAR(255) | NULL | 주소 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 (DAILY/PERMANENT) |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
@@ -347,7 +350,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ### 10. sites (현장)
 
-**설명:** 건설 현장 정보
+**설명:** 건설 현장 정보 및 시크릿키 관리
 
 **컬럼:**
 
@@ -358,11 +361,16 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `site_address` | VARCHAR(255) | NULL | 현장 주소 |
 | `corporation_id` | BIGINT | FK, NULL | 소속 기업 ID |
 | `manager_id` | BIGINT | FK, NULL | 현장 관리자 ID |
+| `manager_secret_key` | VARCHAR(100) | UNIQUE, NULL | 현장 관리자용 시크릿키 (회원가입용) |
+| `employee_secret_key` | VARCHAR(100) | UNIQUE, NULL | 근로자용 시크릿키 (회원가입용) |
+| `secret_key_expires_at` | DATETIME | NULL | 시크릿키 만료 시간 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
+- UNIQUE INDEX: `manager_secret_key`
+- UNIQUE INDEX: `employee_secret_key`
 - INDEX: `corporation_id`, `manager_id`
 - FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
 - FOREIGN KEY: `manager_id` REFERENCES `managers(id)`
@@ -389,7 +397,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `search_date` | DATE | NOT NULL | 근무일자 (yyyy-mm-dd) |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
 | `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `attendance_status` | VARCHAR(20) | NULL | 출근 상태 (NORMAL/LATE/EARLY_LEAVE/ABSENT/DAY_OFF) |
 | `check_in_time` | DATETIME | NULL | 출근 시간 |
 | `check_out_time` | DATETIME | NULL | 퇴근 시간 |
@@ -432,7 +440,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `pay_due_date` | DATE | NULL | 지급 예정일 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
 | `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `resident_num` | VARCHAR(20) | NULL | 주민등록번호 |
+| `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `total_work_hour` | DECIMAL(8,2) | NULL | 총 근로시간 |
 | `total_pay` | DECIMAL(15,2) | NULL | 총 지급액 |
 | `total_pay_by_day` | DECIMAL(15,2) | NULL | 일급 기준 지급액 |
@@ -802,5 +810,10 @@ ON work_reports(work_report_status);
 | 2025-11-03 | contract_sign_logs 테이블 추가 | 문현민 |
 | 2025-11-04 | signing_sessions 테이블 추가 | 문현민 |
 | 2025-11-04 | contract_details 근무시간/휴게시간 필드 세분화 (TIME 타입) | 문현민 |
+| 2025-11-05 | employees.resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 AES-256-GCM 암호화 적용 | 김세원 |
+| 2025-11-05 | attendances, payrolls 테이블 resident_num 컬럼 타입 변경 (VARCHAR(20)→500) 및 암호화 정책 통일 | 김세원 |
+| 2025-11-06 | roles 테이블 updated_at 컬럼 추가 | 김세원 |
+| 2025-11-06 | sites 테이블 manager_secret_key, employee_secret_key, secret_key_expires_at 컬럼 추가 (현장 관리자 회원가입 기능) | 김세원 |
+| 2025-11-07 | users 테이블 refresh_token, refresh_token_expires_at 컬럼 추가 (로그인 API 구현) | 김세원 |
 
 ---

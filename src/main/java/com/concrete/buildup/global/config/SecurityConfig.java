@@ -45,28 +45,25 @@ public class SecurityConfig {
 
             // URL별 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
-                // 공개 엔드포인트 (context path /api가 이미 적용되어 있으므로 /api 제외)
+                // 공개 엔드포인트 (context-path 제외)
+                // - /auth/register/** : 회원가입
+                // - /auth/login : 로그인
+                // - /auth/exists : 중복 확인
+                // - /auth/token/refresh : 토큰 갱신
                 .requestMatchers(
-                    "/auth/**",               // 인증 관련 API
-                    "/public/**",             // 공개 API
-                    "/swagger-ui.html",       // Swagger UI 메인 페이지
-                    "/swagger-ui/**",         // Swagger UI 리소스
-                    "/webjars/**",            // Swagger UI webjars 리소스
-                    "/v3/api-docs/**",        // Swagger API Docs
-                    "/actuator/health"        // Health Check
+                    "/auth/**",              // 인증 관련 API
+                    "/public/**",            // 공개 API
+                    "/swagger-ui/**",        // Swagger UI
+                    "/v3/api-docs/**",       // Swagger API Docs
+                    "/actuator/health"       // Health Check
                 ).permitAll()
-
-                // 인증 필요 엔드포인트
-                .requestMatchers(
-                    "/v1/uploads/**"          // 파일 업로드 API (Presigned URL 발급)
-                ).authenticated()
 
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()
             )
 
-            // HTTP Basic 인증 비활성화 (JWT 기반 인증 사용)
-            .httpBasic(basic -> basic.disable());
+            // HTTP Basic 인증 활성화 (개발/테스트 환경 지원용)
+            .httpBasic(basic -> {});
 
         return http.build();
     }
