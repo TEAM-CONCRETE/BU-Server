@@ -13,6 +13,19 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# .env 파일 로드
+if [ -f ".env" ]; then
+    echo -e "${BLUE}📄 .env 파일을 로드합니다...${NC}"
+    export $(grep -v '^#' .env | xargs)
+    echo -e "${GREEN}✅ 환경 변수가 로드되었습니다.${NC}"
+    echo ""
+else
+    echo -e "${YELLOW}⚠️  .env 파일이 없습니다.${NC}"
+    echo "AWS S3를 사용하려면 .env 파일을 생성하세요:"
+    echo "  cp .env.example .env"
+    echo ""
+fi
+
 # Docker Compose 파일 확인
 if [ ! -f "docker-compose.dev.yml" ]; then
     echo -e "${RED}❌ docker-compose.dev.yml 파일이 없습니다.${NC}"

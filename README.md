@@ -22,24 +22,42 @@ Build-Up Platform의 백엔드 서비스입니다.
 
 ### 환경 설정
 
-프로젝트 실행을 위해 다음 환경 변수를 설정하거나 `application.yml`을 구성해야 합니다:
+#### 1. 환경 변수 파일 생성
 
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/buildup?useSSL=false&serverTimezone=UTC
-    username: ${DB_USERNAME:your_username}
-    password: ${DB_PASSWORD:your_password}
-  jpa:
-    hibernate:
-      ddl-auto: update  # 개발: update, 운영: validate
-    show-sql: true
+프로젝트 루트에 `.env` 파일을 생성하여 환경 변수를 관리합니다:
+
+```bash
+# .env.example을 .env로 복사
+cp .env.example .env
 ```
 
-환경 변수:
-- `DB_USERNAME`: 데이터베이스 사용자명
-- `DB_PASSWORD`: 데이터베이스 비밀번호
-- `JWT_SECRET`: JWT 시크릿 키 (필요시)
+`.env` 파일 예시:
+```bash
+# 데이터베이스
+DB_USERNAME=buildup
+DB_PASSWORD=buildup123
+
+# JWT
+JWT_SECRET=your-jwt-secret-key
+
+# AWS S3 (선택사항)
+AWS_S3_ENABLED=false
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_S3_BUCKET=build-up-contracts
+```
+
+#### 2. AWS S3 설정 (선택사항)
+
+파일 업로드 기능을 사용하려면 AWS S3 설정이 필요합니다.
+
+**📘 상세 가이드:** [AWS S3 설정 가이드](docs/AWS_S3_SETUP.md)
+
+주요 단계:
+1. AWS S3 버킷 생성
+2. IAM 사용자 생성 및 권한 설정
+3. 액세스 키 발급
+4. `.env` 파일에 자격 증명 입력
 
 ### 설치 및 실행
 
