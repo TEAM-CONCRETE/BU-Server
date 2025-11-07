@@ -1,5 +1,7 @@
 package com.concrete.buildup.global.config;
 
+import com.concrete.buildup.global.security.JwtAccessDeniedHandler;
+import com.concrete.buildup.global.security.JwtAuthenticationEntryPoint;
 import com.concrete.buildup.global.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,7 @@ import java.util.List;
  * - 인증/인가 설정
  * - 세션 관리
  * - JWT 인증 필터
+ * - 예외 처리 (401/403)
  * - 프로파일별 보안 설정 (dev/test/local: 모든 API 허용, prod: JWT 인증)
  */
 @Configuration
@@ -33,6 +36,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final Environment environment;
 
     /**
@@ -66,8 +71,15 @@ public class SecurityConfig {
                 .anyRequest().permitAll()
             );
         } else {
-            // prod 프로파일: JWT 인증 필터 적용
+            // prod 프로파일: JWT 인증 필터 및 예외 처리 적용
             http
+                // 예외 처리 설정
+                .exceptionHandling(exception -> exception
+                    // 인증 실패 시 401 응답 (토큰 없음, 토큰 만료, 토큰 유효하지 않음)
+                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                    // 권한 부족 시 403 응답 (인증은 되었으나 권한 없음)
+                    .accessDeniedHandler(jwtAccessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
                     // 공개 엔드포인트
                     .requestMatchers(
