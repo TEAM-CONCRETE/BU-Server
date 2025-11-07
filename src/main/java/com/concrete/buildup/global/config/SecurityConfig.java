@@ -1,13 +1,19 @@
 package com.concrete.buildup.global.config;
 
+import com.concrete.buildup.global.security.JwtAccessDeniedHandler;
+import com.concrete.buildup.global.security.JwtAuthenticationEntryPoint;
+import com.concrete.buildup.global.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -20,14 +26,27 @@ import java.util.List;
  * - CSRF 설정 (REST API용 비활성화)
  * - 인증/인가 설정
  * - 세션 관리
+ * - JWT 인증 필터
+ * - 예외 처리 (401/403)
+ * - 프로파일별 보안 설정 (dev/test/local: 모든 API 허용, prod: JWT 인증)
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+    private final Environment environment;
 
     /**
      * Security Filter Chain 설정
      * Spring Security 6.x+ 방식 사용
+     *
+     * 프로파일별 설정:
+     * - dev/test/local: 모든 API 인증 없이 접근 가능 (다중 프로파일 지원)
+     * - prod: JWT 인증 필터 적용
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -41,31 +60,61 @@ public class SecurityConfig {
             // 세션 관리 - Stateless (JWT 사용 시)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
+            );
 
-            // URL별 접근 권한 설정
-            .authorizeHttpRequests(auth -> auth
-                // 공개 엔드포인트 (context-path 제외)
-                // - /auth/register/** : 회원가입
-                // - /auth/login : 로그인
-                // - /auth/exists : 중복 확인
-                // - /auth/token/refresh : 토큰 갱신
-                .requestMatchers(
-                    "/auth/**",              // 인증 관련 API
-                    "/public/**",            // 공개 API
-                    "/swagger-ui/**",        // Swagger UI
-                    "/v3/api-docs/**",       // Swagger API Docs
-                    "/actuator/health"       // Health Check
-                ).permitAll()
+        // 프로파일별 인증 설정
+        // Environment.acceptsProfiles()를 사용하여 다중 프로파일 설정 지원
+        // 예: spring.profiles.active=dev,local 에서도 정상 동작
+        if (isDevelopmentMode()) {
+            // dev/test/local 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
+            http.authorizeHttpRequests(auth -> auth
+                .anyRequest().permitAll()
+            );
+        } else {
+            // prod 프로파일: JWT 인증 필터 및 예외 처리 적용
+            http
+                // 예외 처리 설정
+                .exceptionHandling(exception -> exception
+                    // 인증 실패 시 401 응답 (토큰 없음, 토큰 만료, 토큰 유효하지 않음)
+                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                    // 권한 부족 시 403 응답 (인증은 되었으나 권한 없음)
+                    .accessDeniedHandler(jwtAccessDeniedHandler)
+                )
+                .authorizeHttpRequests(auth -> auth
+                    // 공개 엔드포인트
+                    .requestMatchers(
+                        "/api/v1/auth/**",       // 인증 관련 API
+                        "/api/v1/public/**",     // 공개 API
+                        "/swagger-ui/**",        // Swagger UI
+                        "/v3/api-docs/**",       // Swagger API Docs
+                        "/actuator/health"       // Health Check
+                    ).permitAll()
 
-                // 그 외 모든 요청은 인증 필요
-                .anyRequest().authenticated()
-            )
-
-            // HTTP Basic 인증 활성화 (개발/테스트 환경 지원용)
-            .httpBasic(basic -> {});
+                    // 그 외 모든 요청은 인증 필요
+                    .anyRequest().authenticated()
+                )
+                // JWT 인증 필터 추가
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        }
 
         return http.build();
+    }
+
+    /**
+     * 개발 모드 여부 확인
+     *
+     * 다중 프로파일 설정 지원:
+     * - spring.profiles.active=dev → true
+     * - spring.profiles.active=dev,local → true
+     * - spring.profiles.active=local,dev → true
+     * - spring.profiles.active=prod → false
+     *
+     * @return dev, test, local 프로파일 중 하나라도 활성화되어 있으면 true
+     */
+    private boolean isDevelopmentMode() {
+        return environment.acceptsProfiles(
+            org.springframework.core.env.Profiles.of("dev", "test", "local")
+        );
     }
 
     /**
