@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +28,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/v1/auth")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Auth", description = "인증/인가 API")
@@ -218,9 +219,9 @@ public class AuthController {
                     "JWT Access Token이 필요하며, SecurityContext에서 사용자 ID를 추출합니다."
     )
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserInfoResponse>> getMyInfo(
-            @Parameter(hidden = true) @org.springframework.security.core.annotation.AuthenticationPrincipal String userId
-    ) {
+    public ResponseEntity<ApiResponse<UserInfoResponse>> getMyInfo() {
+        // SecurityContext에서 인증된 사용자 ID 추출
+        String userId = SecurityContextHolder.getContext().getAuthentication().getName();
         log.info("내 정보 조회 API 호출: userId={}", userId);
 
         UserInfoResponse response = authService.getMyInfo(userId);
