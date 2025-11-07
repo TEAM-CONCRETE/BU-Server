@@ -62,8 +62,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
-            // HTTP Basic 인증 활성화 (개발/테스트 환경 지원용)
-            .httpBasic(basic -> {});
+            // HTTP Basic 인증 비활성화 (JWT만 사용)
+            .httpBasic(basic -> basic.disable());
 
         return http.build();
     }
