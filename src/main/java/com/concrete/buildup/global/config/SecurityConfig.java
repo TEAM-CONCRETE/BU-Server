@@ -2,9 +2,9 @@ package com.concrete.buildup.global.config;
 
 import com.concrete.buildup.global.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -25,7 +25,7 @@ import java.util.List;
  * - 인증/인가 설정
  * - 세션 관리
  * - JWT 인증 필터
- * - 프로파일별 보안 설정 (dev: 모든 API 허용, prod: JWT 인증)
+ * - 프로파일별 보안 설정 (dev/test/local: 모든 API 허용, prod: JWT 인증)
  */
 @Configuration
 @EnableWebSecurity
@@ -33,16 +33,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Value("${spring.profiles.active:prod}")
-    private String activeProfile;
+    private final Environment environment;
 
     /**
      * Security Filter Chain 설정
      * Spring Security 6.x+ 방식 사용
      *
      * 프로파일별 설정:
-     * - dev: 모든 API 인증 없이 접근 가능
+     * - dev/test/local: 모든 API 인증 없이 접근 가능 (다중 프로파일 지원)
      * - prod: JWT 인증 필터 적용
      */
     @Bean
@@ -60,8 +58,10 @@ public class SecurityConfig {
             );
 
         // 프로파일별 인증 설정
-        if ("dev".equals(activeProfile) || "test".equals(activeProfile)) {
-            // dev/test 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
+        // Environment.acceptsProfiles()를 사용하여 다중 프로파일 설정 지원
+        // 예: spring.profiles.active=dev,local 에서도 정상 동작
+        if (isDevelopmentMode()) {
+            // dev/test/local 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
             http.authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
             );
@@ -86,6 +86,23 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    /**
+     * 개발 모드 여부 확인
+     *
+     * 다중 프로파일 설정 지원:
+     * - spring.profiles.active=dev → true
+     * - spring.profiles.active=dev,local → true
+     * - spring.profiles.active=local,dev → true
+     * - spring.profiles.active=prod → false
+     *
+     * @return dev, test, local 프로파일 중 하나라도 활성화되어 있으면 true
+     */
+    private boolean isDevelopmentMode() {
+        return environment.acceptsProfiles(
+            org.springframework.core.env.Profiles.of("dev", "test", "local")
+        );
     }
 
     /**
