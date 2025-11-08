@@ -15,6 +15,8 @@ import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractDetailRepository;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.site.entity.Site;
+import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,7 @@ public class ContractService {
     private final EmployeeRepository employeeRepository;
     private final CorporationRepository corporationRepository;
     private final ManagerRepository managerRepository;
+    private final SiteRepository siteRepository;
 
     /**
      * 계약 생성
@@ -51,27 +54,40 @@ public class ContractService {
      * <p>상용직 또는 일용직 근로계약을 생성합니다.</p>
      * <p>비즈니스 로직:</p>
      * <ul>
-     *   <li>1. Employee, Corporation, Manager 존재 여부 검증</li>
-     *   <li>2. 근로자의 기존 FULLY_SIGNED 계약 조회</li>
-     *   <li>3. 다른 타입의 FULLY_SIGNED 계약이 있으면 예외 발생 (422)</li>
-     *   <li>4. 같은 타입이거나 없으면 emp_type 설정</li>
-     *   <li>5. Contract + ContractDetail 생성 및 저장 (트랜잭션)</li>
+     *   <li>1. Site 존재 여부 검증</li>
+     *   <li>2. Employee, Corporation, Manager 존재 여부 검증</li>
+     *   <li>3. Manager가 해당 Site의 관리자인지 권한 검증 (managerId가 있는 경우)</li>
+     *   <li>4. 근로자의 기존 FULLY_SIGNED 계약 조회</li>
+     *   <li>5. 다른 타입의 FULLY_SIGNED 계약이 있으면 예외 발생 (422)</li>
+     *   <li>6. 같은 타입이거나 없으면 emp_type 설정</li>
+     *   <li>7. Contract + ContractDetail 생성 및 저장 (트랜잭션)</li>
      * </ul>
      *
+     * @param siteId 현장 ID
      * @param request 계약 생성 요청 DTO
      * @param empType 근로자 유형 (DAILY/PERMANENT)
      * @return CreateContractResponse - 생성된 계약 ID와 상태
+     * @throws BusinessException SITE_NOT_FOUND - 현장을 찾을 수 없음
      * @throws BusinessException EMPLOYEE_NOT_FOUND - 근로자를 찾을 수 없음
      * @throws BusinessException CORPORATION_NOT_FOUND - 기업을 찾을 수 없음
      * @throws BusinessException MANAGER_NOT_FOUND - 관리자를 찾을 수 없음 (managerId가 있는 경우)
+     * @throws BusinessException MANAGER_NOT_AUTHORIZED - 관리자가 해당 현장의 관리자가 아님
      * @throws BusinessException CONFLICTING_EMP_TYPE - 다른 타입의 계약이 이미 존재함
      */
     @Transactional
-    public CreateContractResponse createContract(CreateContractRequest request, EmpType empType) {
-        log.info("계약 생성 시작: employeeId={}, corporationId={}, empType={}",
-                request.getEmployeeId(), request.getCorporationId(), empType);
+    public CreateContractResponse createContract(Long siteId, CreateContractRequest request, EmpType empType) {
+        log.info("계약 생성 시작: siteId={}, employeeId={}, corporationId={}, empType={}",
+                siteId, request.getEmployeeId(), request.getCorporationId(), empType);
 
         // ========== 1. 존재 여부 검증 ==========
+
+        // 1-0. Site 존재 여부 검증
+        Site site = siteRepository.findById(siteId)
+                .orElseThrow(() -> {
+                    log.warn("현장을 찾을 수 없음: siteId={}", siteId);
+                    return new BusinessException(ContractErrorCode.SITE_NOT_FOUND);
+                });
+        log.debug("현장 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
 
         // 1-1. Employee 존재 여부 검증
         Employee employee = employeeRepository.findById(request.getEmployeeId())
@@ -89,7 +105,7 @@ public class ContractService {
                 });
         log.debug("기업 조회 성공: corporationId={}, corpName={}", corporation.getId(), corporation.getCorpName());
 
-        // 1-3. Manager 존재 여부 검증 (Optional)
+        // 1-3. Manager 존재 여부 검증 및 권한 검증 (Optional)
         Manager manager = null;
         if (request.getManagerId() != null) {
             manager = managerRepository.findById(request.getManagerId())
@@ -98,6 +114,14 @@ public class ContractService {
                         return new BusinessException(ContractErrorCode.MANAGER_NOT_FOUND);
                     });
             log.debug("관리자 조회 성공: managerId={}, managerName={}", manager.getId(), manager.getManagerName());
+
+            // 1-4. Manager가 해당 Site의 관리자인지 권한 검증
+            if (site.getManager() == null || !site.getManager().getId().equals(manager.getId())) {
+                log.warn("관리자가 해당 현장의 관리자가 아님: managerId={}, siteId={}, siteManagerId={}",
+                        manager.getId(), siteId, site.getManager() != null ? site.getManager().getId() : null);
+                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+            }
+            log.debug("관리자 권한 검증 성공: managerId={}, siteId={}", manager.getId(), siteId);
         }
 
         // ========== 2. 근로자 emp_type 검증 및 설정 ==========

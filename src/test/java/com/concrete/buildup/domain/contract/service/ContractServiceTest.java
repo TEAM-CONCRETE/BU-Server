@@ -18,6 +18,8 @@ import com.concrete.buildup.domain.contract.enums.PayPeriod;
 import com.concrete.buildup.domain.contract.enums.PayType;
 import com.concrete.buildup.domain.contract.repository.ContractDetailRepository;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.site.entity.Site;
+import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +65,9 @@ class ContractServiceTest {
     @Mock
     private ManagerRepository managerRepository;
 
+    @Mock
+    private SiteRepository siteRepository;
+
     @InjectMocks
     private ContractService contractService;
 
@@ -70,13 +75,15 @@ class ContractServiceTest {
     @DisplayName("계약 생성 성공 - 상용직, 첫 계약")
     void createContract_Success_PermanentFirstContract() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
         Long managerId = 1L;
 
+        Manager manager = createManager(managerId, "김관리");
+        Site site = createSite(siteId, "테스트현장", manager);
         Employee employee = createEmployee(employeeId, "홍길동", null);
         Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
-        Manager manager = createManager(managerId, "김관리");
 
         CreateContractRequest request = createContractRequest(employeeId, corporationId, managerId);
 
@@ -95,6 +102,7 @@ class ContractServiceTest {
             // ID 설정 실패 시 무시
         }
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(managerRepository.findById(managerId)).willReturn(Optional.of(manager));
@@ -104,7 +112,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        CreateContractResponse response = contractService.createContract(request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
 
         // then
         assertThat(response).isNotNull();
@@ -112,6 +120,7 @@ class ContractServiceTest {
         assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
 
         // Employee의 empType이 설정되었는지 검증
+        verify(siteRepository).findById(siteId);
         verify(employeeRepository).findById(employeeId);
         verify(corporationRepository).findById(corporationId);
         verify(managerRepository).findById(managerId);
@@ -123,9 +132,11 @@ class ContractServiceTest {
     @DisplayName("계약 생성 성공 - 일용직, 첫 계약")
     void createContract_Success_DailyFirstContract() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         Employee employee = createEmployee(employeeId, "홍길동", null);
         Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
 
@@ -144,6 +155,7 @@ class ContractServiceTest {
             // ID 설정 실패 시 무시
         }
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
@@ -152,13 +164,14 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        CreateContractResponse response = contractService.createContract(request, EmpType.DAILY);
+        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.DAILY);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getContractId()).isEqualTo(200L);
         assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
 
+        verify(siteRepository).findById(siteId);
         verify(employeeRepository).findById(employeeId);
         verify(corporationRepository).findById(corporationId);
         verify(managerRepository, never()).findById(any()); // managerId가 null이므로 호출되지 않음
@@ -168,13 +181,16 @@ class ContractServiceTest {
     @DisplayName("계약 생성 실패 - 근로자를 찾을 수 없음")
     void createContract_Fail_EmployeeNotFound() {
         // given
+        Long siteId = 1L;
         Long employeeId = 999L;
+        Site site = createSite(siteId, "테스트현장", null);
         CreateContractRequest request = createContractRequest(employeeId, 1L, 1L);
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.EMPLOYEE_NOT_FOUND);
 
@@ -186,17 +202,20 @@ class ContractServiceTest {
     @DisplayName("계약 생성 실패 - 기업을 찾을 수 없음")
     void createContract_Fail_CorporationNotFound() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 999L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         Employee employee = createEmployee(employeeId, "홍길동", null);
         CreateContractRequest request = createContractRequest(employeeId, corporationId, 1L);
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.CORPORATION_NOT_FOUND);
 
@@ -208,20 +227,23 @@ class ContractServiceTest {
     @DisplayName("계약 생성 실패 - 관리자를 찾을 수 없음")
     void createContract_Fail_ManagerNotFound() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
         Long managerId = 999L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         Employee employee = createEmployee(employeeId, "홍길동", null);
         Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
         CreateContractRequest request = createContractRequest(employeeId, corporationId, managerId);
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(managerRepository.findById(managerId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_FOUND);
 
@@ -233,9 +255,11 @@ class ContractServiceTest {
     @DisplayName("계약 생성 실패 - 다른 타입의 FULLY_SIGNED 계약이 이미 존재")
     void createContract_Fail_ConflictingEmpType() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         // 이미 일용직(DAILY) 타입으로 설정된 근로자
         Employee employee = createEmployee(employeeId, "홍길동", "DAILY");
         Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
@@ -248,13 +272,14 @@ class ContractServiceTest {
 
         CreateContractRequest request = createContractRequest(employeeId, corporationId, null);
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
                 .willReturn(List.of(existingContract));
 
         // when & then - 상용직(PERMANENT) 계약 생성 시도
-        assertThatThrownBy(() -> contractService.createContract(request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.CONFLICTING_EMP_TYPE);
 
@@ -265,9 +290,11 @@ class ContractServiceTest {
     @DisplayName("계약 생성 성공 - 같은 타입의 FULLY_SIGNED 계약이 이미 존재")
     void createContract_Success_SameEmpType() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         // 이미 상용직(PERMANENT) 타입으로 설정된 근로자
         Employee employee = createEmployee(employeeId, "홍길동", "PERMANENT");
         Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
@@ -293,6 +320,7 @@ class ContractServiceTest {
             // ID 설정 실패 시 무시
         }
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
@@ -301,7 +329,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when - 같은 타입(PERMANENT) 계약 생성 시도
-        CreateContractResponse response = contractService.createContract(request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
 
         // then - 성공해야 함
         assertThat(response).isNotNull();
@@ -315,9 +343,11 @@ class ContractServiceTest {
     @DisplayName("계약 생성 시 스냅샷 데이터 정확성 검증")
     void createContract_VerifySnapshotData() {
         // given
+        Long siteId = 1L;
         Long employeeId = 1L;
         Long corporationId = 1L;
 
+        Site site = createSite(siteId, "테스트현장", null);
         Employee employee = createEmployee(employeeId, "홍길동", null);
         employee.updateProfile(null, "010-1234-5678", "서울시 강남구 테헤란로 123");
 
@@ -338,6 +368,7 @@ class ContractServiceTest {
             // ID 설정 실패 시 무시
         }
 
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
         given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
         given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
@@ -346,7 +377,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        contractService.createContract(request, EmpType.PERMANENT);
+        contractService.createContract(siteId, request, EmpType.PERMANENT);
 
         // then
         ArgumentCaptor<ContractDetail> contractDetailCaptor = ArgumentCaptor.forClass(ContractDetail.class);
@@ -360,6 +391,138 @@ class ContractServiceTest {
         assertThat(savedDetail.getWorkPay()).isEqualTo(new BigDecimal("3000000.00"));
         assertThat(savedDetail.getPayPeriod()).isEqualTo(PayPeriod.MONTHLY);
         assertThat(savedDetail.getPayType()).isEqualTo(PayType.TRANSFER);
+    }
+
+    @Test
+    @DisplayName("계약 생성 실패 - 현장을 찾을 수 없음")
+    void createContract_Fail_SiteNotFound() {
+        // given
+        Long siteId = 999L;
+        CreateContractRequest request = createContractRequest(1L, 1L, 1L);
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SITE_NOT_FOUND);
+
+        verify(siteRepository).findById(siteId);
+        verify(employeeRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("계약 생성 성공 - Manager 권한 검증 성공")
+    void createContract_Success_ManagerAuthorized() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 1L;
+        Long corporationId = 1L;
+        Long managerId = 1L;
+
+        Manager manager = createManager(managerId, "김관리");
+        Site site = createSite(siteId, "테스트현장", manager);
+        Employee employee = createEmployee(employeeId, "홍길동", null);
+        Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
+
+        CreateContractRequest request = createContractRequest(employeeId, corporationId, managerId);
+
+        Contract savedContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(corporationId)
+                .managerId(managerId)
+                .contractState(ContractState.DRAFT)
+                .build();
+        try {
+            java.lang.reflect.Field idField = Contract.class.getSuperclass().getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(savedContract, 500L);
+        } catch (Exception e) {
+            // ID 설정 실패 시 무시
+        }
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
+        given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
+        given(managerRepository.findById(managerId)).willReturn(Optional.of(manager));
+        given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
+                .willReturn(Collections.emptyList());
+        given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
+        given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+
+        // when
+        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getContractId()).isEqualTo(500L);
+        assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
+
+        verify(siteRepository).findById(siteId);
+        verify(managerRepository).findById(managerId);
+        verify(contractRepository).save(any(Contract.class));
+    }
+
+    @Test
+    @DisplayName("계약 생성 실패 - Manager가 해당 현장의 관리자가 아님")
+    void createContract_Fail_ManagerNotAuthorized() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 1L;
+        Long corporationId = 1L;
+        Long managerId = 1L;
+        Long otherManagerId = 2L;
+
+        Manager siteManager = createManager(otherManagerId, "다른관리자");
+        Manager requestManager = createManager(managerId, "요청관리자");
+        Site site = createSite(siteId, "테스트현장", siteManager);
+        Employee employee = createEmployee(employeeId, "홍길동", null);
+        Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
+
+        CreateContractRequest request = createContractRequest(employeeId, corporationId, managerId);
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
+        given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
+        given(managerRepository.findById(managerId)).willReturn(Optional.of(requestManager));
+
+        // when & then
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+
+        verify(siteRepository).findById(siteId);
+        verify(managerRepository).findById(managerId);
+        verify(contractRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("계약 생성 실패 - Site에 Manager가 할당되지 않았는데 Manager ID 제공됨")
+    void createContract_Fail_SiteHasNoManager() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 1L;
+        Long corporationId = 1L;
+        Long managerId = 1L;
+
+        Manager manager = createManager(managerId, "김관리");
+        Site site = createSite(siteId, "테스트현장", null); // Site에 Manager가 없음
+        Employee employee = createEmployee(employeeId, "홍길동", null);
+        Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
+
+        CreateContractRequest request = createContractRequest(employeeId, corporationId, managerId);
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
+        given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
+        given(managerRepository.findById(managerId)).willReturn(Optional.of(manager));
+
+        // when & then
+        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+
+        verify(contractRepository, never()).save(any());
     }
 
     // ========== Helper Methods ==========
@@ -431,6 +594,24 @@ class ContractServiceTest {
         }
 
         return manager;
+    }
+
+    private Site createSite(Long id, String name, Manager manager) {
+        Site site = Site.builder()
+                .siteName(name)
+                .siteAddress("서울시 강남구")
+                .manager(manager)
+                .build();
+
+        try {
+            java.lang.reflect.Field idField = Site.class.getSuperclass().getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(site, id);
+        } catch (Exception e) {
+            // ID 설정 실패 시 무시
+        }
+
+        return site;
     }
 
     private CreateContractRequest createContractRequest(Long employeeId, Long corporationId, Long managerId) {
