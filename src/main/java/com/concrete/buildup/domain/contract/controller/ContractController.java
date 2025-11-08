@@ -1,5 +1,7 @@
 package com.concrete.buildup.domain.contract.controller;
 
+import com.concrete.buildup.domain.contract.dto.ContractListResponse;
+import com.concrete.buildup.domain.contract.dto.ContractSearchCondition;
 import com.concrete.buildup.domain.contract.dto.CreateContractRequest;
 import com.concrete.buildup.domain.contract.dto.CreateContractResponse;
 import com.concrete.buildup.domain.contract.enums.EmpType;
@@ -33,6 +35,47 @@ import org.springframework.web.bind.annotation.*;
 public class ContractController {
 
     private final ContractService contractService;
+
+    /**
+     * 계약 목록 조회 API
+     *
+     * <p>현장별 계약 목록을 필터링 및 페이징하여 조회합니다.</p>
+     * <p>검색 조건:</p>
+     * <ul>
+     *   <li>employeeId: 근로자 ID로 필터링</li>
+     *   <li>empType: 근로자 유형(DAILY/PERMANENT)으로 필터링</li>
+     *   <li>status: 계약 상태(DRAFT/PENDING/FULLY_SIGNED)로 필터링</li>
+     *   <li>from: 계약 시작일 범위 시작</li>
+     *   <li>to: 계약 시작일 범위 종료</li>
+     *   <li>page: 페이지 번호 (기본값: 1)</li>
+     *   <li>size: 페이지 크기 (기본값: 20, 최대: 100)</li>
+     * </ul>
+     *
+     * @param siteId 현장 ID
+     * @param condition 검색 조건
+     * @return ContractListResponse - 계약 목록 + 페이징 정보
+     */
+    @Operation(
+            summary = "계약 목록 조회",
+            description = "현장별 계약 목록을 필터링 및 페이징하여 조회합니다. " +
+                    "모든 검색 조건은 선택적이며, 주민등록번호는 마스킹 처리되어 반환됩니다. " +
+                    "예: GET /v1/1/contracts?employeeId=1&status=FULLY_SIGNED&page=1&size=20"
+    )
+    @GetMapping
+    public ResponseEntity<ApiResponse<ContractListResponse>> getContracts(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId,
+            @Valid @ModelAttribute ContractSearchCondition condition
+    ) {
+        log.info("계약 목록 조회 API 호출: siteId={}, condition={}", siteId, condition);
+
+        ContractListResponse response = contractService.getContracts(siteId, condition);
+
+        log.info("계약 목록 조회 완료: siteId={}, totalElements={}",
+                siteId, response.getPageInfo().getTotalElements());
+
+        return ResponseEntity.ok(ApiResponse.success(response, "계약 목록 조회가 완료되었습니다"));
+    }
 
     /**
      * 상용직 계약 생성 API

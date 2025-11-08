@@ -7,6 +7,9 @@ import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.contract.dto.ContractDetailRequest;
+import com.concrete.buildup.domain.contract.dto.ContractListResponse;
+import com.concrete.buildup.domain.contract.dto.ContractSearchCondition;
+import com.concrete.buildup.domain.contract.dto.ContractSummaryDto;
 import com.concrete.buildup.domain.contract.dto.CreateContractRequest;
 import com.concrete.buildup.domain.contract.dto.CreateContractResponse;
 import com.concrete.buildup.domain.contract.entity.Contract;
@@ -19,13 +22,20 @@ import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
+import com.concrete.buildup.global.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 계약 관리 서비스
@@ -221,6 +231,195 @@ public class ContractService {
         return CreateContractResponse.builder()
                 .contractId(savedContract.getId())
                 .contractState(savedContract.getContractState())
+                .build();
+    }
+
+    /**
+     * 계약 목록 조회
+     *
+     * <p>현장별 계약 목록을 필터링 및 페이징하여 조회합니다.</p>
+     * <p>비즈니스 로직:</p>
+     * <ul>
+     *   <li>1. Site 존재 여부 검증 및 managerId 획득</li>
+     *   <li>2. managerId로 계약 목록 조회 (페이징)</li>
+     *   <li>3. 계약 목록에서 employeeId 추출 → Employee 일괄 조회 (N+1 방지)</li>
+     *   <li>4. 검색 조건(employeeId, empType, status, from, to)으로 Stream 필터링</li>
+     *   <li>5. Employee + Contract 정보를 ContractSummaryDto로 변환 (주민번호 마스킹)</li>
+     *   <li>6. 수동 페이징 처리 후 ContractListResponse 생성</li>
+     * </ul>
+     *
+     * @param siteId 현장 ID
+     * @param condition 검색 조건
+     * @return ContractListResponse - 계약 목록 + 페이징 정보
+     * @throws BusinessException SITE_NOT_FOUND - 현장을 찾을 수 없음
+     */
+    public ContractListResponse getContracts(Long siteId, ContractSearchCondition condition) {
+        log.info("계약 목록 조회 시작: siteId={}, condition={}", siteId, condition);
+
+        // ========== 1. Site 존재 여부 검증 및 managerId 획득 ==========
+        Site site = siteRepository.findById(siteId)
+                .orElseThrow(() -> {
+                    log.warn("현장을 찾을 수 없음: siteId={}", siteId);
+                    return new BusinessException(ContractErrorCode.SITE_NOT_FOUND);
+                });
+        log.debug("현장 조회 성공: siteId={}", site.getId());
+
+        Long managerId = site.getManager() != null ? site.getManager().getId() : null;
+        if (managerId == null) {
+            log.warn("현장에 관리자가 할당되지 않음: siteId={}", siteId);
+            // 관리자가 없는 현장은 빈 목록 반환
+            return ContractListResponse.builder()
+                    .items(List.of())
+                    .pageInfo(ContractListResponse.PageInfo.builder()
+                            .currentPage(condition.getPage())
+                            .pageSize(condition.getSize())
+                            .totalElements(0)
+                            .totalPages(0)
+                            .hasNext(false)
+                            .hasPrevious(false)
+                            .build())
+                    .build();
+        }
+
+        // ========== 2. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
+        List<Long> employeeIdsByType = null;
+        if (condition.getEmpType() != null) {
+            List<Employee> employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+            employeeIdsByType = employeesByType.stream()
+                    .map(Employee::getId)
+                    .toList();
+
+            log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeeIdsByType.size());
+
+            // empType에 해당하는 근로자가 없으면 빈 목록 반환
+            if (employeeIdsByType.isEmpty()) {
+                log.info("해당 empType의 근로자가 없음: empType={}", condition.getEmpType());
+                return buildEmptyResponse(condition);
+            }
+        }
+
+        // ========== 3. 동적 조건으로 Contract 조회 (페이징) ==========
+        Pageable pageable = PageRequest.of(
+                condition.getPageIndex(),
+                condition.getSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        Page<Contract> contractPage = contractRepository.findByDynamicConditions(
+                managerId,
+                condition.getEmployeeId(),
+                employeeIdsByType,
+                condition.getStatus(),
+                condition.getFrom(),
+                condition.getTo(),
+                pageable
+        );
+
+        List<Contract> contracts = contractPage.getContent();
+        log.info("DB 조회 완료: totalElements={}, totalPages={}, currentPage={}",
+                contractPage.getTotalElements(), contractPage.getTotalPages(), condition.getPage());
+
+        if (contracts.isEmpty()) {
+            return buildEmptyResponse(condition);
+        }
+
+        // ========== 4. Employee 일괄 조회 (N+1 방지) ==========
+        List<Long> employeeIds = contracts.stream()
+                .map(Contract::getEmployeeId)
+                .distinct()
+                .toList();
+
+        Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
+                .collect(Collectors.toMap(Employee::getId, e -> e));
+        log.debug("근로자 정보 일괄 조회 완료: count={}", employeeMap.size());
+
+        // ========== 5. DTO 변환 ==========
+        List<ContractSummaryDto> items = contracts.stream()
+                .map(contract -> toSummaryDto(contract, employeeMap.get(contract.getEmployeeId())))
+                .toList();
+
+        // ========== 6. PageInfo 생성 (필터링된 결과 기준) ==========
+        ContractListResponse.PageInfo pageInfo = ContractListResponse.PageInfo.builder()
+                .currentPage(condition.getPage())
+                .pageSize(condition.getSize())
+                .totalElements(contractPage.getTotalElements())
+                .totalPages(contractPage.getTotalPages())
+                .hasNext(contractPage.hasNext())
+                .hasPrevious(contractPage.hasPrevious())
+                .build();
+
+        log.info("계약 목록 조회 완료: itemCount={}", items.size());
+
+        return ContractListResponse.builder()
+                .items(items)
+                .pageInfo(pageInfo)
+                .build();
+    }
+
+    /**
+     * 빈 응답 생성 헬퍼 메서드
+     */
+    private ContractListResponse buildEmptyResponse(ContractSearchCondition condition) {
+        return ContractListResponse.builder()
+                .items(List.of())
+                .pageInfo(ContractListResponse.PageInfo.builder()
+                        .currentPage(condition.getPage())
+                        .pageSize(condition.getSize())
+                        .totalElements(0)
+                        .totalPages(0)
+                        .hasNext(false)
+                        .hasPrevious(false)
+                        .build())
+                .build();
+    }
+
+
+    /**
+     * Contract + Employee를 ContractSummaryDto로 변환
+     */
+    private ContractSummaryDto toSummaryDto(Contract contract, Employee employee) {
+        if (employee == null) {
+            log.warn("근로자 정보를 찾을 수 없음: employeeId={}", contract.getEmployeeId());
+            // Employee가 없는 경우에도 Contract 정보는 반환 (데이터 일관성 문제 방지)
+            return ContractSummaryDto.builder()
+                    .contractId(contract.getId())
+                    .employeeId(contract.getEmployeeId())
+                    .employeeName("알 수 없음")
+                    .employeeResidentNumber(null)
+                    .empType(null)
+                    .role(contract.getRole())
+                    .contractState(contract.getContractState())
+                    .employeeStartDate(contract.getEmployeeStartDate())
+                    .employeeEndDate(contract.getEmployeeEndDate())
+                    .writtenAt(contract.getWrittenAt())
+                    .corporationSignedAt(contract.getCorpSignedAt())
+                    .employeeSignedAt(contract.getEmpSignedAt())
+                    .build();
+        }
+
+        // empType 변환
+        EmpType empType = null;
+        if (employee.getEmpType() != null) {
+            try {
+                empType = EmpType.valueOf(employee.getEmpType());
+            } catch (IllegalArgumentException e) {
+                log.warn("유효하지 않은 empType: {}", employee.getEmpType());
+            }
+        }
+
+        return ContractSummaryDto.builder()
+                .contractId(contract.getId())
+                .employeeId(employee.getId())
+                .employeeName(employee.getEmpName())
+                .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
+                .empType(empType)
+                .role(contract.getRole())
+                .contractState(contract.getContractState())
+                .employeeStartDate(contract.getEmployeeStartDate())
+                .employeeEndDate(contract.getEmployeeEndDate())
+                .writtenAt(contract.getWrittenAt())
+                .corporationSignedAt(contract.getCorpSignedAt())
+                .employeeSignedAt(contract.getEmpSignedAt())
                 .build();
     }
 }
