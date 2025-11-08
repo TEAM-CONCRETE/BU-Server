@@ -6,9 +6,11 @@ import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.contract.dto.ContractDetailRequest;
 import com.concrete.buildup.domain.contract.dto.CreateContractRequest;
 import com.concrete.buildup.domain.contract.dto.CreateContractResponse;
 import com.concrete.buildup.domain.contract.entity.Contract;
+import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractDetailRepository;
@@ -20,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -128,8 +131,72 @@ public class ContractService {
             log.info("근로자 emp_type 설정: employeeId={}, empType={}", employee.getId(), empType.name());
         }
 
-        // TODO: 4번 커밋에서 Contract 및 ContractDetail 생성 로직 추가 예정
+        // ========== 3. Contract 엔티티 생성 ==========
 
-        return null; // 임시 반환
+        Contract contract = Contract.builder()
+                .employeeId(employee.getId())
+                .corporationId(corporation.getId())
+                .managerId(manager != null ? manager.getId() : null)
+                .role(request.getRole())
+                .contractState(ContractState.DRAFT) // 초기 상태: DRAFT
+                .employeeStartDate(request.getEmployeeStartDate())
+                .employeeEndDate(request.getEmployeeEndDate())
+                .writtenAt(LocalDateTime.now())
+                .build();
+
+        // Contract 저장
+        Contract savedContract = contractRepository.save(contract);
+        log.info("Contract 생성 완료: contractId={}", savedContract.getId());
+
+        // ========== 4. ContractDetail 엔티티 생성 (스냅샷) ==========
+
+        ContractDetailRequest details = request.getDetails();
+
+        ContractDetail contractDetail = ContractDetail.builder()
+                .contract(savedContract)
+                // 스냅샷 필드 (계약 당시 정보)
+                .corpName(corporation.getCorpName())
+                .empName(employee.getEmpName())
+                .corpAddress(corporation.getCorpAddress())
+                .corpCeoName(corporation.getCorpCeoName())
+                .empAddress(employee.getEmpAddress())
+                // 근무 정보
+                .workPlace(details.getWorkPlace())
+                .workType(details.getWorkType())
+                .workStartTime(details.getWorkStartTime())
+                .workEndTime(details.getWorkEndTime())
+                .breakStartTime(details.getBreakStartTime())
+                .breakEndTime(details.getBreakEndTime())
+                .workOnDay(details.getWorkOnDay())
+                .workOffDay(details.getWorkOffDay())
+                // 급여 정보
+                .workPay(details.getWorkPay())
+                .workBonus(details.getWorkBonus())
+                .additionalHourPay(details.getAdditionalHourPay())
+                .additionalNightPay(details.getAdditionalNightPay())
+                .additionalHolidayPay(details.getAdditionalHolidayPay())
+                // 지급 정보
+                .payday(details.getPayday())
+                .payPeriod(details.getPayPeriod())
+                .payType(details.getPayType())
+                // 4대보험
+                .isEoiApplicable(details.getIsEoiApplicable())
+                .isWciApplicable(details.getIsWciApplicable())
+                .isNpsApplicable(details.getIsNpsApplicable())
+                .isNhiApplicable(details.getIsNhiApplicable())
+                .build();
+
+        // ContractDetail 저장
+        contractDetailRepository.save(contractDetail);
+        log.info("ContractDetail 생성 완료: contractId={}", savedContract.getId());
+
+        // ========== 5. 응답 생성 ==========
+
+        log.info("계약 생성 완료 - contractId: {}, employeeId: {}", savedContract.getId(), employee.getId());
+
+        return CreateContractResponse.builder()
+                .contractId(savedContract.getId())
+                .contractState(savedContract.getContractState())
+                .build();
     }
 }
