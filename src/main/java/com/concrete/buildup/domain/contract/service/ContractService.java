@@ -87,7 +87,7 @@ public class ContractService {
                     log.warn("현장을 찾을 수 없음: siteId={}", siteId);
                     return new BusinessException(ContractErrorCode.SITE_NOT_FOUND);
                 });
-        log.debug("현장 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
+        log.debug("현장 조회 성공: siteId={}", site.getId());
 
         // 1-1. Employee 존재 여부 검증
         Employee employee = employeeRepository.findById(request.getEmployeeId())
@@ -95,7 +95,7 @@ public class ContractService {
                     log.warn("근로자를 찾을 수 없음: employeeId={}", request.getEmployeeId());
                     return new BusinessException(ContractErrorCode.EMPLOYEE_NOT_FOUND);
                 });
-        log.debug("근로자 조회 성공: employeeId={}, empName={}", employee.getId(), employee.getEmpName());
+        log.debug("근로자 조회 성공: employeeId={}", employee.getId());
 
         // 1-2. Corporation 존재 여부 검증
         Corporation corporation = corporationRepository.findById(request.getCorporationId())
@@ -103,7 +103,7 @@ public class ContractService {
                     log.warn("기업을 찾을 수 없음: corporationId={}", request.getCorporationId());
                     return new BusinessException(ContractErrorCode.CORPORATION_NOT_FOUND);
                 });
-        log.debug("기업 조회 성공: corporationId={}, corpName={}", corporation.getId(), corporation.getCorpName());
+        log.debug("기업 조회 성공: corporationId={}", corporation.getId());
 
         // 1-3. Manager 존재 여부 검증 및 권한 검증 (Optional)
         Manager manager = null;
@@ -113,7 +113,7 @@ public class ContractService {
                         log.warn("관리자를 찾을 수 없음: managerId={}", request.getManagerId());
                         return new BusinessException(ContractErrorCode.MANAGER_NOT_FOUND);
                     });
-            log.debug("관리자 조회 성공: managerId={}, managerName={}", manager.getId(), manager.getManagerName());
+            log.debug("관리자 조회 성공: managerId={}", manager.getId());
 
             // 1-4. Manager가 해당 Site의 관리자인지 권한 검증
             if (site.getManager() == null || !site.getManager().getId().equals(manager.getId())) {
