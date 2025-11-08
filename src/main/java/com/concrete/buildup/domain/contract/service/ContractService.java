@@ -281,21 +281,49 @@ public class ContractService {
                     .build();
         }
 
-        // ========== 2. managerId로 계약 목록 조회 (페이징) ==========
+        // ========== 2. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
+        List<Long> employeeIdsByType = null;
+        if (condition.getEmpType() != null) {
+            List<Employee> employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+            employeeIdsByType = employeesByType.stream()
+                    .map(Employee::getId)
+                    .toList();
+
+            log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeeIdsByType.size());
+
+            // empType에 해당하는 근로자가 없으면 빈 목록 반환
+            if (employeeIdsByType.isEmpty()) {
+                log.info("해당 empType의 근로자가 없음: empType={}", condition.getEmpType());
+                return buildEmptyResponse(condition);
+            }
+        }
+
+        // ========== 3. 동적 조건으로 Contract 조회 (페이징) ==========
         Pageable pageable = PageRequest.of(
                 condition.getPageIndex(),
                 condition.getSize(),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
-        Page<Contract> contractPage = contractRepository.findByManagerId(managerId, pageable);
+
+        Page<Contract> contractPage = contractRepository.findByDynamicConditions(
+                managerId,
+                condition.getEmployeeId(),
+                employeeIdsByType,
+                condition.getStatus(),
+                condition.getFrom(),
+                condition.getTo(),
+                pageable
+        );
+
         List<Contract> contracts = contractPage.getContent();
-        log.debug("계약 목록 조회 완료: count={}", contracts.size());
+        log.info("DB 조회 완료: totalElements={}, totalPages={}, currentPage={}",
+                contractPage.getTotalElements(), contractPage.getTotalPages(), condition.getPage());
 
         if (contracts.isEmpty()) {
             return buildEmptyResponse(condition);
         }
 
-        // ========== 3. Employee 일괄 조회 (N+1 방지) ==========
+        // ========== 4. Employee 일괄 조회 (N+1 방지) ==========
         List<Long> employeeIds = contracts.stream()
                 .map(Contract::getEmployeeId)
                 .distinct()
@@ -305,15 +333,12 @@ public class ContractService {
                 .collect(Collectors.toMap(Employee::getId, e -> e));
         log.debug("근로자 정보 일괄 조회 완료: count={}", employeeMap.size());
 
-        // ========== 4. Stream 필터링 ==========
-        List<ContractSummaryDto> filteredItems = contracts.stream()
-                .filter(contract -> matchesCondition(contract, employeeMap.get(contract.getEmployeeId()), condition))
+        // ========== 5. DTO 변환 ==========
+        List<ContractSummaryDto> items = contracts.stream()
                 .map(contract -> toSummaryDto(contract, employeeMap.get(contract.getEmployeeId())))
                 .toList();
 
-        log.debug("필터링 후 계약 개수: {}", filteredItems.size());
-
-        // ========== 5. PageInfo 생성 ==========
+        // ========== 6. PageInfo 생성 (필터링된 결과 기준) ==========
         ContractListResponse.PageInfo pageInfo = ContractListResponse.PageInfo.builder()
                 .currentPage(condition.getPage())
                 .pageSize(condition.getSize())
@@ -323,10 +348,10 @@ public class ContractService {
                 .hasPrevious(contractPage.hasPrevious())
                 .build();
 
-        log.info("계약 목록 조회 완료: totalElements={}", contractPage.getTotalElements());
+        log.info("계약 목록 조회 완료: itemCount={}", items.size());
 
         return ContractListResponse.builder()
-                .items(filteredItems)
+                .items(items)
                 .pageInfo(pageInfo)
                 .build();
     }
@@ -348,40 +373,6 @@ public class ContractService {
                 .build();
     }
 
-    /**
-     * 검색 조건 매칭 확인
-     */
-    private boolean matchesCondition(Contract contract, Employee employee, ContractSearchCondition condition) {
-        // employeeId 필터
-        if (condition.getEmployeeId() != null && !condition.getEmployeeId().equals(contract.getEmployeeId())) {
-            return false;
-        }
-
-        // empType 필터 (Employee 테이블에서 조회)
-        if (condition.getEmpType() != null && employee != null) {
-            String empTypeStr = employee.getEmpType();
-            if (empTypeStr == null || !empTypeStr.equals(condition.getEmpType().name())) {
-                return false;
-            }
-        }
-
-        // status 필터
-        if (condition.getStatus() != null && !condition.getStatus().equals(contract.getContractState())) {
-            return false;
-        }
-
-        // from 날짜 필터 (계약 시작일 >= from)
-        if (condition.getFrom() != null && contract.getEmployeeStartDate().isBefore(condition.getFrom())) {
-            return false;
-        }
-
-        // to 날짜 필터 (계약 시작일 <= to)
-        if (condition.getTo() != null && contract.getEmployeeStartDate().isAfter(condition.getTo())) {
-            return false;
-        }
-
-        return true;
-    }
 
     /**
      * Contract + Employee를 ContractSummaryDto로 변환

@@ -147,4 +147,97 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
      * @return 계약 목록 (페이징)
      */
     Page<Contract> findByManagerId(Long managerId, Pageable pageable);
+
+    /**
+     * 관리자 ID와 근로자 ID로 계약 목록 조회 (페이징)
+     *
+     * @param managerId 관리자 ID
+     * @param employeeId 근로자 ID
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndEmployeeId(Long managerId, Long employeeId, Pageable pageable);
+
+    /**
+     * 관리자 ID와 계약 상태로 계약 목록 조회 (페이징)
+     *
+     * @param managerId 관리자 ID
+     * @param contractState 계약 상태
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndContractState(Long managerId, ContractState contractState, Pageable pageable);
+
+    /**
+     * 관리자 ID와 날짜 범위로 계약 목록 조회 (페이징)
+     *
+     * @param managerId 관리자 ID
+     * @param from 시작일 (이상)
+     * @param to 종료일 (이하)
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndEmployeeStartDateBetween(Long managerId, LocalDate from, LocalDate to, Pageable pageable);
+
+    /**
+     * 관리자 ID, 근로자 ID, 계약 상태로 계약 목록 조회 (페이징)
+     *
+     * @param managerId 관리자 ID
+     * @param employeeId 근로자 ID
+     * @param contractState 계약 상태
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndEmployeeIdAndContractState(Long managerId, Long employeeId, ContractState contractState, Pageable pageable);
+
+    /**
+     * 관리자 ID, 근로자 ID 목록으로 계약 목록 조회 (페이징)
+     * empType 필터링을 위해 사용
+     *
+     * @param managerId 관리자 ID
+     * @param employeeIds 근로자 ID 목록
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndEmployeeIdIn(Long managerId, List<Long> employeeIds, Pageable pageable);
+
+    /**
+     * 관리자 ID, 근로자 ID 목록, 계약 상태로 계약 목록 조회 (페이징)
+     *
+     * @param managerId 관리자 ID
+     * @param employeeIds 근로자 ID 목록
+     * @param contractState 계약 상태
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerIdAndEmployeeIdInAndContractState(Long managerId, List<Long> employeeIds, ContractState contractState, Pageable pageable);
+
+    /**
+     * 복합 조건 쿼리 - 모든 조건 조합 지원
+     * JPQL을 사용하여 동적으로 조건 추가
+     *
+     * @param managerId 관리자 ID (필수)
+     * @param employeeId 근로자 ID (nullable)
+     * @param employeeIds 근로자 ID 목록 (nullable)
+     * @param contractState 계약 상태 (nullable)
+     * @param from 시작일 (nullable)
+     * @param to 종료일 (nullable)
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    @Query("SELECT c FROM Contract c WHERE c.managerId = :managerId " +
+           "AND (:employeeId IS NULL OR c.employeeId = :employeeId) " +
+           "AND (:employeeIds IS NULL OR c.employeeId IN :employeeIds) " +
+           "AND (:contractState IS NULL OR c.contractState = :contractState) " +
+           "AND (:from IS NULL OR c.employeeStartDate >= :from) " +
+           "AND (:to IS NULL OR c.employeeStartDate <= :to)")
+    Page<Contract> findByDynamicConditions(
+            @Param("managerId") Long managerId,
+            @Param("employeeId") Long employeeId,
+            @Param("employeeIds") List<Long> employeeIds,
+            @Param("contractState") ContractState contractState,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            Pageable pageable
+    );
 }

@@ -682,7 +682,15 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).willReturn(contractPage);
         given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
 
         // when
@@ -700,7 +708,15 @@ class ContractServiceTest {
         assertThat(firstItem.getEmployeeName()).isEqualTo("홍길동");
 
         verify(siteRepository).findById(siteId);
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
+        verify(contractRepository).findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        );
         verify(employeeRepository).findAllById(List.of(1L, 2L));
     }
 
@@ -720,17 +736,22 @@ class ContractServiceTest {
                 .build();
 
         Employee employee1 = createEmployeeWithResidentNum(1L, "홍길동", "950101-1234567", "PERMANENT");
-        Employee employee2 = createEmployeeWithResidentNum(2L, "김철수", "880215-2345678", "DAILY");
 
         Contract contract1 = createContract(1L, 1L, 1L, managerId, EmpType.PERMANENT, ContractState.FULLY_SIGNED, LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31));
-        Contract contract2 = createContract(2L, 2L, 1L, managerId, EmpType.DAILY, ContractState.DRAFT, LocalDate.of(2024, 3, 1), LocalDate.of(2024, 6, 30));
 
-        Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
+        Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
-        // Service에서는 필터링 전 모든 employeeId를 조회하므로 [1, 2] 모두 스텁
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(1L),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).willReturn(contractPage);
+        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -740,8 +761,6 @@ class ContractServiceTest {
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getEmployeeId()).isEqualTo(1L);
         assertThat(response.getItems().get(0).getEmployeeName()).isEqualTo("홍길동");
-
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
     }
 
     @Test
@@ -760,16 +779,24 @@ class ContractServiceTest {
                 .build();
 
         Employee employee1 = createEmployeeWithResidentNum(1L, "홍길동", "950101-1234567", "PERMANENT");
-        Employee employee2 = createEmployeeWithResidentNum(2L, "김철수", "880215-2345678", "DAILY");
 
         Contract contract1 = createContract(1L, 1L, 1L, managerId, EmpType.PERMANENT, ContractState.FULLY_SIGNED, LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31));
-        Contract contract2 = createContract(2L, 2L, 1L, managerId, EmpType.DAILY, ContractState.DRAFT, LocalDate.of(2024, 3, 1), LocalDate.of(2024, 6, 30));
 
-        Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
+        Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        // empType 필터를 위해 Employee 조회
+        given(employeeRepository.findByEmpType("PERMANENT")).willReturn(List.of(employee1));
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(List.of(1L)),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).willReturn(contractPage);
+        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -779,7 +806,7 @@ class ContractServiceTest {
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getEmpType()).isEqualTo(EmpType.PERMANENT);
 
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
+        verify(employeeRepository).findByEmpType("PERMANENT");
     }
 
     @Test
@@ -798,16 +825,22 @@ class ContractServiceTest {
                 .build();
 
         Employee employee1 = createEmployeeWithResidentNum(1L, "홍길동", "950101-1234567", "PERMANENT");
-        Employee employee2 = createEmployeeWithResidentNum(2L, "김철수", "880215-2345678", "DAILY");
 
         Contract contract1 = createContract(1L, 1L, 1L, managerId, EmpType.PERMANENT, ContractState.FULLY_SIGNED, LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31));
-        Contract contract2 = createContract(2L, 2L, 1L, managerId, EmpType.DAILY, ContractState.DRAFT, LocalDate.of(2024, 3, 1), LocalDate.of(2024, 6, 30));
 
-        Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
+        Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(null),
+                eq(ContractState.FULLY_SIGNED),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).willReturn(contractPage);
+        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -816,8 +849,6 @@ class ContractServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getContractState()).isEqualTo(ContractState.FULLY_SIGNED);
-
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
     }
 
     @Test
@@ -829,24 +860,33 @@ class ContractServiceTest {
         Manager manager = createManager(managerId, "김관리");
         Site site = createSite(siteId, "테스트현장", manager);
 
+        LocalDate from = LocalDate.of(2024, 2, 1);
+        LocalDate to = LocalDate.of(2024, 4, 1);
+
         ContractSearchCondition condition = ContractSearchCondition.builder()
-                .from(LocalDate.of(2024, 2, 1))
-                .to(LocalDate.of(2024, 4, 1))
+                .from(from)
+                .to(to)
                 .page(1)
                 .size(20)
                 .build();
 
-        Employee employee1 = createEmployeeWithResidentNum(1L, "홍길동", "950101-1234567", "PERMANENT");
         Employee employee2 = createEmployeeWithResidentNum(2L, "김철수", "880215-2345678", "DAILY");
 
-        Contract contract1 = createContract(1L, 1L, 1L, managerId, EmpType.PERMANENT, ContractState.FULLY_SIGNED, LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31));
         Contract contract2 = createContract(2L, 2L, 1L, managerId, EmpType.DAILY, ContractState.DRAFT, LocalDate.of(2024, 3, 1), LocalDate.of(2024, 6, 30));
 
-        Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
+        Page<Contract> contractPage = new PageImpl<>(List.of(contract2));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(from),
+                eq(to),
+                any(Pageable.class)
+        )).willReturn(contractPage);
+        given(employeeRepository.findAllById(List.of(2L))).willReturn(List.of(employee2));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -855,8 +895,6 @@ class ContractServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getEmployeeStartDate()).isEqualTo(LocalDate.of(2024, 3, 1));
-
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
     }
 
     @Test
