@@ -48,3 +48,16 @@ security:
     # 키 생성: openssl rand -hex 32
     # 설정 예: export ENCRYPTION_KEY="your_32_byte_secure_key_here!!"
     key: ${ENCRYPTION_KEY}
+
+# SpringDoc(Swagger) 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json

@@ -4,6 +4,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -38,5 +39,18 @@ public class OpenApiConfig {
                                 .url("https://api.buildup.com")
                                 .description("운영 서버 (예시)")
                 ));
+    }
+
+    /**
+     * 전체 API 그룹 설정
+     *
+     * <p>모든 API 엔드포인트를 하나의 그룹으로 문서화합니다.</p>
+     */
+    @Bean
+    public GroupedOpenApi allApi() {
+        return GroupedOpenApi.builder()
+                .group("all")
+                .pathsToMatch("/v1/**")
+                .build();
     }
 }
