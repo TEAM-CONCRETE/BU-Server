@@ -44,13 +44,6 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
      */
     Page<Contract> findByCorporationId(Long corporationId, Pageable pageable);
 
-    /**
-     * 관리자 ID로 계약 목록 조회
-     *
-     * @param managerId 관리자 ID
-     * @return 계약 목록
-     */
-    List<Contract> findByManagerId(Long managerId);
 
     /**
      * 계약 상태로 계약 목록 조회 (페이징)
@@ -142,4 +135,16 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
     @Query(value = "SELECT DISTINCT c FROM Contract c LEFT JOIN FETCH c.contractDetail WHERE c.contractState = :contractState",
            countQuery = "SELECT COUNT(c) FROM Contract c WHERE c.contractState = :contractState")
     Page<Contract> findByContractStateWithDetails(@Param("contractState") ContractState contractState, Pageable pageable);
+
+    /**
+     * 현장 ID로 계약 목록 조회 (페이징)
+     *
+     * <p>계약 목록 조회 API에서 사용됩니다.</p>
+     * <p>Employee는 연관관계가 없으므로 Service 레이어에서 별도 조회합니다.</p>
+     *
+     * @param siteId 현장 ID (Contract 테이블에는 없으므로 Manager를 통해 간접 조회 필요)
+     * @param pageable 페이징 정보
+     * @return 계약 목록 (페이징)
+     */
+    Page<Contract> findByManagerId(Long managerId, Pageable pageable);
 }
