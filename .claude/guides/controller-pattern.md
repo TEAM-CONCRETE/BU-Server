@@ -280,7 +280,7 @@ throw new ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND);
 
 ```gradle
 // build.gradle
-implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
+implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 ```
 
 ### 2. 클래스 레벨 문서화

@@ -13,6 +13,34 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# .env 파일 로드
+if [ -f ".env" ]; then
+    echo -e "${BLUE}📄 .env 파일을 로드합니다...${NC}"
+    # 주석 제거 후 환경 변수 로드
+    while IFS= read -r line || [ -n "$line" ]; do
+        # 빈 줄이나 주석으로 시작하는 줄 건너뛰기
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # 인라인 주석 제거 (# 이후 제거)
+        line="${line%%#*}"
+
+        # 앞뒤 공백 제거
+        line="$(echo "$line" | xargs)"
+
+        # = 가 포함된 줄만 처리
+        if [[ "$line" == *"="* ]]; then
+            export "$line"
+        fi
+    done < .env
+    echo -e "${GREEN}✅ 환경 변수가 로드되었습니다.${NC}"
+    echo ""
+else
+    echo -e "${YELLOW}⚠️  .env 파일이 없습니다.${NC}"
+    echo "AWS S3를 사용하려면 .env 파일을 생성하세요:"
+    echo "  cp .env.example .env"
+    echo ""
+fi
+
 # Docker Compose 파일 확인
 if [ ! -f "docker-compose.dev.yml" ]; then
     echo -e "${RED}❌ docker-compose.dev.yml 파일이 없습니다.${NC}"
