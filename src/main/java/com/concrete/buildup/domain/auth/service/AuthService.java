@@ -745,15 +745,28 @@ public class AuthService {
         );
         log.debug("새로운 Access Token 생성 완료: userId={}", user.getUserId());
 
-        // 8. Refresh Token Rotation: 새로운 Refresh Token 생성
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), false);
+        // 8. 기존 Refresh Token의 만료 시간으로 rememberMe 여부 판단
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = user.getRefreshTokenExpiresAt();
+        long remainingTime = java.time.Duration.between(now, expiresAt).toMillis();
+
+        // 남은 시간이 일반 만료시간(7일)보다 길면 rememberMe=true로 간주
+        boolean isRememberMe = remainingTime > refreshTokenExpiration;
+        long expiration = isRememberMe ? refreshTokenRememberMeExpiration : refreshTokenExpiration;
+
+        log.debug("기존 토큰 rememberMe 판단: isRememberMe={}, remainingTime={}ms, threshold={}ms",
+                isRememberMe, remainingTime, refreshTokenExpiration);
+
+        // 9. Refresh Token Rotation: 새로운 Refresh Token 생성 (기존 rememberMe 유지)
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), isRememberMe);
         String hashedNewRefreshToken = hashToken(newRefreshToken);
         LocalDateTime newRefreshTokenExpiresAt = LocalDateTime.now()
-                .plusSeconds(refreshTokenExpiration / 1000);
+                .plusSeconds(expiration / 1000);
         user.updateRefreshToken(hashedNewRefreshToken, newRefreshTokenExpiresAt);
-        log.debug("새로운 Refresh Token 생성 및 DB 저장 완료: userId={}", user.getUserId());
+        log.debug("새로운 Refresh Token 생성 및 DB 저장 완료: userId={}, rememberMe={}",
+                user.getUserId(), isRememberMe);
 
-        // 9. Response 생성
+        // 10. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .userId(user.getUserId())
@@ -761,14 +774,14 @@ public class AuthService {
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .build();
 
-        // 10. LoginResult 생성 (새로운 refreshToken 포함, 평문)
+        // 11. LoginResult 생성 (새로운 refreshToken 포함, 평문)
         LoginResult result = LoginResult.builder()
                 .loginResponse(loginResponse)
                 .refreshToken(newRefreshToken)  // 평문 토큰 (쿠키로 전달용)
-                .refreshTokenMaxAge(refreshTokenExpiration / 1000)  // 초 단위로 변환
+                .refreshTokenMaxAge(expiration / 1000)  // 초 단위로 변환 (rememberMe 반영)
                 .build();
 
-        log.info("토큰 재발급 성공: userId={}", user.getUserId());
+        log.info("토큰 재발급 성공: userId={}, rememberMe={}", user.getUserId(), isRememberMe);
 
         return result;
     }
