@@ -6,6 +6,10 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import com.lowagie.text.Image;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 import org.xhtmlrenderer.pdf.ITextRenderer;
 
 import java.io.ByteArrayOutputStream;
@@ -106,18 +110,57 @@ public class PdfService {
     ) {
         log.info("PDF에 이미지 스탬핑 시작: x={}, y={}, width={}, height={}", x, y, width, height);
 
-        try {
-            // OpenPDF를 사용하여 PDF에 이미지 삽입
-            // TODO: OpenPDF를 사용한 PDF 이미지 스탬핑 구현 필요
-            // com.lowagie.text.pdf.PdfReader, com.lowagie.text.pdf.PdfStamper 등을 사용
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-            // 임시로 원본 PDF 반환 (실제 구현 필요)
-            log.warn("PDF 이미지 스탬핑 기능이 아직 구현되지 않았습니다. 원본 PDF를 반환합니다.");
-            return originalPdfBytes;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            // 1. 원본 PDF 읽기
+            reader = new PdfReader(originalPdfBytes);
 
+            // 2. PdfStamper 생성 (수정 가능한 PDF 생성)
+            stamper = new PdfStamper(reader, baos);
+
+            // 3. 이미지 객체 생성
+            Image image = Image.getInstance(imageBytes);
+
+            // 4. 이미지 크기 설정
+            image.scaleAbsolute(width.floatValue(), height.floatValue());
+
+            // 5. 첫 번째 페이지에 이미지 삽입
+            // PDF 좌표계: 왼쪽 하단이 (0, 0), Y축은 아래에서 위로 증가
+            // 일반적으로 Y 좌표는 페이지 높이에서 빼서 계산해야 할 수 있음
+            PdfContentByte contentByte = stamper.getOverContent(1);
+            contentByte.addImage(image, width.floatValue(), 0, 0, height.floatValue(), 
+                    x.floatValue(), y.floatValue());
+
+            // 6. PDF 닫기
+            stamper.close();
+            reader.close();
+
+            byte[] resultPdfBytes = baos.toByteArray();
+            log.info("PDF 이미지 스탬핑 완료: originalSize={} bytes, resultSize={} bytes", 
+                    originalPdfBytes.length, resultPdfBytes.length);
+
+            return resultPdfBytes;
+
+        } catch (IOException e) {
+            log.error("PDF 이미지 스탬핑 실패: IO 오류", e);
+            throw new RuntimeException("PDF 이미지 스탬핑 중 IO 오류가 발생했습니다: " + e.getMessage(), e);
         } catch (Exception e) {
             log.error("PDF 이미지 스탬핑 실패", e);
             throw new RuntimeException("PDF 이미지 스탬핑 중 오류가 발생했습니다: " + e.getMessage(), e);
+        } finally {
+            // 리소스 정리
+            if (stamper != null) {
+                try {
+                    stamper.close();
+                } catch (Exception e) {
+                    log.warn("PdfStamper 닫기 실패", e);
+                }
+            }
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
