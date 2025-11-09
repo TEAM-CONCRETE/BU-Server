@@ -21,6 +21,16 @@ public enum ContractState {
     DRAFT("초안"),
 
     /**
+     * 관리자 서명 대기 - 초안 PDF 생성 후 관리자 서명을 기다리는 상태
+     */
+    MANAGER_SIGNING_PENDING("관리자 서명 대기"),
+
+    /**
+     * 근로자 서명 대기 - 관리자 서명 완료 후 근로자 서명을 기다리는 상태
+     */
+    EMPLOYEE_SIGNING_PENDING("근로자 서명 대기"),
+
+    /**
      * 발송됨 - 근로자에게 전송되었으나 아직 서명되지 않은 상태
      */
     SENT("발송됨"),
@@ -38,7 +48,12 @@ public enum ContractState {
     /**
      * 종료됨 - 계약이 종료되거나 해지된 상태
      */
-    TERMINATED("종료됨");
+    TERMINATED("종료됨"),
+
+    /**
+     * 무효화됨 - 계약이 무효화된 상태
+     */
+    VOID("무효화됨");
 
     /**
      * 상태에 대한 한글 설명
