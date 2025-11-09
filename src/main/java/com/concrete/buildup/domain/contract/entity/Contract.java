@@ -2,6 +2,8 @@ package com.concrete.buildup.domain.contract.entity;
 
 import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.global.common.BaseEntity;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -208,10 +210,32 @@ public class Contract extends BaseEntity {
      *
      * @param pdfUrl 최종 PDF S3 URL
      * @param pdfHash 최종 PDF SHA-256 해시값
+     * @throws BusinessException 파라미터 검증 실패, 상태 검증 실패, 중복 업데이트 시
      */
     public void updateFinalPdf(String pdfUrl, String pdfHash) {
-        this.finalPdfUrl = pdfUrl;
-        this.finalPdfHash = pdfHash;
+        // 1. 파라미터 검증
+        if (pdfUrl == null || pdfUrl.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.INVALID_PDF_URL);
+        }
+        if (pdfHash == null || pdfHash.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.INVALID_PDF_HASH);
+        }
+
+        // 2. 상태 검증: FULLY_SIGNED 상태에서만 최종 PDF 업데이트 가능
+        if (this.contractState != ContractState.FULLY_SIGNED) {
+            throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE_FOR_PDF_UPDATE,
+                    String.format("최종 PDF는 FULLY_SIGNED 상태에서만 업데이트할 수 있습니다. 현재 상태: %s", this.contractState));
+        }
+
+        // 3. 중복 업데이트 방지
+        if (this.finalPdfUrl != null && !this.finalPdfUrl.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.PDF_ALREADY_SET,
+                    String.format("최종 PDF가 이미 설정되어 있습니다. 기존 URL: %s", this.finalPdfUrl));
+        }
+
+        // 검증 통과 후 업데이트
+        this.finalPdfUrl = pdfUrl.trim();
+        this.finalPdfHash = pdfHash.trim();
         this.pdfGeneratedAt = LocalDateTime.now();
     }
 
