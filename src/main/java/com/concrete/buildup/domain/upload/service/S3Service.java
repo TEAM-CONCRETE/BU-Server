@@ -9,7 +9,6 @@ import com.concrete.buildup.global.exception.errorcode.S3ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -30,14 +29,11 @@ import java.time.LocalDateTime;
  * 주요 기능:
  * - Presigned URL 발급 (클라이언트 직접 업로드용)
  * - 이미지 다운로드 (서명 검증용)
- *
- * S3Client Bean이 존재할 때만 활성화됩니다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-@ConditionalOnBean(S3Client.class)
 public class S3Service {
 
     private final S3Client s3Client;

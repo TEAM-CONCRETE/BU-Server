@@ -16,7 +16,9 @@ NC='\033[0m' # No Color
 # .env 파일 로드
 if [ -f ".env" ]; then
     echo -e "${BLUE}📄 .env 파일을 로드합니다...${NC}"
-    export $(grep -v '^#' .env | xargs)
+    set -a  # 이후 변수들을 자동으로 export
+    source .env
+    set +a  # export 자동 해제
     echo -e "${GREEN}✅ 환경 변수가 로드되었습니다.${NC}"
     echo ""
 else

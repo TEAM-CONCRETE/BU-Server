@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 파일 업로드 API 컨트롤러
  * S3 Presigned URL 발급 및 파일 업로드 관련 API를 제공합니다.
- *
- * spring.cloud.aws.s3.enabled가 true로 설정되어 있을 때만 활성화됩니다.
  */
 @Slf4j
 @RestController
@@ -33,11 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Tag(name = "Upload", description = "파일 업로드 API")
 @SecurityRequirement(name = "Bearer Authentication")
-@ConditionalOnProperty(
-        name = "spring.cloud.aws.s3.enabled",
-        havingValue = "true",
-        matchIfMissing = false
-)
 public class UploadController {
 
     private final S3Service s3Service;

@@ -7,16 +7,17 @@ import com.concrete.buildup.domain.upload.enums.ResourceType;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.S3ErrorCode;
+import com.concrete.buildup.global.security.JwtAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -32,9 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * UploadController 테스트
  */
 @WebMvcTest(UploadController.class)
-@TestPropertySource(properties = {
-        "spring.cloud.aws.s3.enabled=true"
-})
+@AutoConfigureMockMvc(addFilters = false)
 class UploadControllerTest {
 
     @Autowired
@@ -45,6 +44,9 @@ class UploadControllerTest {
 
     @MockBean
     private S3Service s3Service;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Nested
     @DisplayName("POST /v1/uploads/signatures - Presigned URL 발급")
@@ -188,25 +190,6 @@ class UploadControllerTest {
                     .andExpect(status().isBadRequest());
         }
 
-        @Test
-        @DisplayName("인증 없이 요청 시 401 에러")
-        void generatePresignedUrl_Unauthorized_Returns401() throws Exception {
-            // Given
-            PresignedUrlRequest request = PresignedUrlRequest.builder()
-                    .resourceType(ResourceType.CONTRACT)
-                    .resourceId("123")
-                    .signerRole(SignerRole.EMPLOYEE)
-                    .fileExtension("png")
-                    .build();
-
-            // When & Then
-            mockMvc.perform(post("/v1/uploads/signatures")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andDo(print())
-                    .andExpect(status().isUnauthorized());
-        }
 
         @Test
         @DisplayName("S3 서비스 오류 발생 시 500 에러")

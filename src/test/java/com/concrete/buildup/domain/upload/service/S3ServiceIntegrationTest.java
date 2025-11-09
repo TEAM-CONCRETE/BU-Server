@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -33,23 +32,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * 실행 조건:
  * - AWS_INTEGRATION_TEST=true 환경변수 설정 (필수)
- * - AWS_S3_ENABLED=true 환경변수 설정
- * - AWS 자격증명 설정 (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
- * - S3 버킷 설정 (AWS_S3_BUCKET, 기본값: build-up-contracts)
+ * - src/test/resources/application-test.yml에 AWS 자격증명 설정 필요
  *
  * 실행 예시:
- * AWS_INTEGRATION_TEST=true AWS_S3_ENABLED=true AWS_S3_BUCKET=your-test-bucket ./gradlew test --tests S3ServiceIntegrationTest
+ * AWS_INTEGRATION_TEST=true ./gradlew test --tests S3ServiceIntegrationTest
  *
  * 주의사항:
  * - 실제 AWS 비용이 발생할 수 있습니다 (미미한 수준)
  * - 테스트용 버킷을 별도로 생성하여 사용하는 것을 권장합니다
- * - 테스트 종료 시 자동으로 업로드한 파일을 삭제합니다
+ * - KEEP_TEST_FILES=true 환경변수 설정 시 테스트 파일이 S3에 남아있음
  */
 @SpringBootTest
-@ActiveProfiles("dev")
-@TestPropertySource(properties = {
-        "spring.cloud.aws.s3.enabled=true"
-})
+@ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "AWS_INTEGRATION_TEST", matches = "true")
 @DisplayName("S3Service 실제 AWS 통합 테스트")
 class S3ServiceIntegrationTest {
@@ -122,6 +116,9 @@ class S3ServiceIntegrationTest {
             s3Client.headObject(headObjectRequest);
             // 예외가 발생하지 않으면 파일이 존재함
 
+            // AWS 콘솔 확인을 위한 정보 출력
+            printS3FileInfo(response.getS3Key(), "PNG Image");
+
         } finally {
             // 테스트 후 정리
             cleanupTestFile(response.getS3Key());
@@ -149,6 +146,9 @@ class S3ServiceIntegrationTest {
             // Then
             assertThat(downloadedData).isNotNull();
             assertThat(downloadedData).isEqualTo(testImageData);
+
+            // AWS 콘솔 확인을 위한 정보 출력
+            printS3FileInfo(testS3Key, "PNG Image (Download Test)");
 
         } finally {
             // 테스트 후 정리
@@ -187,6 +187,9 @@ class S3ServiceIntegrationTest {
 
             int responseCode = connection.getResponseCode();
             assertThat(responseCode).isEqualTo(200);
+
+            // AWS 콘솔 확인을 위한 정보 출력
+            printS3FileInfo(response.getS3Key(), "PDF Document");
 
         } finally {
             cleanupTestFile(response.getS3Key());
@@ -260,15 +263,43 @@ class S3ServiceIntegrationTest {
     }
 
     /**
+     * AWS 콘솔 확인을 위한 S3 파일 정보 출력
+     */
+    private void printS3FileInfo(String s3Key, String fileType) {
+        boolean keepFiles = "true".equalsIgnoreCase(System.getenv("KEEP_TEST_FILES"));
+
+        System.out.println("\n========================================");
+        System.out.println("AWS S3 파일 업로드 성공!");
+        System.out.println("========================================");
+        System.out.println("파일 타입: " + fileType);
+        System.out.println("버킷 이름: " + bucketName);
+        System.out.println("S3 키: " + s3Key);
+        System.out.println("AWS 콘솔 링크: https://s3.console.aws.amazon.com/s3/object/" + bucketName + "?prefix=" + s3Key);
+        System.out.println("파일 보존: " + (keepFiles ? "예 (수동 삭제 필요)" : "아니오 (자동 삭제됨)"));
+        System.out.println("========================================\n");
+    }
+
+    /**
      * 테스트 후 S3에서 파일 삭제
+     * KEEP_TEST_FILES=true 환경변수가 설정되어 있으면 삭제하지 않음
      */
     private void cleanupTestFile(String s3Key) {
+        // KEEP_TEST_FILES 환경변수 확인
+        boolean keepFiles = "true".equalsIgnoreCase(System.getenv("KEEP_TEST_FILES"));
+
+        if (keepFiles) {
+            System.out.println("⚠️  파일 보존됨 (KEEP_TEST_FILES=true): " + s3Key);
+            System.out.println("   수동으로 삭제하려면: aws s3 rm s3://" + bucketName + "/" + s3Key);
+            return;
+        }
+
         try {
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(bucketName)
                     .key(s3Key)
                     .build();
             s3Client.deleteObject(deleteRequest);
+            System.out.println("✓ 테스트 파일 삭제됨: " + s3Key);
         } catch (Exception e) {
             System.err.println("Failed to cleanup test file: " + s3Key + " - " + e.getMessage());
         }

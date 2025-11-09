@@ -30,10 +30,20 @@ spring:
     console:
       enabled: true
 
-  # AWS S3 자동 설정 비활성화
-  autoconfigure:
-    exclude:
-      - io.awspring.cloud.autoconfigure.s3.S3AutoConfiguration
+  # AWS S3 통합 테스트 설정
+  # .env 파일의 환경변수를 사용합니다
+  cloud:
+    aws:
+      s3:
+        enabled: ${AWS_S3_ENABLED:false}
+        bucket: ${AWS_S3_BUCKET:concrete-build-up}
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      stack:
+        auto: false
 
 # 서버 설정 (테스트 환경)
 server:
