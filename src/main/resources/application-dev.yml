@@ -31,10 +31,10 @@ spring:
     open-in-view: false  # OSIV 비활성화 권장
 
   # Spring Security 설정
-  # security:
-  #   user:
-  #     name: admin
-  #     password: admin  # 개발용 기본 계정 (Swagger 접근을 위해 비활성화)
+  security:
+    user:
+      name: admin
+      password: admin  # 개발용 기본 계정
 
   # Spring DevTools 설정
   devtools:
@@ -127,7 +127,7 @@ logging:
 # SpringDoc (Swagger) 설정
 springdoc:
   api-docs:
-    path: /v3/api-docs  # context-path /api가 자동으로 적용됨
+    path: /v3/api-docs
     enabled: true
   swagger-ui:
     path: /swagger-ui.html  # context-path /api가 자동으로 적용됨

@@ -36,26 +36,43 @@ public class WebConfig implements WebMvcConfigurer {
     /**
      * HTTP Message Converter 설정
      * JSON 직렬화/역직렬화 설정
+     *
+     * extendMessageConverters를 사용하여 기본 컨버터를 유지하면서 커스터마이징
+     * (configureMessageConverters는 기본 컨버터를 모두 제거하므로 사용하지 않음)
+     * 
+     * 기존 MappingJackson2HttpMessageConverter를 찾아서 ObjectMapper만 수정하여
+     * Swagger 등 다른 컨버터에 영향을 주지 않도록 함
      */
     @Override
-    public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
-        // ObjectMapper 설정
-        ObjectMapper objectMapper = new ObjectMapper();
+    public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+        // 기존 MappingJackson2HttpMessageConverter 찾기
+        for (HttpMessageConverter<?> converter : converters) {
+            if (converter instanceof MappingJackson2HttpMessageConverter) {
+                MappingJackson2HttpMessageConverter jacksonConverter = 
+                    (MappingJackson2HttpMessageConverter) converter;
+                
+                // 기존 ObjectMapper 가져오기 또는 새로 생성
+                ObjectMapper objectMapper = jacksonConverter.getObjectMapper();
+                if (objectMapper == null) {
+                    objectMapper = new ObjectMapper();
+                }
 
-        // Java 8 날짜/시간 API 지원
-        objectMapper.registerModule(new JavaTimeModule());
+                // Java 8 날짜/시간 API 지원
+                objectMapper.registerModule(new JavaTimeModule());
 
-        // 날짜를 타임스탬프가 아닌 ISO-8601 형식으로 직렬화
-        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                // 날짜를 타임스탬프가 아닌 ISO-8601 형식으로 직렬화
+                objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-        // null 값을 가진 필드 제외 (선택사항)
-        // objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                // null 값을 가진 필드 제외 (선택사항)
+                // objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        // 알 수 없는 프로퍼티 무시 (선택사항)
-        // objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                // 알 수 없는 프로퍼티 무시 (선택사항)
+                // objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        // Jackson HTTP Message Converter 등록
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-        converters.add(0, converter);
+                // 수정된 ObjectMapper 설정
+                jacksonConverter.setObjectMapper(objectMapper);
+                return; // 첫 번째 Jackson 컨버터만 수정하고 종료
+            }
+        }
     }
 }

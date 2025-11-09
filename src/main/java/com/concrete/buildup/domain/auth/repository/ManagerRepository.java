@@ -1,6 +1,7 @@
 package com.concrete.buildup.domain.auth.repository;
 
 import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -59,4 +60,12 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
            "LEFT JOIN FETCH u.role " +
            "WHERE u.id = :userId")
     Optional<Manager> findByUserIdWithUserAndRole(@Param("userId") Long userId);
+
+    /**
+     * User 엔티티로 관리자 조회
+     *
+     * @param user User 엔티티
+     * @return 관리자 엔티티 (Optional)
+     */
+    Optional<Manager> findByUser(User user);
 }
