@@ -255,6 +255,7 @@ public class Contract extends BaseEntity {
     /**
      * 근로자 서명 대기 상태로 전환
      * MANAGER_SIGNING_PENDING 상태에서만 전환 가능
+     * 관리자 서명 완료 시점을 기록하기 위해 corpSignedAt을 설정합니다.
      *
      * @throws IllegalStateException MANAGER_SIGNING_PENDING 상태가 아닐 경우
      */
@@ -263,6 +264,10 @@ public class Contract extends BaseEntity {
             throw new IllegalStateException("MANAGER_SIGNING_PENDING 상태에서만 전환 가능");
         }
         this.contractState = ContractState.EMPLOYEE_SIGNING_PENDING;
+        // 관리자 서명 완료 시점 기록
+        if (this.corpSignedAt == null) {
+            this.corpSignedAt = LocalDateTime.now();
+        }
     }
 
     /**
