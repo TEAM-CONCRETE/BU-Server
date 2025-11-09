@@ -190,13 +190,15 @@ public class AuthController {
         // 로그인 처리
         LoginResult loginResult = authService.login(request);
 
-        // Refresh Token을 HttpOnly 쿠키로 설정
-        Cookie refreshTokenCookie = new Cookie("refreshToken", loginResult.getRefreshToken());
-        refreshTokenCookie.setHttpOnly(true);  // XSS 공격 방어
-        refreshTokenCookie.setSecure(true);     // HTTPS에서만 전송
-        refreshTokenCookie.setPath("/");        // 모든 경로에서 접근 가능
-        refreshTokenCookie.setMaxAge(loginResult.getRefreshTokenMaxAge().intValue());  // 만료 시간 설정
-        response.addCookie(refreshTokenCookie);
+        // Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
+        org.springframework.http.ResponseCookie refreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
+                .httpOnly(true)          // XSS 공격 방어
+                .secure(true)            // HTTPS에서만 전송
+                .path("/")               // 모든 경로에서 접근 가능
+                .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
+                .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
+                .build();
+        response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
         log.debug("Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
 
@@ -267,13 +269,15 @@ public class AuthController {
         // 토큰 재발급 처리
         LoginResult loginResult = authService.refreshToken(refreshToken);
 
-        // 새로운 Refresh Token을 HttpOnly 쿠키로 설정
-        Cookie refreshTokenCookie = new Cookie("refreshToken", loginResult.getRefreshToken());
-        refreshTokenCookie.setHttpOnly(true);  // XSS 공격 방어
-        refreshTokenCookie.setSecure(true);     // HTTPS에서만 전송
-        refreshTokenCookie.setPath("/");        // 모든 경로에서 접근 가능
-        refreshTokenCookie.setMaxAge(loginResult.getRefreshTokenMaxAge().intValue());  // 만료 시간 설정
-        response.addCookie(refreshTokenCookie);
+        // 새로운 Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
+        org.springframework.http.ResponseCookie newRefreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
+                .httpOnly(true)          // XSS 공격 방어
+                .secure(true)            // HTTPS에서만 전송
+                .path("/")               // 모든 경로에서 접근 가능
+                .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
+                .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
+                .build();
+        response.addHeader("Set-Cookie", newRefreshTokenCookie.toString());
 
         log.debug("새로운 Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
 
