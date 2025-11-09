@@ -21,7 +21,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * S3 파일 업로드 서비스
@@ -84,7 +86,9 @@ public class S3Service {
             PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
             String uploadUrl = presignedRequest.url().toString();
 
-            LocalDateTime expiresAt = LocalDateTime.now().plus(PRESIGNED_URL_EXPIRATION);
+            // AWS SDK가 생성한 실제 만료 시각 사용 (서버 시간과 무관하게 정확함)
+            Instant expiration = presignedRequest.expiration();
+            LocalDateTime expiresAt = LocalDateTime.ofInstant(expiration, ZoneId.systemDefault());
 
             log.info("Presigned URL generated successfully. Expires at: {}", expiresAt);
 

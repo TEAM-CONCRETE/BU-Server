@@ -16,9 +16,22 @@ NC='\033[0m' # No Color
 # .env 파일 로드
 if [ -f ".env" ]; then
     echo -e "${BLUE}📄 .env 파일을 로드합니다...${NC}"
-    set -a  # 이후 변수들을 자동으로 export
-    source .env
-    set +a  # export 자동 해제
+    # 주석 제거 후 환경 변수 로드
+    while IFS= read -r line || [ -n "$line" ]; do
+        # 빈 줄이나 주석으로 시작하는 줄 건너뛰기
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # 인라인 주석 제거 (# 이후 제거)
+        line="${line%%#*}"
+
+        # 앞뒤 공백 제거
+        line="$(echo "$line" | xargs)"
+
+        # = 가 포함된 줄만 처리
+        if [[ "$line" == *"="* ]]; then
+            export "$line"
+        fi
+    done < .env
     echo -e "${GREEN}✅ 환경 변수가 로드되었습니다.${NC}"
     echo ""
 else

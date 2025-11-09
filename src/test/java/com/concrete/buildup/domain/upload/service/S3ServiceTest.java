@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.net.URL;
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,8 +63,10 @@ class S3ServiceTest {
 
             URL mockUrl = new URL("https://build-up-contracts.s3.ap-northeast-2.amazonaws.com/uploads/contracts/123/EMPLOYEE.png");
             PresignedPutObjectRequest mockPresignedRequest = mock(PresignedPutObjectRequest.class);
+            Instant mockExpiration = Instant.now().plusSeconds(900); // 15분 후
 
             when(mockPresignedRequest.url()).thenReturn(mockUrl);
+            when(mockPresignedRequest.expiration()).thenReturn(mockExpiration);
             when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
                     .thenReturn(mockPresignedRequest);
 
@@ -93,8 +96,10 @@ class S3ServiceTest {
 
             URL mockUrl = new URL("https://build-up-contracts.s3.ap-northeast-2.amazonaws.com/uploads/contracts/456/MANAGER.png");
             PresignedPutObjectRequest mockPresignedRequest = mock(PresignedPutObjectRequest.class);
+            Instant mockExpiration = Instant.now().plusSeconds(900); // 15분 후
 
             when(mockPresignedRequest.url()).thenReturn(mockUrl);
+            when(mockPresignedRequest.expiration()).thenReturn(mockExpiration);
             when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
                     .thenReturn(mockPresignedRequest);
 
@@ -119,8 +124,10 @@ class S3ServiceTest {
 
             URL mockUrl = new URL("https://build-up-contracts.s3.ap-northeast-2.amazonaws.com/uploads/contracts/789/CORPORATION.pdf");
             PresignedPutObjectRequest mockPresignedRequest = mock(PresignedPutObjectRequest.class);
+            Instant mockExpiration = Instant.now().plusSeconds(900); // 15분 후
 
             when(mockPresignedRequest.url()).thenReturn(mockUrl);
+            when(mockPresignedRequest.expiration()).thenReturn(mockExpiration);
             when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
                     .thenReturn(mockPresignedRequest);
 
