@@ -1,6 +1,7 @@
 package com.concrete.buildup.global.util;
 
 import com.concrete.buildup.global.enums.UserRole;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,12 +24,19 @@ public class SecurityUtil {
 
     /**
      * 현재 인증된 사용자의 userId를 반환합니다.
+     * <p>
+     * 익명 사용자(AnonymousAuthenticationToken)는 인증되지 않은 것으로 간주하여 null을 반환합니다.
+     * </p>
      *
-     * @return 사용자 ID (로그인 ID)
+     * @return 사용자 ID (로그인 ID), 인증되지 않았거나 익명 사용자인 경우 null
      */
     public static String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        // 익명 사용자는 인증되지 않은 것으로 간주
+        if (authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
         return authentication.getName();
@@ -47,12 +55,19 @@ public class SecurityUtil {
 
     /**
      * 현재 인증된 사용자의 권한(Role) 목록을 반환합니다.
+     * <p>
+     * 익명 사용자(AnonymousAuthenticationToken)는 인증되지 않은 것으로 간주하여 null을 반환합니다.
+     * </p>
      *
-     * @return 권한 목록
+     * @return 권한 목록, 인증되지 않았거나 익명 사용자인 경우 null
      */
     public static Collection<? extends GrantedAuthority> getCurrentUserAuthorities() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        // 익명 사용자는 인증되지 않은 것으로 간주
+        if (authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
         return authentication.getAuthorities();
