@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -118,6 +119,34 @@ public class ContractSignLog extends BaseEntity {
     private VerificationStatus verificationStatus;
 
     /**
+     * 서명 X 좌표 (PDF pt)
+     * PDF 내 서명 이미지의 X 좌표 위치
+     */
+    @Column(name = "signature_x", precision = 10, scale = 2)
+    private BigDecimal signatureX;
+
+    /**
+     * 서명 Y 좌표 (PDF pt)
+     * PDF 내 서명 이미지의 Y 좌표 위치
+     */
+    @Column(name = "signature_y", precision = 10, scale = 2)
+    private BigDecimal signatureY;
+
+    /**
+     * 서명 이미지 너비 (PDF pt)
+     * PDF 내 서명 이미지의 너비
+     */
+    @Column(name = "signature_width", precision = 10, scale = 2)
+    private BigDecimal signatureWidth;
+
+    /**
+     * 서명 이미지 높이 (PDF pt)
+     * PDF 내 서명 이미지의 높이
+     */
+    @Column(name = "signature_height", precision = 10, scale = 2)
+    private BigDecimal signatureHeight;
+
+    /**
      * ContractSignLog 생성자
      */
     @Builder
@@ -132,7 +161,11 @@ public class ContractSignLog extends BaseEntity {
         String signedDevice,
         LocalDateTime signedAt,
         LocalDateTime verifiedAt,
-        VerificationStatus verificationStatus
+        VerificationStatus verificationStatus,
+        BigDecimal signatureX,
+        BigDecimal signatureY,
+        BigDecimal signatureWidth,
+        BigDecimal signatureHeight
     ) {
         this.contract = contract;
         this.signerRole = signerRole;
@@ -145,6 +178,10 @@ public class ContractSignLog extends BaseEntity {
         this.signedAt = signedAt != null ? signedAt : LocalDateTime.now();
         this.verifiedAt = verifiedAt;
         this.verificationStatus = verificationStatus != null ? verificationStatus : VerificationStatus.PENDING;
+        this.signatureX = signatureX;
+        this.signatureY = signatureY;
+        this.signatureWidth = signatureWidth;
+        this.signatureHeight = signatureHeight;
     }
 
     /**
