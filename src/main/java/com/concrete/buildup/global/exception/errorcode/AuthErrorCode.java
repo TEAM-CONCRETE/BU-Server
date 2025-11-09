@@ -30,6 +30,10 @@ public enum AuthErrorCode implements BaseErrorCode {
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, 1006, "만료된 토큰입니다."),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, 1007, "유효하지 않은 토큰입니다."),
     REGISTRATION_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, 1010, "등록 토큰이 만료되었습니다. 1단계부터 다시 진행해주세요."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, 1011, "유효하지 않은 Refresh Token입니다."),
+    REFRESH_TOKEN_MISMATCH(HttpStatus.UNAUTHORIZED, 1012, "Refresh Token이 일치하지 않습니다."),
+    REFRESH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, 1013, "만료된 Refresh Token입니다. 다시 로그인해주세요."),
+    REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, 1014, "Refresh Token을 찾을 수 없습니다."),
 
     // 403 Forbidden
     ACCESS_DENIED(HttpStatus.FORBIDDEN, 1008, "접근 권한이 없습니다.");
