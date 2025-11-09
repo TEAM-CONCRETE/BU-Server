@@ -190,13 +190,15 @@ public class AuthController {
         // 로그인 처리
         LoginResult loginResult = authService.login(request);
 
-        // Refresh Token을 HttpOnly 쿠키로 설정
-        Cookie refreshTokenCookie = new Cookie("refreshToken", loginResult.getRefreshToken());
-        refreshTokenCookie.setHttpOnly(true);  // XSS 공격 방어
-        refreshTokenCookie.setSecure(true);     // HTTPS에서만 전송
-        refreshTokenCookie.setPath("/");        // 모든 경로에서 접근 가능
-        refreshTokenCookie.setMaxAge(loginResult.getRefreshTokenMaxAge().intValue());  // 만료 시간 설정
-        response.addCookie(refreshTokenCookie);
+        // Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
+        org.springframework.http.ResponseCookie refreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
+                .httpOnly(true)          // XSS 공격 방어
+                .secure(true)            // HTTPS에서만 전송
+                .path("/")               // 모든 경로에서 접근 가능
+                .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
+                .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
+                .build();
+        response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
         log.debug("Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
 
@@ -228,6 +230,59 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(response, "사용자 정보 조회 성공")
+        );
+    }
+
+    /**
+     * 토큰 재발급 API
+     *
+     * <p>Refresh Token을 사용하여 새로운 Access Token과 Refresh Token을 재발급합니다.</p>
+     * <p>Refresh Token은 HttpOnly 쿠키에서 자동으로 읽어옵니다.</p>
+     * <p>새로운 Refresh Token은 HttpOnly 쿠키로 전달됩니다 (Refresh Token Rotation).</p>
+     *
+     * @param request HTTP 요청 (쿠키에서 Refresh Token 읽기)
+     * @param response HTTP 응답 (새로운 Refresh Token 쿠키 설정)
+     * @return TokenRefreshResponse - 새로운 Access Token
+     */
+    @Operation(
+            summary = "토큰 재발급",
+            description = "Refresh Token을 사용하여 새로운 Access Token과 Refresh Token을 재발급합니다. " +
+                    "Refresh Token은 HttpOnly 쿠키에서 자동으로 읽어오며, " +
+                    "새로운 Refresh Token은 HttpOnly 쿠키로 전달됩니다 (Refresh Token Rotation)."
+    )
+    @PostMapping("/token/refresh")
+    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(
+            jakarta.servlet.http.HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        log.info("토큰 재발급 API 호출");
+
+        // 쿠키에서 Refresh Token 읽기
+        String refreshToken = com.concrete.buildup.global.util.CookieUtil.getCookieValue(request, "refreshToken")
+                .orElseThrow(() -> {
+                    log.warn("Refresh Token 쿠키를 찾을 수 없음");
+                    return new com.concrete.buildup.global.exception.BusinessException(
+                            com.concrete.buildup.global.exception.errorcode.AuthErrorCode.REFRESH_TOKEN_NOT_FOUND
+                    );
+                });
+
+        // 토큰 재발급 처리
+        LoginResult loginResult = authService.refreshToken(refreshToken);
+
+        // 새로운 Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
+        org.springframework.http.ResponseCookie newRefreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
+                .httpOnly(true)          // XSS 공격 방어
+                .secure(true)            // HTTPS에서만 전송
+                .path("/")               // 모든 경로에서 접근 가능
+                .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
+                .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
+                .build();
+        response.addHeader("Set-Cookie", newRefreshTokenCookie.toString());
+
+        log.debug("새로운 Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(loginResult.getLoginResponse(), "토큰 재발급 성공")
         );
     }
 }
