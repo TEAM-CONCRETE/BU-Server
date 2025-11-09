@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -61,6 +62,7 @@ public class ContractController {
                     "모든 검색 조건은 선택적이며, 주민등록번호는 마스킹 처리되어 반환됩니다. " +
                     "예: GET /v1/1/contracts?employeeId=1&status=FULLY_SIGNED&page=1&size=20"
     )
+    @PreAuthorize("hasAnyRole('MANAGER', 'CORPORATION', 'ADMIN')")
     @GetMapping
     public ResponseEntity<ApiResponse<ContractListResponse>> getContracts(
             @Parameter(description = "현장 ID", required = true, example = "1")
@@ -100,6 +102,7 @@ public class ContractController {
                     "초기 상태는 DRAFT이며, 계약 당시 기업과 근로자의 정보가 스냅샷으로 저장됩니다. " +
                     "근로자에게 이미 다른 타입(일용직)의 FULLY_SIGNED 계약이 있으면 422 에러가 발생합니다."
     )
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @PostMapping("/regular")
     public ResponseEntity<ApiResponse<CreateContractResponse>> createRegularContract(
             @Parameter(description = "현장 ID", required = true, example = "1")
@@ -140,6 +143,7 @@ public class ContractController {
                     "초기 상태는 DRAFT이며, 계약 당시 기업과 근로자의 정보가 스냅샷으로 저장됩니다. " +
                     "근로자에게 이미 다른 타입(상용직)의 FULLY_SIGNED 계약이 있으면 422 에러가 발생합니다."
     )
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @PostMapping("/daily")
     public ResponseEntity<ApiResponse<CreateContractResponse>> createDailyContract(
             @Parameter(description = "현장 ID", required = true, example = "1")
