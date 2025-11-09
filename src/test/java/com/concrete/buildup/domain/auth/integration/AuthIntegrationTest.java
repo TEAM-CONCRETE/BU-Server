@@ -1,10 +1,12 @@
 package com.concrete.buildup.domain.auth.integration;
 
 import com.concrete.buildup.domain.auth.dto.*;
+import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.auth.entity.Role;
 import com.concrete.buildup.domain.auth.entity.User;
+import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.RoleRepository;
@@ -67,6 +69,9 @@ class AuthIntegrationTest {
     private RoleRepository roleRepository;
 
     @Autowired
+    private CorporationRepository corporationRepository;
+
+    @Autowired
     private SiteRepository siteRepository;
 
     @Autowired
@@ -77,7 +82,10 @@ class AuthIntegrationTest {
 
     private Role employeeRole;
     private Role managerRole;
+    private Role corporationRole;
     private Site testSite;
+    private Corporation testCorporation;
+    private Manager testManager;
 
     @BeforeEach
     void setUp() {
@@ -94,9 +102,47 @@ class AuthIntegrationTest {
                         .description("현장 관리자 역할")
                         .build()));
 
+        corporationRole = roleRepository.findByRoleName("ROLE_CORPORATION")
+                .orElseGet(() -> roleRepository.save(Role.builder()
+                        .roleName("ROLE_CORPORATION")
+                        .description("기업 역할")
+                        .build()));
+
+        // 테스트용 기업 사용자 생성
+        User corporationUser = userRepository.save(User.builder()
+                .userId("testcorp")
+                .password(passwordEncoder.encode("password"))
+                .phone("01000000000")
+                .role(corporationRole)
+                .build());
+
+        // 테스트용 기업 생성
+        testCorporation = corporationRepository.save(Corporation.builder()
+                .user(corporationUser)
+                .corpName("테스트 기업")
+                .corpAddress("서울시 강남구")
+                .corpCeoName("김대표")
+                .build());
+
+        // 테스트용 관리자 사용자 생성
+        User managerUser = userRepository.save(User.builder()
+                .userId("testmanager")
+                .password(passwordEncoder.encode("password"))
+                .phone("01099999999")
+                .role(managerRole)
+                .build());
+
+        // 테스트용 관리자 생성
+        testManager = managerRepository.save(Manager.builder()
+                .user(managerUser)
+                .managerName("테스트 관리자")
+                .build());
+
         // 테스트용 현장 생성
         testSite = siteRepository.save(Site.builder()
                 .siteName("테스트 현장")
+                .corporation(testCorporation)
+                .manager(testManager)
                 .employeeSecretKey("test-secret-key")
                 .managerSecretKey("test-manager-secret-key")
                 .siteAddress("서울시 강남구")
@@ -141,7 +187,7 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").exists())
-                .andExpect(jsonPath("$.data.userInfo.userId").value("employee123"))
+                .andExpect(jsonPath("$.data.userId").value("employee123"))
                 .andReturn();
 
         // then: Access Token 추출
@@ -192,7 +238,7 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").exists())
-                .andExpect(jsonPath("$.data.userInfo.userId").value("manager123"))
+                .andExpect(jsonPath("$.data.userId").value("manager123"))
                 .andReturn();
 
         // then: Access Token 추출
