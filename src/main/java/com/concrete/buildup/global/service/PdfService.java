@@ -6,7 +6,10 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import org.xhtmlrenderer.pdf.ITextRenderer;
+
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Map;
 
@@ -121,32 +124,38 @@ public class PdfService {
     /**
      * HTML을 PDF로 변환
      *
-     * <p>OpenPDF는 HTML을 직접 변환하는 기능이 제한적입니다.</p>
-     * <p>실제 구현 시 다음 방법 중 하나를 사용할 수 있습니다:</p>
-     * <ul>
-     *   <li>Flying Saucer (xhtmlrenderer) 라이브러리 사용</li>
-     *   <li>iText7 html2pdf 플러그인 사용</li>
-     *   <li>외부 서비스 (예: Puppeteer, wkhtmltopdf) 사용</li>
-     * </ul>
+     * <p>Flying Saucer (xhtmlrenderer)를 사용하여 HTML을 PDF로 변환합니다.</p>
+     * <p>OpenPDF와 호환되는 버전을 사용하여 HTML/CSS를 렌더링합니다.</p>
      *
      * @param html HTML 문자열
      * @return PDF 바이트 배열
+     * @throws RuntimeException PDF 변환 실패 시
      */
     private byte[] convertHtmlToPdf(String html) {
-        // TODO: HTML을 PDF로 변환하는 실제 구현 필요
-        // OpenPDF는 HTML을 직접 변환하는 기능이 제한적이므로,
-        // 다른 라이브러리나 방법을 사용해야 할 수 있습니다.
-
-        // 임시 구현: 빈 PDF 반환 (실제 구현 필요)
-        log.warn("HTML to PDF 변환 기능이 아직 구현되지 않았습니다. 빈 PDF를 반환합니다.");
+        log.debug("HTML을 PDF로 변환 시작: htmlLength={}", html.length());
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            // OpenPDF를 사용한 기본 PDF 생성 예시
-            // com.lowagie.text.Document, com.lowagie.text.pdf.PdfWriter 등을 사용
-            // 실제 구현 시 HTML 파싱 및 PDF 생성 로직 추가 필요
+            // Flying Saucer를 사용하여 HTML을 PDF로 변환
+            ITextRenderer renderer = new ITextRenderer();
 
-            // 임시로 빈 바이트 배열 반환
-            return baos.toByteArray();
+            // HTML 문자열을 문서로 설정
+            // baseUrl은 상대 경로 리소스를 위한 기본 URL (필요시 설정)
+            renderer.setDocumentFromString(html, null);
+
+            // PDF 레이아웃 계산 및 렌더링
+            renderer.layout();
+
+            // PDF 생성
+            renderer.createPDF(baos);
+
+            byte[] pdfBytes = baos.toByteArray();
+            log.debug("HTML to PDF 변환 완료: pdfSize={} bytes", pdfBytes.length);
+
+            return pdfBytes;
+
+        } catch (IOException e) {
+            log.error("HTML to PDF 변환 실패: IO 오류", e);
+            throw new RuntimeException("HTML to PDF 변환 중 IO 오류가 발생했습니다: " + e.getMessage(), e);
         } catch (Exception e) {
             log.error("HTML to PDF 변환 실패", e);
             throw new RuntimeException("HTML to PDF 변환 중 오류가 발생했습니다: " + e.getMessage(), e);
