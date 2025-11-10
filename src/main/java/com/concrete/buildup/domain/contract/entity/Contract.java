@@ -228,10 +228,20 @@ public class Contract extends BaseEntity {
     /**
      * 최종 PDF 정보 업데이트
      *
+     * <p>이미 최종 PDF가 설정된 경우 덮어쓰기를 방지합니다.
+     * 이는 완결된 계약서가 재시도·중복 호출 등으로 조용히 변경되는 것을 방지하여
+     * 감사 추적과 법적 효력을 보호합니다.</p>
+     *
      * @param pdfUrl 최종 PDF S3 URL
      * @param pdfHash 최종 PDF SHA-256 해시값
+     * @throws BusinessException 이미 최종 PDF가 설정된 경우 (FINAL_PDF_ALREADY_SET)
      */
     public void updateFinalPdf(String pdfUrl, String pdfHash) {
+        // 최종 PDF 덮어쓰기 방지
+        if (this.finalPdfUrl != null || this.finalPdfHash != null) {
+            throw new BusinessException(ContractErrorCode.FINAL_PDF_ALREADY_SET);
+        }
+
         this.finalPdfUrl = pdfUrl;
         this.finalPdfHash = pdfHash;
         this.pdfGeneratedAt = LocalDateTime.now();

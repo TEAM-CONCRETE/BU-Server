@@ -29,6 +29,7 @@ public enum ContractErrorCode implements BaseErrorCode {
     INVALID_EMP_TYPE_FOR_ENDPOINT(HttpStatus.BAD_REQUEST, 4009, "엔드포인트와 근로자 유형이 일치하지 않습니다."),
     INVALID_CONTRACT_STATE(HttpStatus.BAD_REQUEST, 4010, "현재 계약 상태에서는 해당 작업을 수행할 수 없습니다."),
     SIGNATURE_HASH_MISMATCH(HttpStatus.BAD_REQUEST, 4011, "서명 이미지 해시값이 일치하지 않습니다."),
+    FINAL_PDF_ALREADY_SET(HttpStatus.BAD_REQUEST, 4013, "이미 최종 PDF가 설정되어 있습니다. 완결된 계약서는 변경할 수 없습니다."),
 
     // 403 Forbidden
     MANAGER_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 4007, "해당 현장의 관리자가 아닙니다."),
