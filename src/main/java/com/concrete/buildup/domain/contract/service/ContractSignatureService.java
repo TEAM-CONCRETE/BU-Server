@@ -145,21 +145,27 @@ public class ContractSignatureService {
                 595.0, 842.0 // A4 size
         );
 
-        // 6. PDF에 서명 이미지 스탬핑 → v2 생성
+        // 6. 스케일링된 서명 크기 계산
+        BigDecimal scaledWidth = BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth()));
+        BigDecimal scaledHeight = BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()));
+
+        // 7. PDF에 서명 이미지 스탬핑 → v2 생성
+        // OpenPDF는 좌하단 기준 좌표를 사용하므로, 변환된 Y(상단) 좌표에서 높이를 빼야 함
         byte[] v2PdfBytes = pdfGenerationService.stampSignatureOnPdf(
                 v1PdfBytes,
                 signatureImageBytes,
-                pdfCoords.getX(), pdfCoords.getY(),
-                BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth())),
-                BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()))
+                pdfCoords.getX(),
+                pdfCoords.getY().subtract(scaledHeight), // Y 좌표 보정: 상단 → 하단
+                scaledWidth,
+                scaledHeight
         );
 
-        // 7. v2 PDF를 S3에 업로드
+        // 8. v2 PDF를 S3에 업로드
         String v2S3Key = String.format("contracts/%d/v2.pdf", contractId);
         s3Service.uploadPdf(v2S3Key, v2PdfBytes);
         String v2PdfUrl = s3Service.getPdfUrl(v2S3Key);
 
-        // 8. ContractSignLog 저장
+        // 9. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.MANAGER)
@@ -179,7 +185,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 9. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
+        // 10. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
         contract.transitionToEmployeeSigningPending();
         contractRepository.save(contract);
 
@@ -229,7 +235,6 @@ public class ContractSignatureService {
 
         // 2. S3에서 서명 이미지 다운로드
         byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
-
         // 3. 서버에서 해시 재계산 및 검증
         String serverHash = SignatureVerificationUtil.calculateSHA256(
                 new ByteArrayInputStream(signatureImageBytes)
@@ -250,29 +255,35 @@ public class ContractSignatureService {
                 595.0, 842.0
         );
 
-        // 6. PDF에 서명 이미지 스탬핑 → v3 생성
+        // 6. 스케일링된 서명 크기 계산
+        BigDecimal scaledWidth = BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth()));
+        BigDecimal scaledHeight = BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()));
+
+        // 7. PDF에 서명 이미지 스탬핑 → v3 생성
+        // OpenPDF는 좌하단 기준 좌표를 사용하므로, 변환된 Y(상단) 좌표에서 높이를 빼야 함
         byte[] v3PdfBytes = pdfGenerationService.stampSignatureOnPdf(
                 v2PdfBytes,
                 signatureImageBytes,
-                pdfCoords.getX(), pdfCoords.getY(),
-                BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth())),
-                BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()))
+                pdfCoords.getX(),
+                pdfCoords.getY().subtract(scaledHeight), // Y 좌표 보정: 상단 → 하단
+                scaledWidth,
+                scaledHeight
         );
 
-        // 7. v3 PDF의 SHA-256 해시 계산
+        // 8. v3 PDF의 SHA-256 해시 계산
         String v3PdfHash = SignatureVerificationUtil.calculateSHA256(
                 new ByteArrayInputStream(v3PdfBytes)
         );
 
-        // 8. v3 PDF를 S3에 업로드
+        // 9. v3 PDF를 S3에 업로드
         String v3S3Key = String.format("contracts/%d/v3.pdf", contractId);
         s3Service.uploadPdf(v3S3Key, v3PdfBytes);
         String v3PdfUrl = s3Service.getPdfUrl(v3S3Key);
 
-        // 9. Contract.finalPdfUrl, finalPdfHash 업데이트 (최종 저장)
+        // 10. Contract.finalPdfUrl, finalPdfHash 업데이트 (최종 저장)
         contract.updateFinalPdf(v3PdfUrl, v3PdfHash);
 
-        // 10. ContractSignLog 저장
+        // 11. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.EMPLOYEE)
@@ -292,7 +303,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 11. Contract 상태 → FULLY_SIGNED
+        // 12. Contract 상태 → FULLY_SIGNED
         contract.transitionToFullySigned();
         contractRepository.save(contract);
 
