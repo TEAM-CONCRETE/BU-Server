@@ -133,6 +133,11 @@ public class PdfService {
             contentByte.addImage(image, width.floatValue(), 0, 0, height.floatValue(),
                     x.floatValue(), y.floatValue());
 
+            // 6. PdfStamper를 먼저 닫아야 baos에 데이터가 flush됨
+            stamper.close();
+            stamper = null; // finally에서 이중 종료 방지
+
+            // 7. 완성된 PDF 바이트 배열 반환
             byte[] resultPdfBytes = baos.toByteArray();
             log.info("PDF 이미지 스탬핑 완료: originalSize={} bytes, resultSize={} bytes",
                     originalPdfBytes.length, resultPdfBytes.length);
