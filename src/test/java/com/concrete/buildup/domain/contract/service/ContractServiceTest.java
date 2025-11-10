@@ -99,6 +99,7 @@ class ContractServiceTest {
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         // ID 설정 (저장 후 자동 생성되는 ID 시뮬레이션)
@@ -153,6 +154,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -275,6 +277,7 @@ class ContractServiceTest {
         // 일용직 FULLY_SIGNED 계약이 존재
         Contract existingContract = Contract.builder()
                 .employeeId(employeeId)
+                .empType(EmpType.DAILY)
                 .contractState(ContractState.FULLY_SIGNED)
                 .build();
 
@@ -310,6 +313,7 @@ class ContractServiceTest {
         // 상용직 FULLY_SIGNED 계약이 존재
         Contract existingContract = Contract.builder()
                 .employeeId(employeeId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.FULLY_SIGNED)
                 .build();
 
@@ -318,6 +322,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -366,6 +371,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -439,6 +445,7 @@ class ContractServiceTest {
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
