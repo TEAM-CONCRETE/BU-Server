@@ -1,6 +1,7 @@
 package com.concrete.buildup.domain.contract.entity;
 
 import com.concrete.buildup.domain.contract.enums.ContractState;
+import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -70,6 +71,15 @@ public class Contract extends BaseEntity {
     private String role;
 
     /**
+     * 근로자 유형
+     * - DAILY: 일용직
+     * - PERMANENT: 상용직
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "emp_type", length = 30, nullable = false)
+    private EmpType empType;
+
+    /**
      * 계약 상태
      * - DRAFT: 작성 중
      * - SENT: 전송됨
@@ -128,6 +138,7 @@ public class Contract extends BaseEntity {
         Long corporationId,
         Long managerId,
         String role,
+        EmpType empType,
         ContractState contractState,
         LocalDate employeeStartDate,
         LocalDate employeeEndDate,
@@ -139,6 +150,7 @@ public class Contract extends BaseEntity {
         this.corporationId = corporationId;
         this.managerId = managerId;
         this.role = role;
+        this.empType = empType;
         this.contractState = contractState != null ? contractState : ContractState.DRAFT;
         this.employeeStartDate = employeeStartDate;
         this.employeeEndDate = employeeEndDate;
