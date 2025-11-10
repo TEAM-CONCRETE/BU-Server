@@ -7,6 +7,8 @@ import com.concrete.buildup.domain.contract.dto.CreateContractResponse;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.service.ContractService;
 import com.concrete.buildup.global.common.ApiResponse;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -112,7 +114,13 @@ public class ContractController {
         log.info("상용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
                 siteId, request.getEmployeeId(), request.getCorporationId());
 
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+        // empType 검증: /regular 엔드포인트는 PERMANENT만 허용
+        if (request.getEmpType() != EmpType.PERMANENT) {
+            log.warn("상용직 엔드포인트에 잘못된 empType 전달: empType={}", request.getEmpType());
+            throw new BusinessException(ContractErrorCode.INVALID_EMP_TYPE_FOR_ENDPOINT);
+        }
+
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         log.info("상용직 계약 생성 완료: siteId={}, contractId={}", siteId, response.getContractId());
 
@@ -153,7 +161,13 @@ public class ContractController {
         log.info("일용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
                 siteId, request.getEmployeeId(), request.getCorporationId());
 
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.DAILY);
+        // empType 검증: /daily 엔드포인트는 DAILY만 허용
+        if (request.getEmpType() != EmpType.DAILY) {
+            log.warn("일용직 엔드포인트에 잘못된 empType 전달: empType={}", request.getEmpType());
+            throw new BusinessException(ContractErrorCode.INVALID_EMP_TYPE_FOR_ENDPOINT);
+        }
+
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         log.info("일용직 계약 생성 완료: siteId={}, contractId={}", siteId, response.getContractId());
 
