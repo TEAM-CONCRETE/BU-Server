@@ -41,13 +41,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 인증/인가 통합 테스트
  *
- * Spring Security와 JWT 필터를 포함한 전체 스택 테스트를 수행합니다.
+ * Spring Security와 JWT 필터를 포함한 핵심 플로우를 테스트합니다.
+ *
+ * 테스트 전략:
+ * - 통합 테스트: 핵심 E2E 플로우만 (회원가입→로그인→API 호출, Token 재발급)
+ * - 단위 테스트: AuthServiceTest에서 비즈니스 로직 검증
+ * - 슬라이스 테스트: AuthControllerTest에서 Controller 레이어 검증
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-@DisplayName("인증/인가 통합 테스트")
+@DisplayName("인증/인가 통합 테스트 - 핵심 플로우")
 class AuthIntegrationTest {
 
     @Autowired
@@ -256,88 +268,7 @@ class AuthIntegrationTest {
     }
 
     @Test
-    @DisplayName("아이디 중복 확인 - 중복된 아이디")
-    void checkUserIdExists_Duplicate() throws Exception {
-        // given: 기존 사용자 생성
-        User user = User.builder()
-                .userId("existing-user")
-                .password(passwordEncoder.encode("password"))
-                .phone("01012345678")
-                .role(employeeRole)
-                .build();
-        userRepository.save(user);
-
-        // when & then
-        mockMvc.perform(get("/v1/auth/exists")
-                        .param("userId", "existing-user"))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.exists").value(true));
-    }
-
-    @Test
-    @DisplayName("아이디 중복 확인 - 사용 가능한 아이디")
-    void checkUserIdExists_Available() throws Exception {
-        // when & then
-        mockMvc.perform(get("/v1/auth/exists")
-                        .param("userId", "new-user"))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.exists").value(false));
-    }
-
-    @Test
-    @DisplayName("로그인 실패 - 잘못된 비밀번호")
-    void login_WrongPassword() throws Exception {
-        // given: 기존 사용자 생성
-        User user = User.builder()
-                .userId("testuser")
-                .password(passwordEncoder.encode("correctPassword"))
-                .phone("01012345678")
-                .role(employeeRole)
-                .build();
-        userRepository.save(user);
-
-        // when: 잘못된 비밀번호로 로그인 시도
-        LoginRequest loginRequest = LoginRequest.builder()
-                .username("testuser")
-                .password("wrongPassword")
-                .build();
-
-        // then
-        mockMvc.perform(post("/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
-                .andDo(print())
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
-    }
-
-    @Test
-    @DisplayName("토큰 없이 보호된 API 호출 - 401 Unauthorized")
-    void accessProtectedEndpoint_WithoutToken() throws Exception {
-        // when & then
-        mockMvc.perform(get("/v1/auth/me"))
-                .andDo(print())
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
-    }
-
-    @Test
-    @DisplayName("잘못된 토큰으로 보호된 API 호출 - 401 Unauthorized")
-    void accessProtectedEndpoint_WithInvalidToken() throws Exception {
-        // when & then
-        mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer invalid-token"))
-                .andDo(print())
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
-    }
-
-    @Test
-    @DisplayName("Refresh Token으로 Access Token 재발급")
+    @DisplayName("Refresh Token으로 Access Token 재발급 플로우")
     void refreshToken_Success() throws Exception {
         // given: 사용자 생성 및 로그인
         User user = User.builder()
@@ -373,82 +304,5 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").exists());
-    }
-
-    @Test
-    @DisplayName("EMPLOYEE 역할로 MANAGER 전용 API 접근 시도 - 403 Forbidden")
-    void employeeAccessManagerOnlyEndpoint_Forbidden() throws Exception {
-        // given: EMPLOYEE 역할 사용자 생성
-        User employee = User.builder()
-                .userId("employee")
-                .password(passwordEncoder.encode("password"))
-                .phone("01012345678")
-                .role(employeeRole)
-                .build();
-        userRepository.save(employee);
-
-        Employee employeeProfile = Employee.builder()
-                .user(employee)
-                .empName("김근로")
-                .residentNum("900101-1234567")
-                .empAddress("서울시")
-                .build();
-        employeeRepository.save(employeeProfile);
-
-        // Access Token 생성
-        String accessToken = jwtTokenProvider.generateAccessToken("employee", "EMPLOYEE");
-
-        // when & then: 계약 목록 조회 시도 (MANAGER, CORPORATION, ADMIN 전용)
-        mockMvc.perform(get("/v1/" + testSite.getId() + "/contracts")
-                        .header("Authorization", "Bearer " + accessToken))
-                .andDo(print())
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
-    }
-
-    @Test
-    @DisplayName("MANAGER 역할로 계약 목록 조회 - 200 OK")
-    void managerAccessContractList_Success() throws Exception {
-        // given: MANAGER 역할 사용자 생성
-        User manager = User.builder()
-                .userId("manager")
-                .password(passwordEncoder.encode("password"))
-                .phone("01098765432")
-                .role(managerRole)
-                .build();
-        userRepository.save(manager);
-
-        Manager managerProfile = Manager.builder()
-                .user(manager)
-                .managerName("김관리")
-                .build();
-        managerRepository.save(managerProfile);
-
-        // Access Token 생성
-        String accessToken = jwtTokenProvider.generateAccessToken("manager", "MANAGER");
-
-        // when & then: 계약 목록 조회 성공
-        mockMvc.perform(get("/v1/" + testSite.getId() + "/contracts")
-                        .header("Authorization", "Bearer " + accessToken))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
-    @Test
-    @DisplayName("만료된 토큰으로 API 호출 - 401 Unauthorized")
-    void accessWithExpiredToken_Unauthorized() throws Exception {
-        // given: 만료된 토큰 생성 (만료 시간을 음수로 설정)
-        // 실제로는 JwtTokenProvider를 Mock하거나 테스트용 만료된 토큰을 생성해야 하지만,
-        // 여기서는 간단히 잘못된 형식의 토큰으로 대체
-        String expiredToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTB9.invalid";
-
-        // when & then
-        mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer " + expiredToken))
-                .andDo(print())
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
     }
 }

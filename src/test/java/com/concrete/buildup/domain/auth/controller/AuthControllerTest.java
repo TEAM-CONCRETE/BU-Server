@@ -48,7 +48,7 @@ class AuthControllerTest {
         given(authService.checkUserIdExists(userId)).willReturn(response);
 
         // when & then
-        mockMvc.perform(get("/api/v1/auth/exists")
+        mockMvc.perform(get("/v1/auth/exists")
                         .param("userId", userId))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -70,7 +70,7 @@ class AuthControllerTest {
         given(authService.checkUserIdExists(userId)).willReturn(response);
 
         // when & then
-        mockMvc.perform(get("/api/v1/auth/exists")
+        mockMvc.perform(get("/v1/auth/exists")
                         .param("userId", userId))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -87,7 +87,7 @@ class AuthControllerTest {
         // when & then
         // NOTE: MissingServletRequestParameterException 처리가 GlobalExceptionHandler에 없어서 현재는 500 반환
         // TODO: 추후 GlobalExceptionHandler에 해당 예외 처리 추가하여 400으로 변경 필요
-        mockMvc.perform(get("/api/v1/auth/exists"))
+        mockMvc.perform(get("/v1/auth/exists"))
                 .andDo(print())
                 .andExpect(status().isInternalServerError());
     }
