@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -75,6 +76,7 @@ public class Contract extends BaseEntity {
      * - DAILY: 일용직
      * - PERMANENT: 상용직
      */
+    @NotNull(message = "근로자 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
     @Column(name = "emp_type", length = 30, nullable = false)
     private EmpType empType;
@@ -150,7 +152,13 @@ public class Contract extends BaseEntity {
         this.corporationId = corporationId;
         this.managerId = managerId;
         this.role = role;
+
+        // empType null 체크 (필수 필드)
+        if (empType == null) {
+            throw new IllegalArgumentException("근로자 유형(empType)은 필수입니다.");
+        }
         this.empType = empType;
+
         this.contractState = contractState != null ? contractState : ContractState.DRAFT;
         this.employeeStartDate = employeeStartDate;
         this.employeeEndDate = employeeEndDate;
