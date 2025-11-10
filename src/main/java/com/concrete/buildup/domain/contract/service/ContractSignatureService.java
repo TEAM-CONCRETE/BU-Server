@@ -179,9 +179,8 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 9. Contract 상태 → EMPLOYEE_SIGNING_PENDING
+        // 9. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
         contract.transitionToEmployeeSigningPending();
-        contract.signByAdmin();
         contractRepository.save(contract);
 
         log.info("관리자 서명 처리 완료: contractId={}, v2PdfUrl={}", contractId, v2PdfUrl);
