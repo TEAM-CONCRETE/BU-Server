@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>근로계약서</title>
+    <style>
+        /* PDF 스타일링 */
+        body {
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            margin: 40px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section h2 {
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            width: 30%;
+        }
+        td {
+            width: 70%;
+        }
+        .signature-area {
+            margin-top: 100px;
+        }
+        .signature-area td {
+            height: 100px;
+            vertical-align: bottom;
+        }
+        .footer {
+            text-align: right;
+            margin-top: 30px;
+            font-size: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <!-- 계약서 헤더 -->
+    <div class="header">
+        <h1>근로계약서</h1>
+    </div>
+
+    <!-- 1. 계약 당사자 -->
+    <div class="section">
+        <h2>1. 계약 당사자</h2>
+        <table>
+            <tr>
+                <th>사업주 (법인)</th>
+                <td th:text="${detail.corpName != null ? detail.corpName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>대표자명</th>
+                <td th:text="${detail.corpCeoName != null ? detail.corpCeoName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>사업주 주소</th>
+                <td th:text="${detail.corpAddress != null ? detail.corpAddress : '-'}"></td>
+            </tr>
+            <tr>
+                <th>근로자</th>
+                <td th:text="${detail.empName != null ? detail.empName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>근로자 주소</th>
+                <td th:text="${detail.empAddress != null ? detail.empAddress : '-'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2. 근무 조건 -->
+    <div class="section">
+        <h2>2. 근무 조건</h2>
+        <table>
+            <tr>
+                <th>근무 장소</th>
+                <td th:text="${detail.workPlace != null ? detail.workPlace : '-'}"></td>
+            </tr>
+            <tr>
+                <th>직종</th>
+                <td th:text="${detail.workType != null ? detail.workType : '-'}"></td>
+            </tr>
+            <tr>
+                <th>근무 시간</th>
+                <td>
+                    <span th:if="${detail.workStartTime != null and detail.workEndTime != null}">
+                        <span th:text="${#temporals.format(detail.workStartTime, 'HH:mm')}"></span>
+                        ~
+                        <span th:text="${#temporals.format(detail.workEndTime, 'HH:mm')}"></span>
+                    </span>
+                    <span th:if="${detail.workStartTime == null or detail.workEndTime == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>휴게 시간</th>
+                <td>
+                    <span th:if="${detail.breakStartTime != null and detail.breakEndTime != null}">
+                        <span th:text="${#temporals.format(detail.breakStartTime, 'HH:mm')}"></span>
+                        ~
+                        <span th:text="${#temporals.format(detail.breakEndTime, 'HH:mm')}"></span>
+                    </span>
+                    <span th:if="${detail.breakStartTime == null or detail.breakEndTime == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>근무일</th>
+                <td th:text="${detail.workOnDays != null ? detail.workOnDays : '-'}"></td>
+            </tr>
+            <tr>
+                <th>휴일</th>
+                <td th:text="${detail.workOffDays != null ? detail.workOffDays : '-'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 3. 급여 -->
+    <div class="section">
+        <h2>3. 급여</h2>
+        <table>
+            <tr>
+                <th>기본 임금</th>
+                <td>
+                    <span th:if="${detail.workPay != null}">
+                        <span th:text="${#numbers.formatDecimal(detail.workPay, 0, 'COMMA', 0, 'POINT')}"></span>원
+                    </span>
+                    <span th:if="${detail.workPay == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>시간 외 근로 수당</th>
+                <td>
+                    <span th:if="${detail.additionalHourPay != null}">
+                        <span th:text="${#numbers.formatDecimal(detail.additionalHourPay, 0, 'COMMA', 0, 'POINT')}"></span>원
+                    </span>
+                    <span th:if="${detail.additionalHourPay == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>야간 근로 수당</th>
+                <td>
+                    <span th:if="${detail.additionalNightPay != null}">
+                        <span th:text="${#numbers.formatDecimal(detail.additionalNightPay, 0, 'COMMA', 0, 'POINT')}"></span>원
+                    </span>
+                    <span th:if="${detail.additionalNightPay == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>휴일 근로 수당</th>
+                <td>
+                    <span th:if="${detail.additionalHolidayPay != null}">
+                        <span th:text="${#numbers.formatDecimal(detail.additionalHolidayPay, 0, 'COMMA', 0, 'POINT')}"></span>원
+                    </span>
+                    <span th:if="${detail.additionalHolidayPay == null}">-</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 4. 급여 지급 -->
+    <div class="section">
+        <h2>4. 급여 지급</h2>
+        <table>
+            <tr>
+                <th>지급일</th>
+                <td>
+                    <span th:if="${detail.payDay != null}">
+                        매월 <span th:text="${detail.payDay}"></span>일
+                    </span>
+                    <span th:if="${detail.payDay == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>지급 주기</th>
+                <td>
+                    <span th:if="${detail.payPeriod != null}" th:text="${detail.payPeriod.description}"></span>
+                    <span th:if="${detail.payPeriod == null}">-</span>
+                </td>
+            </tr>
+            <tr>
+                <th>지급 방법</th>
+                <td>
+                    <span th:if="${detail.payType != null}" th:text="${detail.payType.description}"></span>
+                    <span th:if="${detail.payType == null}">-</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 5. 4대보험 -->
+    <div class="section">
+        <h2>5. 4대보험 적용</h2>
+        <table>
+            <tr>
+                <th>고용보험</th>
+                <td th:text="${detail.isEoiApplicable != null and detail.isEoiApplicable ? '적용' : '미적용'}"></td>
+            </tr>
+            <tr>
+                <th>산재보험</th>
+                <td th:text="${detail.isWciApplicable != null and detail.isWciApplicable ? '적용' : '미적용'}"></td>
+            </tr>
+            <tr>
+                <th>국민연금</th>
+                <td th:text="${detail.isNpsApplicable != null and detail.isNpsApplicable ? '적용' : '미적용'}"></td>
+            </tr>
+            <tr>
+                <th>건강보험</th>
+                <td th:text="${detail.isNhiApplicable != null and detail.isNhiApplicable ? '적용' : '미적용'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 6. 계약 기간 -->
+    <div class="section">
+        <h2>6. 계약 기간</h2>
+        <table>
+            <tr>
+                <th>근로 시작일</th>
+                <td th:text="${contract.employeeStartDate != null ? #temporals.format(contract.employeeStartDate, 'yyyy년 MM월 dd일') : '-'}"></td>
+            </tr>
+            <tr>
+                <th>근로 종료일</th>
+                <td>
+                    <span th:if="${contract.employeeEndDate != null}" th:text="${#temporals.format(contract.employeeEndDate, 'yyyy년 MM월 dd일')}"></span>
+                    <span th:if="${contract.employeeEndDate == null}">계속 근로</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 서명란 (초안에는 비어있음) -->
+    <div class="section signature-area">
+        <table>
+            <tr>
+                <th style="width: 50%;">사업주 (법인) 서명</th>
+                <th style="width: 50%;">근로자 서명</th>
+            </tr>
+            <tr>
+                <td style="height: 100px;"></td>
+                <td style="height: 100px;"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p>작성일: <span th:text="${contract.writtenAt != null ? #temporals.format(contract.writtenAt, 'yyyy년 MM월 dd일') : '-'}"></span></p>
+    </div>
+</body>
+</html>
+

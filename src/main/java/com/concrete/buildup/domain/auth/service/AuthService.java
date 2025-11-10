@@ -685,6 +685,108 @@ public class AuthService {
     }
 
     /**
+     * 토큰 재발급
+     *
+     * <p>Refresh Token을 검증하고 새로운 Access Token과 Refresh Token을 발급합니다.</p>
+     * <p>Refresh Token Rotation 적용: 새로운 Refresh Token 발급 시 기존 토큰 무효화</p>
+     *
+     * @param refreshToken Refresh Token (평문)
+     * @return TokenRefreshResponse - 새로운 Access Token과 만료 시간
+     * @throws BusinessException INVALID_REFRESH_TOKEN: 유효하지 않은 토큰
+     * @throws BusinessException REFRESH_TOKEN_MISMATCH: DB와 일치하지 않는 토큰
+     * @throws BusinessException USER_NOT_FOUND: 사용자를 찾을 수 없음
+     */
+    @Transactional
+    public LoginResult refreshToken(String refreshToken) {
+        log.info("토큰 재발급 요청");
+
+        // 1. Refresh Token 검증
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 Refresh Token");
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 2. 토큰 타입 확인 (refresh 타입인지 확인)
+        String tokenType = jwtTokenProvider.getTokenType(refreshToken);
+        if (!"refresh".equals(tokenType)) {
+            log.warn("Refresh Token이 아닌 토큰 타입: type={}", tokenType);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 3. userId 추출
+        String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+        log.debug("토큰에서 userId 추출: userId={}", userId);
+
+        // 4. DB에서 User 조회
+        User user = userRepository.findByUserIdWithRole(userId)
+                .orElseThrow(() -> {
+                    log.warn("사용자를 찾을 수 없음: userId={}", userId);
+                    return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                });
+
+        // 5. DB에 저장된 Refresh Token과 비교 (해시 비교)
+        String hashedRefreshToken = hashToken(refreshToken);
+        if (!hashedRefreshToken.equals(user.getRefreshToken())) {
+            log.warn("Refresh Token 불일치: userId={}", userId);
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_MISMATCH);
+        }
+
+        // 6. Refresh Token 만료 시간 확인
+        if (user.getRefreshTokenExpiresAt() == null ||
+            LocalDateTime.now().isAfter(user.getRefreshTokenExpiresAt())) {
+            log.warn("만료된 Refresh Token: userId={}", userId);
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
+        }
+
+        // 7. 새로운 Access Token 생성
+        String newAccessToken = jwtTokenProvider.generateAccessToken(
+                user.getUserId(),
+                user.getRole().getRoleName()
+        );
+        log.debug("새로운 Access Token 생성 완료: userId={}", user.getUserId());
+
+        // 8. 기존 Refresh Token의 만료 시간으로 rememberMe 여부 판단
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = user.getRefreshTokenExpiresAt();
+        long remainingTime = java.time.Duration.between(now, expiresAt).toMillis();
+
+        // 남은 시간이 일반 만료시간(7일)보다 길면 rememberMe=true로 간주
+        boolean isRememberMe = remainingTime > refreshTokenExpiration;
+        long expiration = isRememberMe ? refreshTokenRememberMeExpiration : refreshTokenExpiration;
+
+        log.debug("기존 토큰 rememberMe 판단: isRememberMe={}, remainingTime={}ms, threshold={}ms",
+                isRememberMe, remainingTime, refreshTokenExpiration);
+
+        // 9. Refresh Token Rotation: 새로운 Refresh Token 생성 (기존 rememberMe 유지)
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), isRememberMe);
+        String hashedNewRefreshToken = hashToken(newRefreshToken);
+        LocalDateTime newRefreshTokenExpiresAt = LocalDateTime.now()
+                .plusSeconds(expiration / 1000);
+        user.updateRefreshToken(hashedNewRefreshToken, newRefreshTokenExpiresAt);
+        log.debug("새로운 Refresh Token 생성 및 DB 저장 완료: userId={}, rememberMe={}",
+                user.getUserId(), isRememberMe);
+
+        // 10. Response 생성
+        LoginResponse loginResponse = LoginResponse.builder()
+                .accessToken(newAccessToken)
+                .userId(user.getUserId())
+                .role(user.getRole().getRoleName())
+                .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
+                .build();
+
+        // 11. LoginResult 생성 (새로운 refreshToken 포함, 평문)
+        LoginResult result = LoginResult.builder()
+                .loginResponse(loginResponse)
+                .refreshToken(newRefreshToken)  // 평문 토큰 (쿠키로 전달용)
+                .refreshTokenMaxAge(expiration / 1000)  // 초 단위로 변환 (rememberMe 반영)
+                .build();
+
+        log.info("토큰 재발급 성공: userId={}, rememberMe={}", user.getUserId(), isRememberMe);
+
+        return result;
+    }
+
+    /**
      * 토큰을 SHA-256으로 해시 처리
      *
      * <p>Refresh Token을 DB에 안전하게 저장하기 위해 SHA-256으로 해시합니다.</p>

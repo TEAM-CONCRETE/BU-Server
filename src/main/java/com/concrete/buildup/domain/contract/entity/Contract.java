@@ -1,8 +1,12 @@
 package com.concrete.buildup.domain.contract.entity;
 
 import com.concrete.buildup.domain.contract.enums.ContractState;
+import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.global.common.BaseEntity;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -70,6 +74,16 @@ public class Contract extends BaseEntity {
     private String role;
 
     /**
+     * 근로자 유형
+     * - DAILY: 일용직
+     * - PERMANENT: 상용직
+     */
+    @NotNull(message = "근로자 유형은 필수입니다")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "emp_type", length = 30, nullable = false)
+    private EmpType empType;
+
+    /**
      * 계약 상태
      * - DRAFT: 작성 중
      * - SENT: 전송됨
@@ -120,6 +134,27 @@ public class Contract extends BaseEntity {
     private ContractDetail contractDetail;
 
     /**
+     * 최종 PDF S3 URL
+     * 양측 서명이 완료된 최종 계약서 PDF의 S3 경로
+     */
+    @Column(name = "final_pdf_url", length = 500)
+    private String finalPdfUrl;
+
+    /**
+     * 최종 PDF SHA-256 해시값
+     * PDF 무결성 검증을 위한 해시값
+     */
+    @Column(name = "final_pdf_hash", length = 255)
+    private String finalPdfHash;
+
+    /**
+     * PDF 생성 시각
+     * 최종 PDF가 생성된 시각
+     */
+    @Column(name = "pdf_generated_at")
+    private LocalDateTime pdfGeneratedAt;
+
+    /**
      * Contract 생성자
      */
     @Builder
@@ -128,6 +163,7 @@ public class Contract extends BaseEntity {
         Long corporationId,
         Long managerId,
         String role,
+        EmpType empType,
         ContractState contractState,
         LocalDate employeeStartDate,
         LocalDate employeeEndDate,
@@ -139,6 +175,13 @@ public class Contract extends BaseEntity {
         this.corporationId = corporationId;
         this.managerId = managerId;
         this.role = role;
+
+        // empType null 체크 (필수 필드)
+        if (empType == null) {
+            throw new IllegalArgumentException("근로자 유형(empType)은 필수입니다.");
+        }
+        this.empType = empType;
+
         this.contractState = contractState != null ? contractState : ContractState.DRAFT;
         this.employeeStartDate = employeeStartDate;
         this.employeeEndDate = employeeEndDate;
@@ -180,5 +223,84 @@ public class Contract extends BaseEntity {
     public boolean isActive() {
         return this.contractState == ContractState.FULLY_SIGNED
             && !this.getIsDeleted();
+    }
+
+    /**
+     * 최종 PDF 정보 업데이트
+     *
+     * @param pdfUrl 최종 PDF S3 URL
+     * @param pdfHash 최종 PDF SHA-256 해시값
+     * @throws BusinessException 파라미터 검증 실패, 상태 검증 실패, 중복 업데이트 시
+     */
+    public void updateFinalPdf(String pdfUrl, String pdfHash) {
+        // 1. 파라미터 검증
+        if (pdfUrl == null || pdfUrl.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.INVALID_PDF_URL);
+        }
+        if (pdfHash == null || pdfHash.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.INVALID_PDF_HASH);
+        }
+
+        // 2. 상태 검증: FULLY_SIGNED 상태에서만 최종 PDF 업데이트 가능
+        if (this.contractState != ContractState.FULLY_SIGNED) {
+            throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE_FOR_PDF_UPDATE,
+                    String.format("최종 PDF는 FULLY_SIGNED 상태에서만 업데이트할 수 있습니다. 현재 상태: %s", this.contractState));
+        }
+
+        // 3. 중복 업데이트 방지
+        if (this.finalPdfUrl != null && !this.finalPdfUrl.trim().isEmpty()) {
+            throw new BusinessException(ContractErrorCode.PDF_ALREADY_SET,
+                    String.format("최종 PDF가 이미 설정되어 있습니다. 기존 URL: %s", this.finalPdfUrl));
+        }
+
+        // 검증 통과 후 업데이트
+        this.finalPdfUrl = pdfUrl.trim();
+        this.finalPdfHash = pdfHash.trim();
+        this.pdfGeneratedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 관리자 서명 대기 상태로 전환
+     * DRAFT 상태에서만 전환 가능
+     *
+     * @throws IllegalStateException DRAFT 상태가 아닐 경우
+     */
+    public void transitionToManagerSigningPending() {
+        if (this.contractState != ContractState.DRAFT) {
+            throw new IllegalStateException("DRAFT 상태에서만 전환 가능");
+        }
+        this.contractState = ContractState.MANAGER_SIGNING_PENDING;
+    }
+
+    /**
+     * 근로자 서명 대기 상태로 전환
+     * MANAGER_SIGNING_PENDING 상태에서만 전환 가능
+     * 관리자 서명 완료 시점을 기록하기 위해 corpSignedAt을 설정합니다.
+     *
+     * @throws IllegalStateException MANAGER_SIGNING_PENDING 상태가 아닐 경우
+     */
+    public void transitionToEmployeeSigningPending() {
+        if (this.contractState != ContractState.MANAGER_SIGNING_PENDING) {
+            throw new IllegalStateException("MANAGER_SIGNING_PENDING 상태에서만 전환 가능");
+        }
+        this.contractState = ContractState.EMPLOYEE_SIGNING_PENDING;
+        // 관리자 서명 완료 시점 기록
+        if (this.corpSignedAt == null) {
+            this.corpSignedAt = LocalDateTime.now();
+        }
+    }
+
+    /**
+     * 완전 서명 완료 상태로 전환
+     * EMPLOYEE_SIGNING_PENDING 상태에서만 전환 가능
+     *
+     * @throws IllegalStateException EMPLOYEE_SIGNING_PENDING 상태가 아닐 경우
+     */
+    public void transitionToFullySigned() {
+        if (this.contractState != ContractState.EMPLOYEE_SIGNING_PENDING) {
+            throw new IllegalStateException("EMPLOYEE_SIGNING_PENDING 상태에서만 전환 가능");
+        }
+        this.contractState = ContractState.FULLY_SIGNED;
+        this.empSignedAt = LocalDateTime.now();
     }
 }

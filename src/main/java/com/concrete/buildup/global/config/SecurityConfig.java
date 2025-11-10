@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -23,15 +26,17 @@ import java.util.List;
 /**
  * Spring Security 설정
  * - CORS 설정
- * - CSRF 설정 (REST API용 비활성화)
+ * - CSRF 설정 (쿠키 기반 토큰: XSRF-TOKEN 쿠키 + X-XSRF-TOKEN 헤더)
  * - 인증/인가 설정
  * - 세션 관리
  * - JWT 인증 필터
  * - 예외 처리 (401/403)
  * - 프로파일별 보안 설정 (dev/test/local: 모든 API 허용, prod: JWT 인증)
+ * - 메서드 레벨 보안 활성화 (@PreAuthorize, @PostAuthorize, @Secured 등)
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -50,10 +55,17 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            // CSRF 비활성화 (REST API 사용 시)
-            .csrf(csrf -> csrf.disable())
+        // CSRF 설정: dev/test/local 프로파일에서는 비활성화, prod에서는 쿠키 기반 토큰 사용
+        if (isDevelopmentMode()) {
+            http.csrf(csrf -> csrf.disable());
+        } else {
+            http.csrf(csrf -> csrf
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+            );
+        }
 
+        http
             // CORS 설정 활성화
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 

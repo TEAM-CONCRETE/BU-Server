@@ -22,7 +22,7 @@ import java.time.LocalTime;
  * 주요 기능:
  * - 계약 당시 회사/근로자 정보 스냅샷 보존
  * - 근무 조건 (장소, 시간, 휴게시간, 근무일/휴일)
- * - 급여 정보 (기본급, 상여금, 각종 수당)
+ * - 급여 정보 (기본급, 각종 수당)
  * - 급여 지급 정보 (지급일, 주기, 방법)
  * - 4대보험 적용 여부
  *
@@ -124,17 +124,17 @@ public class ContractDetail extends BaseEntity {
 
     /**
      * 근무일
-     * 예: "주 5일"
+     * 예: "월~금"
      */
-    @Column(name = "work_on_day", length = 100)
-    private String workOnDay;
+    @Column(name = "work_on_days", length = 100)
+    private String workOnDays;
 
     /**
      * 휴일
      * 예: "토, 일"
      */
-    @Column(name = "work_off_day", length = 100)
-    private String workOffDay;
+    @Column(name = "work_off_days", length = 100)
+    private String workOffDays;
 
     // ========== 급여 정보 ==========
 
@@ -143,12 +143,6 @@ public class ContractDetail extends BaseEntity {
      */
     @Column(name = "work_pay", precision = 15, scale = 2)
     private BigDecimal workPay;
-
-    /**
-     * 상여금
-     */
-    @Column(name = "work_bonus", precision = 15, scale = 2)
-    private BigDecimal workBonus;
 
     /**
      * 시간 외 근로 수당
@@ -172,10 +166,10 @@ public class ContractDetail extends BaseEntity {
 
     /**
      * 임금 지급일
-     * 예: "매월 25일", "매주 금요일"
+     * 예: 25 (매월 25일)
      */
-    @Column(name = "payday", length = 30)
-    private String payday;
+    @Column(name = "pay_day")
+    private Integer payDay;
 
     /**
      * 지급 주기
@@ -236,14 +230,13 @@ public class ContractDetail extends BaseEntity {
         LocalTime workEndTime,
         LocalTime breakStartTime,
         LocalTime breakEndTime,
-        String workOnDay,
-        String workOffDay,
+        String workOnDays,
+        String workOffDays,
         BigDecimal workPay,
-        BigDecimal workBonus,
         BigDecimal additionalHourPay,
         BigDecimal additionalNightPay,
         BigDecimal additionalHolidayPay,
-        String payday,
+        Integer payDay,
         PayPeriod payPeriod,
         PayType payType,
         Boolean isEoiApplicable,
@@ -263,14 +256,13 @@ public class ContractDetail extends BaseEntity {
         this.workEndTime = workEndTime;
         this.breakStartTime = breakStartTime;
         this.breakEndTime = breakEndTime;
-        this.workOnDay = workOnDay;
-        this.workOffDay = workOffDay;
+        this.workOnDays = workOnDays;
+        this.workOffDays = workOffDays;
         this.workPay = workPay;
-        this.workBonus = workBonus;
         this.additionalHourPay = additionalHourPay;
         this.additionalNightPay = additionalNightPay;
         this.additionalHolidayPay = additionalHolidayPay;
-        this.payday = payday;
+        this.payDay = payDay;
         this.payPeriod = payPeriod;
         this.payType = payType;
         this.isEoiApplicable = isEoiApplicable;
@@ -280,21 +272,12 @@ public class ContractDetail extends BaseEntity {
     }
 
     /**
-     * 총 급여 계산 (기본급 + 상여금)
+     * 총 급여 계산 (기본급만 반환)
      *
      * @return 총 급여 (null인 경우 0 반환)
      */
     public BigDecimal calculateTotalPay() {
-        BigDecimal total = BigDecimal.ZERO;
-
-        if (workPay != null) {
-            total = total.add(workPay);
-        }
-        if (workBonus != null) {
-            total = total.add(workBonus);
-        }
-
-        return total;
+        return workPay != null ? workPay : BigDecimal.ZERO;
     }
 
     /**
