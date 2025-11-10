@@ -31,7 +31,7 @@ import java.util.List;
  * - 세션 관리
  * - JWT 인증 필터
  * - 예외 처리 (401/403)
- * - 프로파일별 보안 설정 (dev/test/local: 모든 API 허용, prod: JWT 인증)
+ * - 프로파일별 보안 설정 (dev/local: 모든 API 허용, test/prod: JWT 인증)
  * - 메서드 레벨 보안 활성화 (@PreAuthorize, @PostAuthorize, @Secured 등)
  */
 @Configuration
@@ -50,13 +50,13 @@ public class SecurityConfig {
      * Spring Security 6.x+ 방식 사용
      *
      * 프로파일별 설정:
-     * - dev/test/local: 모든 API 인증 없이 접근 가능 (다중 프로파일 지원)
-     * - prod: JWT 인증 필터 적용
+     * - dev/local: 모든 API 인증 없이 접근 가능 (다중 프로파일 지원)
+     * - test/prod: JWT 인증 필터 적용
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // CSRF 설정: dev/test/local 프로파일에서는 비활성화, prod에서는 쿠키 기반 토큰 사용
-        if (isDevelopmentMode()) {
+        // CSRF 설정: dev/local/test 프로파일에서는 비활성화, prod에서는 쿠키 기반 토큰 사용
+        if (isDevelopmentMode() || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("test"))) {
             http.csrf(csrf -> csrf.disable());
         } else {
             http.csrf(csrf -> csrf
@@ -78,12 +78,12 @@ public class SecurityConfig {
         // Environment.acceptsProfiles()를 사용하여 다중 프로파일 설정 지원
         // 예: spring.profiles.active=dev,local 에서도 정상 동작
         if (isDevelopmentMode()) {
-            // dev/test/local 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
+            // dev/local 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
             http.authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
             );
         } else {
-            // prod 프로파일: JWT 인증 필터 및 예외 처리 적용
+            // test/prod 프로파일: JWT 인증 필터 및 예외 처리 적용
             http
                 // 예외 처리 설정
                 .exceptionHandling(exception -> exception
@@ -93,9 +93,12 @@ public class SecurityConfig {
                     .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
+                    // 인증 필요한 Auth API
+                    .requestMatchers("/v1/auth/me").authenticated()
+
                     // 공개 엔드포인트
                     .requestMatchers(
-                        "/v1/auth/**",           // 인증 관련 API
+                        "/v1/auth/**",           // 인증 관련 API (회원가입, 로그인 등)
                         "/v1/public/**",         // 공개 API
                         "/swagger-ui/**",        // Swagger UI
                         "/v3/api-docs/**",       // Swagger API Docs
@@ -119,13 +122,14 @@ public class SecurityConfig {
      * - spring.profiles.active=dev → true
      * - spring.profiles.active=dev,local → true
      * - spring.profiles.active=local,dev → true
+     * - spring.profiles.active=test → false (통합 테스트에서는 실제 인증 사용)
      * - spring.profiles.active=prod → false
      *
-     * @return dev, test, local 프로파일 중 하나라도 활성화되어 있으면 true
+     * @return dev, local 프로파일 중 하나라도 활성화되어 있으면 true
      */
     private boolean isDevelopmentMode() {
         return environment.acceptsProfiles(
-            org.springframework.core.env.Profiles.of("dev", "test", "local")
+            org.springframework.core.env.Profiles.of("dev", "local")
         );
     }
 

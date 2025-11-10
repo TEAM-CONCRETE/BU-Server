@@ -41,9 +41,9 @@ spring:
         auto: false
 
 # 서버 설정 (테스트 환경)
+# context-path를 제거하여 테스트 간소화
 server:
-  servlet:
-    context-path: /api
+  port: 0  # 랜덤 포트 사용
 
 # JWT 테스트 설정
 jwt:

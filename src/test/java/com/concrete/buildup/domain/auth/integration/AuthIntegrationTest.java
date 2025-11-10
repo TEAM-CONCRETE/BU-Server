@@ -90,21 +90,21 @@ class AuthIntegrationTest {
     @BeforeEach
     void setUp() {
         // 역할 데이터 준비
-        employeeRole = roleRepository.findByRoleName("ROLE_EMPLOYEE")
+        employeeRole = roleRepository.findByRoleName("EMPLOYEE")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("ROLE_EMPLOYEE")
+                        .roleName("EMPLOYEE")
                         .description("근로자 역할")
                         .build()));
 
-        managerRole = roleRepository.findByRoleName("ROLE_MANAGER")
+        managerRole = roleRepository.findByRoleName("MANAGER")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("ROLE_MANAGER")
+                        .roleName("MANAGER")
                         .description("현장 관리자 역할")
                         .build()));
 
-        corporationRole = roleRepository.findByRoleName("ROLE_CORPORATION")
+        corporationRole = roleRepository.findByRoleName("CORPORATION")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("ROLE_CORPORATION")
+                        .roleName("CORPORATION")
                         .description("기업 역할")
                         .build()));
 
@@ -396,7 +396,7 @@ class AuthIntegrationTest {
         employeeRepository.save(employeeProfile);
 
         // Access Token 생성
-        String accessToken = jwtTokenProvider.generateAccessToken("employee", "ROLE_EMPLOYEE");
+        String accessToken = jwtTokenProvider.generateAccessToken("employee", "EMPLOYEE");
 
         // when & then: 계약 목록 조회 시도 (MANAGER, CORPORATION, ADMIN 전용)
         mockMvc.perform(get("/v1/" + testSite.getId() + "/contracts")
@@ -426,7 +426,7 @@ class AuthIntegrationTest {
         managerRepository.save(managerProfile);
 
         // Access Token 생성
-        String accessToken = jwtTokenProvider.generateAccessToken("manager", "ROLE_MANAGER");
+        String accessToken = jwtTokenProvider.generateAccessToken("manager", "MANAGER");
 
         // when & then: 계약 목록 조회 성공
         mockMvc.perform(get("/v1/" + testSite.getId() + "/contracts")
