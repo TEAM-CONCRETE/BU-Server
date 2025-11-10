@@ -25,6 +25,7 @@ public enum ContractErrorCode implements BaseErrorCode {
 
     // 400 Bad Request
     INVALID_PAY_DAY(HttpStatus.BAD_REQUEST, 4008, "급여 지급일은 1일에서 31일 사이여야 합니다."),
+    INVALID_EMP_TYPE_FOR_ENDPOINT(HttpStatus.BAD_REQUEST, 4009, "엔드포인트와 근로자 유형이 일치하지 않습니다."),
 
     // 403 Forbidden
     MANAGER_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 4007, "해당 현장의 관리자가 아닙니다."),
