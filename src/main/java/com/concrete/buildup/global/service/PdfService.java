@@ -130,15 +130,11 @@ public class PdfService {
             // PDF 좌표계: 왼쪽 하단이 (0, 0), Y축은 아래에서 위로 증가
             // 일반적으로 Y 좌표는 페이지 높이에서 빼서 계산해야 할 수 있음
             PdfContentByte contentByte = stamper.getOverContent(1);
-            contentByte.addImage(image, width.floatValue(), 0, 0, height.floatValue(), 
+            contentByte.addImage(image, width.floatValue(), 0, 0, height.floatValue(),
                     x.floatValue(), y.floatValue());
 
-            // 6. PDF 닫기
-            stamper.close();
-            reader.close();
-
             byte[] resultPdfBytes = baos.toByteArray();
-            log.info("PDF 이미지 스탬핑 완료: originalSize={} bytes, resultSize={} bytes", 
+            log.info("PDF 이미지 스탬핑 완료: originalSize={} bytes, resultSize={} bytes",
                     originalPdfBytes.length, resultPdfBytes.length);
 
             return resultPdfBytes;
@@ -150,7 +146,7 @@ public class PdfService {
             log.error("PDF 이미지 스탬핑 실패", e);
             throw new RuntimeException("PDF 이미지 스탬핑 중 오류가 발생했습니다: " + e.getMessage(), e);
         } finally {
-            // 리소스 정리
+            // 리소스 정리 (이중 종료 방지)
             if (stamper != null) {
                 try {
                     stamper.close();
@@ -159,7 +155,11 @@ public class PdfService {
                 }
             }
             if (reader != null) {
-                reader.close();
+                try {
+                    reader.close();
+                } catch (Exception e) {
+                    log.warn("PdfReader 닫기 실패", e);
+                }
             }
         }
     }
