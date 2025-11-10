@@ -172,6 +172,7 @@ public class ContractService {
                 .corporationId(corporation.getId())
                 .managerId(manager != null ? manager.getId() : null)
                 .role(request.getRole())
+                .empType(request.getEmpType())
                 .contractState(ContractState.DRAFT) // 초기 상태: DRAFT
                 .employeeStartDate(request.getEmployeeStartDate())
                 .employeeEndDate(request.getEmployeeEndDate())
@@ -201,16 +202,15 @@ public class ContractService {
                 .workEndTime(details.getWorkEndTime())
                 .breakStartTime(details.getBreakStartTime())
                 .breakEndTime(details.getBreakEndTime())
-                .workOnDay(details.getWorkOnDay())
-                .workOffDay(details.getWorkOffDay())
+                .workOnDays(details.getWorkOnDays())
+                .workOffDays(details.getWorkOffDays())
                 // 급여 정보
                 .workPay(details.getWorkPay())
-                .workBonus(details.getWorkBonus())
                 .additionalHourPay(details.getAdditionalHourPay())
                 .additionalNightPay(details.getAdditionalNightPay())
                 .additionalHolidayPay(details.getAdditionalHolidayPay())
                 // 지급 정보
-                .payday(details.getPayday())
+                .payDay(details.getPayDay())
                 .payPeriod(details.getPayPeriod())
                 .payType(details.getPayType())
                 // 4대보험

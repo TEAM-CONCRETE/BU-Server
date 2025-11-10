@@ -48,20 +48,17 @@ public class ContractDetailRequest {
     @Schema(description = "휴게 종료 시간", example = "13:00:00")
     private LocalTime breakEndTime;
 
-    @Schema(description = "근무일", example = "주 5일 (월~금)")
-    private String workOnDay;
+    @Schema(description = "근무일", example = "월~금")
+    private String workOnDays;
 
     @Schema(description = "휴일", example = "토, 일")
-    private String workOffDay;
+    private String workOffDays;
 
     // ========== 급여 정보 ==========
 
     @NotNull(message = "기본 임금은 필수입니다")
     @Schema(description = "기본 임금", example = "3000000.00", required = true)
     private BigDecimal workPay;
-
-    @Schema(description = "상여금", example = "500000.00")
-    private BigDecimal workBonus;
 
     @Schema(description = "시간외 근로 수당", example = "150000.00")
     private BigDecimal additionalHourPay;
@@ -75,8 +72,8 @@ public class ContractDetailRequest {
     // ========== 지급 정보 ==========
 
     @NotNull(message = "임금 지급일은 필수입니다")
-    @Schema(description = "임금 지급일", example = "매월 25일", required = true)
-    private String payday;
+    @Schema(description = "임금 지급일 (1~31)", example = "25", required = true)
+    private Integer payDay;
 
     @NotNull(message = "지급 주기는 필수입니다")
     @Schema(description = "지급 주기 (DAILY, WEEKLY, MONTHLY)", example = "MONTHLY", required = true)

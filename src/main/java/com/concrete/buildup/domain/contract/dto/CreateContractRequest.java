@@ -1,5 +1,6 @@
 package com.concrete.buildup.domain.contract.dto;
 
+import com.concrete.buildup.domain.contract.enums.EmpType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -41,6 +42,10 @@ public class CreateContractRequest {
 
     @Schema(description = "계약 시 역할", example = "현장 관리자")
     private String role;
+
+    @NotNull(message = "근로자 유형은 필수입니다")
+    @Schema(description = "근로자 유형 (DAILY: 일용직, PERMANENT: 상용직)", example = "PERMANENT", required = true)
+    private EmpType empType;
 
     @NotNull(message = "근로 시작일은 필수입니다")
     @Schema(description = "근로 시작일", example = "2024-01-01", required = true)
