@@ -67,15 +67,15 @@ public class ContractService {
      *   <li>1. Site 존재 여부 검증</li>
      *   <li>2. Employee, Corporation, Manager 존재 여부 검증</li>
      *   <li>3. Manager가 해당 Site의 관리자인지 권한 검증 (managerId가 있는 경우)</li>
-     *   <li>4. 근로자의 기존 FULLY_SIGNED 계약 조회</li>
-     *   <li>5. 다른 타입의 FULLY_SIGNED 계약이 있으면 예외 발생 (422)</li>
-     *   <li>6. 같은 타입이거나 없으면 emp_type 설정</li>
-     *   <li>7. Contract + ContractDetail 생성 및 저장 (트랜잭션)</li>
+     *   <li>4. 급여 지급일 검증 (1~31 범위)</li>
+     *   <li>5. 근로자의 기존 FULLY_SIGNED 계약 조회</li>
+     *   <li>6. 다른 타입의 FULLY_SIGNED 계약이 있으면 예외 발생 (422)</li>
+     *   <li>7. 같은 타입이거나 없으면 emp_type 설정</li>
+     *   <li>8. Contract + ContractDetail 생성 및 저장 (트랜잭션)</li>
      * </ul>
      *
      * @param siteId 현장 ID
      * @param request 계약 생성 요청 DTO
-     * @param empType 근로자 유형 (DAILY/PERMANENT)
      * @return CreateContractResponse - 생성된 계약 ID와 상태
      * @throws BusinessException SITE_NOT_FOUND - 현장을 찾을 수 없음
      * @throws BusinessException EMPLOYEE_NOT_FOUND - 근로자를 찾을 수 없음
@@ -83,11 +83,12 @@ public class ContractService {
      * @throws BusinessException MANAGER_NOT_FOUND - 관리자를 찾을 수 없음 (managerId가 있는 경우)
      * @throws BusinessException MANAGER_NOT_AUTHORIZED - 관리자가 해당 현장의 관리자가 아님
      * @throws BusinessException CONFLICTING_EMP_TYPE - 다른 타입의 계약이 이미 존재함
+     * @throws BusinessException INVALID_PAY_DAY - 급여 지급일이 유효하지 않음 (1~31 범위 외)
      */
     @Transactional
-    public CreateContractResponse createContract(Long siteId, CreateContractRequest request, EmpType empType) {
+    public CreateContractResponse createContract(Long siteId, CreateContractRequest request) {
         log.info("계약 생성 시작: siteId={}, employeeId={}, corporationId={}, empType={}",
-                siteId, request.getEmployeeId(), request.getCorporationId(), empType);
+                siteId, request.getEmployeeId(), request.getCorporationId(), request.getEmpType());
 
         // ========== 1. 존재 여부 검증 ==========
 
@@ -143,11 +144,18 @@ public class ContractService {
         );
         log.debug("근로자의 FULLY_SIGNED 계약 개수: {}", fullySignedContracts.size());
 
-        // 2-2. 기존 계약이 있는 경우 타입 검증
+        // 2-2. 급여 지급일 검증 (1~31 범위)
+        ContractDetailRequest details = request.getDetails();
+        if (details.getPayDay() != null && (details.getPayDay() < 1 || details.getPayDay() > 31)) {
+            log.warn("급여 지급일이 유효하지 않음: payDay={}", details.getPayDay());
+            throw new BusinessException(ContractErrorCode.INVALID_PAY_DAY);
+        }
+
+        // 2-3. 기존 계약이 있는 경우 타입 검증
         if (!fullySignedContracts.isEmpty()) {
             // 근로자의 현재 emp_type 확인
             String currentEmpType = employee.getEmpType();
-            String requestedEmpType = empType.name();
+            String requestedEmpType = request.getEmpType().name();
 
             log.debug("근로자 emp_type 확인: currentEmpType={}, requestedEmpType={}", currentEmpType, requestedEmpType);
 
@@ -159,10 +167,10 @@ public class ContractService {
             }
         }
 
-        // 2-3. emp_type 설정 (기존 타입이 없거나 같은 경우)
-        if (employee.getEmpType() == null || !employee.getEmpType().equals(empType.name())) {
-            employee.changeEmpType(empType.name());
-            log.info("근로자 emp_type 설정: employeeId={}, empType={}", employee.getId(), empType.name());
+        // 2-4. emp_type 설정 (기존 타입이 없거나 같은 경우)
+        if (employee.getEmpType() == null || !employee.getEmpType().equals(request.getEmpType().name())) {
+            employee.changeEmpType(request.getEmpType().name());
+            log.info("근로자 emp_type 설정: employeeId={}, empType={}", employee.getId(), request.getEmpType().name());
         }
 
         // ========== 3. Contract 엔티티 생성 ==========
@@ -184,8 +192,6 @@ public class ContractService {
         log.info("Contract 생성 완료: contractId={}", savedContract.getId());
 
         // ========== 4. ContractDetail 엔티티 생성 (스냅샷) ==========
-
-        ContractDetailRequest details = request.getDetails();
 
         ContractDetail contractDetail = ContractDetail.builder()
                 .contract(savedContract)

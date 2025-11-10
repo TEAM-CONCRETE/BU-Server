@@ -23,6 +23,9 @@ public enum ContractErrorCode implements BaseErrorCode {
     MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, 4004, "관리자를 찾을 수 없습니다."),
     SITE_NOT_FOUND(HttpStatus.NOT_FOUND, 4006, "현장을 찾을 수 없습니다."),
 
+    // 400 Bad Request
+    INVALID_PAY_DAY(HttpStatus.BAD_REQUEST, 4008, "급여 지급일은 1일에서 31일 사이여야 합니다."),
+
     // 403 Forbidden
     MANAGER_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 4007, "해당 현장의 관리자가 아닙니다."),
 

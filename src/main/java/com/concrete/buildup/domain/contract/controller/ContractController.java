@@ -109,7 +109,7 @@ public class ContractController {
         log.info("상용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
                 siteId, request.getEmployeeId(), request.getCorporationId());
 
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         log.info("상용직 계약 생성 완료: siteId={}, contractId={}", siteId, response.getContractId());
 
@@ -149,7 +149,7 @@ public class ContractController {
         log.info("일용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
                 siteId, request.getEmployeeId(), request.getCorporationId());
 
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.DAILY);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         log.info("일용직 계약 생성 완료: siteId={}, contractId={}", siteId, response.getContractId());
 
