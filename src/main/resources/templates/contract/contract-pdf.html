@@ -131,11 +131,11 @@
             </tr>
             <tr>
                 <th>근무일</th>
-                <td th:text="${detail.workOnDay != null ? detail.workOnDay : '-'}"></td>
+                <td th:text="${detail.workOnDays != null ? detail.workOnDays : '-'}"></td>
             </tr>
             <tr>
                 <th>휴일</th>
-                <td th:text="${detail.workOffDay != null ? detail.workOffDay : '-'}"></td>
+                <td th:text="${detail.workOffDays != null ? detail.workOffDays : '-'}"></td>
             </tr>
         </table>
     </div>
@@ -151,15 +151,6 @@
                         <span th:text="${#numbers.formatDecimal(detail.workPay, 0, 'COMMA', 0, 'POINT')}"></span>원
                     </span>
                     <span th:if="${detail.workPay == null}">-</span>
-                </td>
-            </tr>
-            <tr>
-                <th>상여금</th>
-                <td>
-                    <span th:if="${detail.workBonus != null}">
-                        <span th:text="${#numbers.formatDecimal(detail.workBonus, 0, 'COMMA', 0, 'POINT')}"></span>원
-                    </span>
-                    <span th:if="${detail.workBonus == null}">-</span>
                 </td>
             </tr>
             <tr>
@@ -198,7 +189,12 @@
         <table>
             <tr>
                 <th>지급일</th>
-                <td th:text="${detail.payday != null ? detail.payday : '-'}"></td>
+                <td>
+                    <span th:if="${detail.payDay != null}">
+                        매월 <span th:text="${detail.payDay}"></span>일
+                    </span>
+                    <span th:if="${detail.payDay == null}">-</span>
+                </td>
             </tr>
             <tr>
                 <th>지급 주기</th>
