@@ -24,7 +24,17 @@ public enum ResourceType {
     /**
      * 안전교육일지 관련 파일
      */
-    SAFETY_DOC("safetydocs", "안전교육일지");
+    SAFETY_DOC("safetydocs", "안전교육일지"),
+
+    /**
+     * 사원 얼굴 이미지 (얼굴 인식 등록용)
+     */
+    EMPLOYEE_PROFILE("employee-profiles", "사원 얼굴 등록"),
+
+    /**
+     * 출퇴근 체크 촬영 이미지 (얼굴 인식 검증용)
+     */
+    ATTENDANCE_PROBE("attendance-probes", "출퇴근 체크 촬영");
 
     /**
      * S3 경로에 사용될 폴더명
