@@ -228,34 +228,22 @@ public class Contract extends BaseEntity {
     /**
      * 최종 PDF 정보 업데이트
      *
+     * <p>이미 최종 PDF가 설정된 경우 덮어쓰기를 방지합니다.
+     * 이는 완결된 계약서가 재시도·중복 호출 등으로 조용히 변경되는 것을 방지하여
+     * 감사 추적과 법적 효력을 보호합니다.</p>
+     *
      * @param pdfUrl 최종 PDF S3 URL
      * @param pdfHash 최종 PDF SHA-256 해시값
-     * @throws BusinessException 파라미터 검증 실패, 상태 검증 실패, 중복 업데이트 시
+     * @throws BusinessException 이미 최종 PDF가 설정된 경우 (FINAL_PDF_ALREADY_SET)
      */
     public void updateFinalPdf(String pdfUrl, String pdfHash) {
-        // 1. 파라미터 검증
-        if (pdfUrl == null || pdfUrl.trim().isEmpty()) {
-            throw new BusinessException(ContractErrorCode.INVALID_PDF_URL);
-        }
-        if (pdfHash == null || pdfHash.trim().isEmpty()) {
-            throw new BusinessException(ContractErrorCode.INVALID_PDF_HASH);
+        // 최종 PDF 덮어쓰기 방지
+        if (this.finalPdfUrl != null || this.finalPdfHash != null) {
+            throw new BusinessException(ContractErrorCode.FINAL_PDF_ALREADY_SET);
         }
 
-        // 2. 상태 검증: FULLY_SIGNED 상태에서만 최종 PDF 업데이트 가능
-        if (this.contractState != ContractState.FULLY_SIGNED) {
-            throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE_FOR_PDF_UPDATE,
-                    String.format("최종 PDF는 FULLY_SIGNED 상태에서만 업데이트할 수 있습니다. 현재 상태: %s", this.contractState));
-        }
-
-        // 3. 중복 업데이트 방지
-        if (this.finalPdfUrl != null && !this.finalPdfUrl.trim().isEmpty()) {
-            throw new BusinessException(ContractErrorCode.PDF_ALREADY_SET,
-                    String.format("최종 PDF가 이미 설정되어 있습니다. 기존 URL: %s", this.finalPdfUrl));
-        }
-
-        // 검증 통과 후 업데이트
-        this.finalPdfUrl = pdfUrl.trim();
-        this.finalPdfHash = pdfHash.trim();
+        this.finalPdfUrl = pdfUrl;
+        this.finalPdfHash = pdfHash;
         this.pdfGeneratedAt = LocalDateTime.now();
     }
 
