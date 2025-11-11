@@ -518,26 +518,32 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
-        // 3. Access Token 생성
+        // 3. Role 검증 (DB에 직접 삽입 시 role_id가 null일 수 있음)
+        if (user.getRole() == null) {
+            log.error("사용자의 역할이 설정되지 않음: userId={}", user.getUserId());
+            throw new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+        }
+
+        // 4. Access Token 생성
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getRole().getRoleName()
         );
         log.debug("Access Token 생성 완료: userId={}", user.getUserId());
 
-        // 4. Refresh Token 생성 (rememberMe 고려)
+        // 5. Refresh Token 생성 (rememberMe 고려)
         boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUserId(), rememberMe);
         log.debug("Refresh Token 생성 완료: userId={}, rememberMe={}", user.getUserId(), rememberMe);
 
-        // 5. Refresh Token을 SHA-256으로 해시하여 DB에 저장
+        // 6. Refresh Token을 SHA-256으로 해시하여 DB에 저장
         String hashedRefreshToken = hashToken(refreshToken);
         long expiration = rememberMe ? refreshTokenRememberMeExpiration : refreshTokenExpiration;
         LocalDateTime refreshTokenExpiresAt = LocalDateTime.now().plusSeconds(expiration / 1000);
         user.updateRefreshToken(hashedRefreshToken, refreshTokenExpiresAt);
         log.debug("Refresh Token 해시 후 DB 저장 완료: userId={}", user.getUserId());
 
-        // 6. Response 생성
+        // 7. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(accessToken)
                 .userId(user.getUserId())
@@ -545,7 +551,7 @@ public class AuthService {
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .build();
 
-        // 7. LoginResult 생성 (refreshToken 포함, 평문)
+        // 8. LoginResult 생성 (refreshToken 포함, 평문)
         LoginResult result = LoginResult.builder()
                 .loginResponse(loginResponse)
                 .refreshToken(refreshToken)  // 평문 토큰 (쿠키로 전달용)
@@ -575,7 +581,13 @@ public class AuthService {
                     return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
                 });
 
-        // 2. 역할별 추가 정보 조회
+        // 2. Role 검증 (DB에 직접 삽입 시 role_id가 null일 수 있음)
+        if (user.getRole() == null) {
+            log.error("사용자의 역할이 설정되지 않음: userId={}", user.getUserId());
+            throw new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+        }
+
+        // 3. 역할별 추가 정보 조회
         String roleName = user.getRole().getRoleName();
         Object additionalInfo = null;
         String name = null;
@@ -724,7 +736,13 @@ public class AuthService {
                     return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
                 });
 
-        // 5. DB에 저장된 Refresh Token과 비교 (해시 비교)
+        // 5. Role 검증 (DB에 직접 삽입 시 role_id가 null일 수 있음)
+        if (user.getRole() == null) {
+            log.error("사용자의 역할이 설정되지 않음: userId={}", user.getUserId());
+            throw new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+        }
+
+        // 6. DB에 저장된 Refresh Token과 비교 (해시 비교)
         String hashedRefreshToken = hashToken(refreshToken);
         if (!hashedRefreshToken.equals(user.getRefreshToken())) {
             log.warn("Refresh Token 불일치: userId={}", userId);

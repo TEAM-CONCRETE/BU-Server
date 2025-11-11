@@ -221,7 +221,6 @@ public class AuthController {
             description = "인증된 사용자의 기본 정보 및 역할별 추가 정보를 조회합니다. " +
                     "JWT Access Token이 필요하며, SecurityContext에서 사용자 ID를 추출합니다."
     )
-    @PreAuthorize("isAuthenticated()")
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserInfoResponse>> getMyInfo() {
         // SecurityContext에서 인증된 사용자 ID 추출
