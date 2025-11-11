@@ -27,12 +27,12 @@ import java.util.List;
  * Spring Security 설정
  * - CORS 설정
  * - CSRF 설정 (쿠키 기반 토큰: XSRF-TOKEN 쿠키 + X-XSRF-TOKEN 헤더)
- * - 인증/인가 설정
+ * - 인증/인가 설정 (JWT 인증 필터 적용)
  * - 세션 관리
  * - JWT 인증 필터
  * - 예외 처리 (401/403)
- * - 프로파일별 보안 설정 (dev/local: 모든 API 허용, test/prod: JWT 인증)
  * - 메서드 레벨 보안 활성화 (@PreAuthorize, @PostAuthorize, @Secured 등)
+ * - 공개 엔드포인트: 로그인 API, Swagger UI, Health Check
  */
 @Configuration
 @EnableWebSecurity
@@ -49,9 +49,9 @@ public class SecurityConfig {
      * Security Filter Chain 설정
      * Spring Security 6.x+ 방식 사용
      *
-     * 프로파일별 설정:
-     * - dev/local: 모든 API 인증 없이 접근 가능 (다중 프로파일 지원)
-     * - test/prod: JWT 인증 필터 적용
+     * JWT 인증 필터 적용:
+     * - 로그인, Swagger 페이지를 제외한 모든 API는 인증 필요
+     * - CSRF: dev/local/test 프로파일에서는 비활성화, prod에서는 쿠키 기반 토큰 사용
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -74,43 +74,33 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             );
 
-        // 프로파일별 인증 설정
-        // Environment.acceptsProfiles()를 사용하여 다중 프로파일 설정 지원
-        // 예: spring.profiles.active=dev,local 에서도 정상 동작
-        if (isDevelopmentMode()) {
-            // dev/local 프로파일: 모든 API 허용 (인증/인가 구현 완료까지)
-            http.authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()
-            );
-        } else {
-            // test/prod 프로파일: JWT 인증 필터 및 예외 처리 적용
-            http
-                // 예외 처리 설정
-                .exceptionHandling(exception -> exception
-                    // 인증 실패 시 401 응답 (토큰 없음, 토큰 만료, 토큰 유효하지 않음)
-                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                    // 권한 부족 시 403 응답 (인증은 되었으나 권한 없음)
-                    .accessDeniedHandler(jwtAccessDeniedHandler)
-                )
-                .authorizeHttpRequests(auth -> auth
-                    // 인증 필요한 Auth API
-                    .requestMatchers("/v1/auth/me").authenticated()
+        // 인증/인가 설정
+        http
+            // 예외 처리 설정
+            .exceptionHandling(exception -> exception
+                // 인증 실패 시 401 응답 (토큰 없음, 토큰 만료, 토큰 유효하지 않음)
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                // 권한 부족 시 403 응답 (인증은 되었으나 권한 없음)
+                .accessDeniedHandler(jwtAccessDeniedHandler)
+            )
+            .authorizeHttpRequests(auth -> auth
+                // 인증 필요한 Auth API
+                .requestMatchers("/v1/auth/me").authenticated()
 
-                    // 공개 엔드포인트
-                    .requestMatchers(
-                        "/v1/auth/**",           // 인증 관련 API (회원가입, 로그인 등)
-                        "/v1/public/**",         // 공개 API
-                        "/swagger-ui/**",        // Swagger UI
-                        "/v3/api-docs/**",       // Swagger API Docs
-                        "/actuator/health"       // Health Check
-                    ).permitAll()
+                // 공개 엔드포인트
+                .requestMatchers(
+                    "/v1/auth/**",           // 인증 관련 API (회원가입, 로그인 등)
+                    "/v1/public/**",         // 공개 API
+                    "/swagger-ui/**",        // Swagger UI
+                    "/v3/api-docs/**",       // Swagger API Docs
+                    "/actuator/health"       // Health Check
+                ).permitAll()
 
-                    // 그 외 모든 요청은 인증 필요
-                    .anyRequest().authenticated()
-                )
-                // JWT 인증 필터 추가
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        }
+                // 그 외 모든 요청은 인증 필요
+                .anyRequest().authenticated()
+            )
+            // JWT 인증 필터 추가
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
