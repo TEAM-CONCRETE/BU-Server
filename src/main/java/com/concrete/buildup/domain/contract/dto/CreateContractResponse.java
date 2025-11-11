@@ -25,6 +25,9 @@ public class CreateContractResponse {
     @Schema(description = "생성된 계약 ID", example = "1")
     private Long contractId;
 
-    @Schema(description = "계약 상태 (DRAFT, SENT, ADMIN_SIGNED, FULLY_SIGNED, TERMINATED)", example = "DRAFT")
+    @Schema(description = "계약 상태 (DRAFT, SENT, ADMIN_SIGNED, FULLY_SIGNED, TERMINATED)", example = "MANAGER_SIGNING_PENDING")
     private ContractState contractState;
+
+    @Schema(description = "초안 PDF URL (S3)", example = "https://s3.amazonaws.com/bucket/contracts/1/v1.pdf")
+    private String pdfUrl;
 }

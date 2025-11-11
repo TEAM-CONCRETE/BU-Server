@@ -57,11 +57,12 @@ public class ContractService {
     private final CorporationRepository corporationRepository;
     private final ManagerRepository managerRepository;
     private final SiteRepository siteRepository;
+    private final ContractSignatureService contractSignatureService;
 
     /**
-     * 계약 생성
+     * 계약 생성 및 초안 PDF 자동 생성
      *
-     * <p>상용직 또는 일용직 근로계약을 생성합니다.</p>
+     * <p>상용직 또는 일용직 근로계약을 생성하고, 초안 PDF를 자동으로 생성합니다.</p>
      * <p>비즈니스 로직:</p>
      * <ul>
      *   <li>1. Site 존재 여부 검증</li>
@@ -72,11 +73,13 @@ public class ContractService {
      *   <li>6. 다른 타입의 FULLY_SIGNED 계약이 있으면 예외 발생 (422)</li>
      *   <li>7. 같은 타입이거나 없으면 emp_type 설정</li>
      *   <li>8. Contract + ContractDetail 생성 및 저장 (트랜잭션)</li>
+     *   <li>9. 초안 PDF(v1) 생성 및 S3 업로드</li>
+     *   <li>10. 계약 상태를 MANAGER_SIGNING_PENDING으로 변경</li>
      * </ul>
      *
      * @param siteId 현장 ID
      * @param request 계약 생성 요청 DTO
-     * @return CreateContractResponse - 생성된 계약 ID와 상태
+     * @return CreateContractResponse - 생성된 계약 ID, 상태, PDF URL
      * @throws BusinessException SITE_NOT_FOUND - 현장을 찾을 수 없음
      * @throws BusinessException EMPLOYEE_NOT_FOUND - 근로자를 찾을 수 없음
      * @throws BusinessException CORPORATION_NOT_FOUND - 기업을 찾을 수 없음
@@ -230,13 +233,20 @@ public class ContractService {
         contractDetailRepository.save(contractDetail);
         log.info("ContractDetail 생성 완료: contractId={}", savedContract.getId());
 
-        // ========== 5. 응답 생성 ==========
+        // ========== 5. 초안 PDF 생성 및 S3 업로드 ==========
 
-        log.info("계약 생성 완료 - contractId: {}, employeeId: {}", savedContract.getId(), employee.getId());
+        String pdfUrl = contractSignatureService.generateInitialPdf(savedContract.getId());
+        log.info("초안 PDF 생성 완료: contractId={}, pdfUrl={}", savedContract.getId(), pdfUrl);
+
+        // ========== 6. 응답 생성 ==========
+
+        log.info("계약 생성 완료 - contractId: {}, employeeId: {}, state: {}",
+                savedContract.getId(), employee.getId(), savedContract.getContractState());
 
         return CreateContractResponse.builder()
                 .contractId(savedContract.getId())
-                .contractState(savedContract.getContractState())
+                .contractState(savedContract.getContractState()) // MANAGER_SIGNING_PENDING
+                .pdfUrl(pdfUrl)
                 .build();
     }
 
