@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,14 +53,14 @@ public class EmployeeFaceService {
         User user = userRepository.findByUserId(userId)
             .orElseThrow(() -> {
                 log.error("User를 찾을 수 없음 - userId: {}", userId);
-                return AuthErrorCode.USER_NOT_FOUND.toException();
+                return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
             });
 
         // 2. Employee 조회 (User의 PK로)
         Employee employee = employeeRepository.findByUserId(user.getId())
             .orElseThrow(() -> {
                 log.error("Employee를 찾을 수 없음 - userPk: {}", user.getId());
-                return AuthErrorCode.USER_NOT_FOUND.toException();
+                return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
             });
 
         // 3. uploadId로 S3 URL 구성
