@@ -4,11 +4,15 @@ import com.concrete.buildup.domain.contract.dto.ContractListResponse;
 import com.concrete.buildup.domain.contract.dto.ContractSearchCondition;
 import com.concrete.buildup.domain.contract.dto.CreateContractRequest;
 import com.concrete.buildup.domain.contract.dto.CreateContractResponse;
+import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
+import com.concrete.buildup.domain.contract.dto.SignatureRequest;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.service.ContractService;
+import com.concrete.buildup.domain.contract.service.ContractSignatureService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +42,7 @@ import org.springframework.web.bind.annotation.*;
 public class ContractController {
 
     private final ContractService contractService;
+    private final ContractSignatureService contractSignatureService;
 
     /**
      * 계약 목록 조회 API
@@ -173,5 +178,177 @@ public class ContractController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "일용직 계약이 생성되었습니다"));
+    }
+
+    /**
+     * 계약서 초안 PDF 생성 API
+     *
+     * <p>계약 생성 후 서명이 없는 초안 PDF(v1)를 생성합니다.</p>
+     * <p>비즈니스 로직:</p>
+     * <ul>
+     *   <li>Contract + ContractDetail 조회</li>
+     *   <li>Thymeleaf 템플릿 기반 PDF 생성</li>
+     *   <li>S3에 contracts/{contractId}/v1.pdf 업로드</li>
+     *   <li>계약 상태를 MANAGER_SIGNING_PENDING으로 변경</li>
+     * </ul>
+     *
+     * @param siteId 현장 ID
+     * @param contractId 계약 ID
+     * @return PDF URL (v1.pdf)
+     */
+    @Operation(
+            summary = "계약서 초안 PDF 생성",
+            description = "계약 생성 후 서명이 없는 초안 PDF를 생성하고 S3에 업로드합니다. " +
+                    "생성된 PDF는 관리자 서명 대기 상태가 됩니다."
+    )
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @PostMapping("/{contractId}/pdf/initial")
+    public ResponseEntity<ApiResponse<String>> generateInitialPdf(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId,
+            @Parameter(description = "계약 ID", required = true, example = "1")
+            @PathVariable Long contractId
+    ) {
+        log.info("초안 PDF 생성 API 호출: siteId={}, contractId={}", siteId, contractId);
+
+        String pdfUrl = contractSignatureService.generateInitialPdf(contractId);
+
+        log.info("초안 PDF 생성 완료: contractId={}, pdfUrl={}", contractId, pdfUrl);
+
+        return ResponseEntity.ok(ApiResponse.success(pdfUrl, "초안 PDF가 생성되었습니다"));
+    }
+
+    /**
+     * 관리자 서명 처리 API
+     *
+     * <p>관리자의 서명을 처리하고 v2 PDF를 생성합니다.</p>
+     * <p>비즈니스 로직:</p>
+     * <ul>
+     *   <li>계약 상태 검증 (MANAGER_SIGNING_PENDING인지 확인)</li>
+     *   <li>S3에서 서명 이미지 다운로드</li>
+     *   <li>서명 이미지 해시 검증 (클라이언트 해시 vs 서버 해시)</li>
+     *   <li>v1 PDF에 서명 이미지 스탬핑</li>
+     *   <li>S3에 v2 PDF 업로드</li>
+     *   <li>ContractSignLog 생성</li>
+     *   <li>계약 상태를 EMPLOYEE_SIGNING_PENDING으로 변경</li>
+     * </ul>
+     *
+     * @param siteId 현장 ID
+     * @param contractId 계약 ID
+     * @param request 서명 요청 정보
+     * @param httpRequest HTTP 요청 (IP 추출용)
+     * @return SignatureCompleteResponse - 서명 완료 정보 (v2 PDF URL 포함)
+     */
+    @Operation(
+            summary = "관리자 서명 처리",
+            description = "관리자의 서명을 처리하고 v2 PDF를 생성합니다. " +
+                    "서명 이미지의 무결성을 검증하고, v1 PDF에 서명을 추가합니다. " +
+                    "처리 완료 후 근로자 서명 대기 상태로 전환됩니다."
+    )
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @PostMapping("/{contractId}/signatures/manager")
+    public ResponseEntity<ApiResponse<SignatureCompleteResponse>> processManagerSignature(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId,
+            @Parameter(description = "계약 ID", required = true, example = "1")
+            @PathVariable Long contractId,
+            @Valid @RequestBody SignatureRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        log.info("관리자 서명 처리 API 호출: siteId={}, contractId={}", siteId, contractId);
+
+        // IP 주소 추출 (X-Forwarded-For 헤더 우선, 없으면 RemoteAddr 사용)
+        String clientIp = extractClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        SignatureCompleteResponse response = contractSignatureService.processManagerSignature(
+                contractId,
+                request.getSignatureS3Key(),
+                request.getClientHash(),
+                request.getCoordinates(),
+                clientIp != null ? clientIp : request.getSignedIp(),
+                userAgent != null ? userAgent : request.getSignedDevice()
+        );
+
+        log.info("관리자 서명 처리 완료: contractId={}, newState={}", contractId, response.getContractState());
+
+        return ResponseEntity.ok(ApiResponse.success(response, "관리자 서명이 완료되었습니다"));
+    }
+
+    /**
+     * 근로자 서명 처리 API
+     *
+     * <p>근로자의 서명을 처리하고 최종 PDF(v3)를 생성합니다.</p>
+     * <p>비즈니스 로직:</p>
+     * <ul>
+     *   <li>계약 상태 검증 (EMPLOYEE_SIGNING_PENDING인지 확인)</li>
+     *   <li>S3에서 서명 이미지 다운로드</li>
+     *   <li>서명 이미지 해시 검증</li>
+     *   <li>v2 PDF에 서명 이미지 스탬핑</li>
+     *   <li>v3 PDF의 SHA-256 해시 계산</li>
+     *   <li>S3에 v3 PDF 업로드</li>
+     *   <li>Contract에 최종 PDF URL 및 해시 저장</li>
+     *   <li>ContractSignLog 생성</li>
+     *   <li>계약 상태를 FULLY_SIGNED로 변경</li>
+     * </ul>
+     *
+     * @param siteId 현장 ID
+     * @param contractId 계약 ID
+     * @param request 서명 요청 정보
+     * @param httpRequest HTTP 요청 (IP 추출용)
+     * @return SignatureCompleteResponse - 서명 완료 정보 (최종 PDF URL 및 해시 포함)
+     */
+    @Operation(
+            summary = "근로자 서명 처리",
+            description = "근로자의 서명을 처리하고 최종 PDF(v3)를 생성합니다. " +
+                    "서명 이미지의 무결성을 검증하고, v2 PDF에 서명을 추가합니다. " +
+                    "최종 PDF의 해시값이 계산되어 저장되며, 계약이 완전 서명 완료 상태가 됩니다."
+    )
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER', 'ADMIN')")
+    @PostMapping("/{contractId}/signatures/employee")
+    public ResponseEntity<ApiResponse<SignatureCompleteResponse>> processEmployeeSignature(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId,
+            @Parameter(description = "계약 ID", required = true, example = "1")
+            @PathVariable Long contractId,
+            @Valid @RequestBody SignatureRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        log.info("근로자 서명 처리 API 호출: siteId={}, contractId={}", siteId, contractId);
+
+        // IP 주소 추출
+        String clientIp = extractClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        SignatureCompleteResponse response = contractSignatureService.processEmployeeSignature(
+                contractId,
+                request.getSignatureS3Key(),
+                request.getClientHash(),
+                request.getCoordinates(),
+                clientIp != null ? clientIp : request.getSignedIp(),
+                userAgent != null ? userAgent : request.getSignedDevice()
+        );
+
+        log.info("근로자 서명 처리 완료: contractId={}, newState={}, pdfHash={}",
+                contractId, response.getContractState(), response.getPdfHash());
+
+        return ResponseEntity.ok(ApiResponse.success(response, "근로자 서명이 완료되었습니다"));
+    }
+
+    /**
+     * 클라이언트 IP 주소 추출
+     *
+     * <p>프록시 환경을 고려하여 X-Forwarded-For 헤더를 우선적으로 확인합니다.</p>
+     *
+     * @param request HTTP 요청
+     * @return 클라이언트 IP 주소
+     */
+    private String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            // X-Forwarded-For는 "client, proxy1, proxy2" 형식일 수 있으므로 첫 번째 IP 반환
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
