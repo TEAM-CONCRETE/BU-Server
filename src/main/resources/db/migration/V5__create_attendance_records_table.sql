@@ -19,6 +19,6 @@ CREATE TABLE attendance_records (
     INDEX idx_site_timestamp (site_id, timestamp),
     INDEX idx_state (state),
 
-    FOREIGN KEY (employee_id) REFERENCES employees(id),
-    FOREIGN KEY (site_id) REFERENCES sites(id)
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE RESTRICT,
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='출퇴근 기록';
