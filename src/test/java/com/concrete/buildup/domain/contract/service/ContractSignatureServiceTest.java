@@ -392,6 +392,108 @@ class ContractSignatureServiceTest {
         verify(s3Service, never()).downloadImage(any());
     }
 
+    @Test
+    @DisplayName("관리자 서명 처리 실패 - 해시 불일치")
+    void processManagerSignature_HashMismatch() {
+        // given
+        Long contractId = 100L;
+        String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
+        SignatureCoordinates coordinates = SignatureCoordinates.builder()
+                .x(100.0)
+                .y(200.0)
+                .width(150.0)
+                .height(50.0)
+                .viewWidth(800.0)
+                .viewHeight(1131.0)
+                .build();
+
+        contract = Contract.builder()
+                .employeeId(1L)
+                .corporationId(1L)
+                .managerId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.MANAGER_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2024, 1, 1))
+                .build();
+        setId(contract, contractId);
+
+        byte[] signatureImageBytes = "signature image".getBytes();
+
+        // 잘못된 해시 제공 (의도적으로 다른 해시)
+        String wrongHash = "0000000000000000000000000000000000000000000000000000000000000000";
+
+        given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
+
+        // when & then
+        assertThatThrownBy(() -> contractSignatureService.processManagerSignature(
+                contractId,
+                signatureS3Key,
+                wrongHash,
+                coordinates,
+                "192.168.1.1",
+                "Chrome/Win10"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SIGNATURE_HASH_MISMATCH);
+
+        // v1 PDF 다운로드가 이루어지지 않았는지 확인 (해시 검증 실패로 조기 종료)
+        verify(s3Service, never()).downloadPdf(any());
+        verify(pdfGenerationService, never()).stampSignatureOnPdf(any(), any(), any(), any(), any(), any());
+        verify(signLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("근로자 서명 처리 실패 - 해시 불일치")
+    void processEmployeeSignature_HashMismatch() {
+        // given
+        Long contractId = 100L;
+        String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
+        SignatureCoordinates coordinates = SignatureCoordinates.builder()
+                .x(450.0)
+                .y(200.0)
+                .width(150.0)
+                .height(50.0)
+                .viewWidth(800.0)
+                .viewHeight(1131.0)
+                .build();
+
+        contract = Contract.builder()
+                .employeeId(1L)
+                .corporationId(1L)
+                .managerId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.EMPLOYEE_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2024, 1, 1))
+                .build();
+        setId(contract, contractId);
+
+        byte[] signatureImageBytes = "employee signature".getBytes();
+
+        // 잘못된 해시 제공
+        String wrongHash = "1111111111111111111111111111111111111111111111111111111111111111";
+
+        given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
+
+        // when & then
+        assertThatThrownBy(() -> contractSignatureService.processEmployeeSignature(
+                contractId,
+                signatureS3Key,
+                wrongHash,
+                coordinates,
+                "192.168.1.2",
+                "Safari/iOS"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SIGNATURE_HASH_MISMATCH);
+
+        // v2 PDF 다운로드가 이루어지지 않았는지 확인
+        verify(s3Service, never()).downloadPdf(any());
+        verify(pdfGenerationService, never()).stampSignatureOnPdf(any(), any(), any(), any(), any(), any());
+        verify(signLogRepository, never()).save(any());
+    }
+
     /**
      * Reflection을 사용하여 ID 설정
      */
