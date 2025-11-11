@@ -52,16 +52,19 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     /**
      * 특정 사원의 특정 타입 당일 기록 조회 (중복 체크용)
+     * 동일 현장, 동일 사원, 동일 타입, 당일, 특정 상태의 기록만 조회
      *
      * @param employeeId 사원 ID
+     * @param siteId 현장 ID
      * @param attendanceType 출퇴근 타입
      * @param startOfDay 당일 시작 시각
      * @param endOfDay 당일 종료 시각
      * @param state 출퇴근 상태
      * @return 출퇴근 기록 (Optional)
      */
-    Optional<AttendanceRecord> findFirstByEmployeeIdAndAttendanceTypeAndTimestampBetweenAndState(
+    Optional<AttendanceRecord> findFirstByEmployeeIdAndSiteIdAndAttendanceTypeAndTimestampBetweenAndState(
         Long employeeId,
+        Long siteId,
         AttendanceType attendanceType,
         LocalDateTime startOfDay,
         LocalDateTime endOfDay,
