@@ -153,6 +153,75 @@ public class S3Service {
     }
 
     /**
+     * PDF 다운로드
+     * S3에서 PDF 파일을 다운로드합니다.
+     *
+     * @param s3Key S3 객체 키 (파일 경로)
+     * @return PDF 바이트 배열
+     * @throws BusinessException 파일 다운로드 실패 시
+     */
+    public byte[] downloadPdf(String s3Key) {
+        try {
+            log.info("Downloading PDF from S3: {}", s3Key);
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .build();
+
+            ResponseBytes<GetObjectResponse> objectBytes = s3Client.getObjectAsBytes(getObjectRequest);
+            byte[] data = objectBytes.asByteArray();
+
+            log.info("PDF downloaded successfully: {} bytes", data.length);
+            return data;
+
+        } catch (Exception e) {
+            log.error("Failed to download PDF from S3: {}", s3Key, e);
+            throw new BusinessException(S3ErrorCode.FILE_DOWNLOAD_FAILED, e);
+        }
+    }
+
+    /**
+     * PDF 업로드
+     * 바이트 배열을 S3에 PDF로 업로드합니다.
+     *
+     * @param s3Key S3 객체 키 (파일 경로)
+     * @param pdfBytes PDF 바이트 배열
+     * @throws BusinessException 파일 업로드 실패 시
+     */
+    public void uploadPdf(String s3Key, byte[] pdfBytes) {
+        try {
+            log.info("Uploading PDF to S3: {}, size: {} bytes", s3Key, pdfBytes.length);
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .contentType("application/pdf")
+                    .build();
+
+            s3Client.putObject(putObjectRequest,
+                    software.amazon.awssdk.core.sync.RequestBody.fromBytes(pdfBytes));
+
+            log.info("PDF uploaded successfully: {}", s3Key);
+
+        } catch (Exception e) {
+            log.error("Failed to upload PDF to S3: {}", s3Key, e);
+            throw new BusinessException(S3ErrorCode.FILE_UPLOAD_FAILED, e);
+        }
+    }
+
+    /**
+     * S3 URL 생성
+     * S3 키로부터 접근 가능한 URL을 생성합니다.
+     *
+     * @param s3Key S3 객체 키
+     * @return S3 URL
+     */
+    public String getPdfUrl(String s3Key) {
+        return String.format("https://%s.s3.amazonaws.com/%s", bucketName, s3Key);
+    }
+
+    /**
      * 파일 확장자에 따른 Content-Type 반환
      *
      * @param fileExtension 파일 확장자

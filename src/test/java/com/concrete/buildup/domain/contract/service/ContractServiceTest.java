@@ -99,6 +99,7 @@ class ContractServiceTest {
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         // ID 설정 (저장 후 자동 생성되는 ID 시뮬레이션)
@@ -120,7 +121,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then
         assertThat(response).isNotNull();
@@ -153,6 +154,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -172,7 +174,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.DAILY);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then
         assertThat(response).isNotNull();
@@ -198,7 +200,7 @@ class ContractServiceTest {
         given(employeeRepository.findById(employeeId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.EMPLOYEE_NOT_FOUND);
 
@@ -223,7 +225,7 @@ class ContractServiceTest {
         given(corporationRepository.findById(corporationId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.CORPORATION_NOT_FOUND);
 
@@ -251,7 +253,7 @@ class ContractServiceTest {
         given(managerRepository.findById(managerId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_FOUND);
 
@@ -275,6 +277,7 @@ class ContractServiceTest {
         // 일용직 FULLY_SIGNED 계약이 존재
         Contract existingContract = Contract.builder()
                 .employeeId(employeeId)
+                .empType(EmpType.DAILY)
                 .contractState(ContractState.FULLY_SIGNED)
                 .build();
 
@@ -287,7 +290,7 @@ class ContractServiceTest {
                 .willReturn(List.of(existingContract));
 
         // when & then - 상용직(PERMANENT) 계약 생성 시도
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.CONFLICTING_EMP_TYPE);
 
@@ -310,6 +313,7 @@ class ContractServiceTest {
         // 상용직 FULLY_SIGNED 계약이 존재
         Contract existingContract = Contract.builder()
                 .employeeId(employeeId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.FULLY_SIGNED)
                 .build();
 
@@ -318,6 +322,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -337,7 +342,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when - 같은 타입(PERMANENT) 계약 생성 시도
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then - 성공해야 함
         assertThat(response).isNotNull();
@@ -366,6 +371,7 @@ class ContractServiceTest {
         Contract savedContract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -385,7 +391,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        contractService.createContract(siteId, request, EmpType.PERMANENT);
+        contractService.createContract(siteId, request);
 
         // then
         ArgumentCaptor<ContractDetail> contractDetailCaptor = ArgumentCaptor.forClass(ContractDetail.class);
@@ -411,7 +417,7 @@ class ContractServiceTest {
         given(siteRepository.findById(siteId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SITE_NOT_FOUND);
 
@@ -439,6 +445,7 @@ class ContractServiceTest {
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(EmpType.PERMANENT)
                 .contractState(ContractState.DRAFT)
                 .build();
         try {
@@ -459,7 +466,7 @@ class ContractServiceTest {
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
         // when
-        CreateContractResponse response = contractService.createContract(siteId, request, EmpType.PERMANENT);
+        CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then
         assertThat(response).isNotNull();
@@ -495,7 +502,7 @@ class ContractServiceTest {
         given(managerRepository.findById(managerId)).willReturn(Optional.of(requestManager));
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_AUTHORIZED);
 
@@ -526,7 +533,7 @@ class ContractServiceTest {
         given(managerRepository.findById(managerId)).willReturn(Optional.of(manager));
 
         // when & then
-        assertThatThrownBy(() -> contractService.createContract(siteId, request, EmpType.PERMANENT))
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.MANAGER_NOT_AUTHORIZED);
 
@@ -630,14 +637,13 @@ class ContractServiceTest {
                 .workEndTime(LocalTime.of(18, 0))
                 .breakStartTime(LocalTime.of(12, 0))
                 .breakEndTime(LocalTime.of(13, 0))
-                .workOnDay("주 5일 (월~금)")
-                .workOffDay("토, 일")
+                .workOnDays("주 5일 (월~금)")
+                .workOffDays("토, 일")
                 .workPay(new BigDecimal("3000000.00"))
-                .workBonus(new BigDecimal("500000.00"))
                 .additionalHourPay(new BigDecimal("150000.00"))
                 .additionalNightPay(new BigDecimal("100000.00"))
                 .additionalHolidayPay(new BigDecimal("200000.00"))
-                .payday("매월 25일")
+                .payDay(25)
                 .payPeriod(PayPeriod.MONTHLY)
                 .payType(PayType.TRANSFER)
                 .isEoiApplicable(true)
@@ -650,6 +656,7 @@ class ContractServiceTest {
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(EmpType.PERMANENT)
                 .role("현장 관리자")
                 .employeeStartDate(LocalDate.of(2024, 1, 1))
                 .employeeEndDate(LocalDate.of(2024, 12, 31))
@@ -970,11 +977,12 @@ class ContractServiceTest {
     }
 
     private Contract createContract(Long id, Long employeeId, Long corporationId, Long managerId, EmpType empType, ContractState contractState, LocalDate startDate, LocalDate endDate) {
-        // empType은 Contract가 아닌 Employee에 저장되므로, Contract 생성 시에는 사용하지 않음
+        // Contract 엔티티에 empType 추가
         Contract contract = Contract.builder()
                 .employeeId(employeeId)
                 .corporationId(corporationId)
                 .managerId(managerId)
+                .empType(empType)
                 .contractState(contractState)
                 .employeeStartDate(startDate)
                 .employeeEndDate(endDate)
