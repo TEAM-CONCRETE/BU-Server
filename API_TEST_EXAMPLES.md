@@ -6,6 +6,47 @@
 
 ---
 
+## 📌 로컬 개발 환경 설정
+
+### 1. 개발 환경 시작
+
+```bash
+# Docker 및 애플리케이션 시작
+./start-dev.sh
+```
+
+이 스크립트는 다음을 자동으로 수행합니다:
+- MySQL 8.0 컨테이너 시작 (포트: 3306)
+- phpMyAdmin 시작 (포트: 8081)
+- 초기 데이터 삽입 (roles, admin 계정)
+- Spring Boot 애플리케이션 시작 (포트: 8080)
+
+### 2. 기본 계정 정보
+
+초기화 스크립트(`docker/mysql/init/02-insert-sample-data.sql`)가 자동으로 생성하는 계정:
+
+| 역할 | 아이디 | 비밀번호 | 설명 |
+|------|--------|----------|------|
+| **관리자** | `admin` | `Admin123!@` | 시스템 전체 관리 권한 |
+
+**로그인 테스트:**
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"Admin123!@","rememberMe":false}'
+```
+
+### 3. 서비스 접속
+
+- **애플리케이션**: http://localhost:8080/api
+- **Swagger UI**: http://localhost:8080/api/swagger-ui/index.html
+- **phpMyAdmin**: http://localhost:8081
+  - 서버: `mysql`
+  - 사용자: `buildup`
+  - 비밀번호: `buildup123`
+
+---
+
 ## 목차
 
 1. [인증/인가 API (Auth)](#1-인증인가-api-auth)
