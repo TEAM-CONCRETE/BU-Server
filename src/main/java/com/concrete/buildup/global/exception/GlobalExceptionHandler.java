@@ -144,7 +144,8 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = e.getConstraintViolations().stream()
                 .collect(Collectors.toMap(
                         violation -> violation.getPropertyPath().toString(),
-                        ConstraintViolation::getMessage
+                        ConstraintViolation::getMessage,
+                        (existing, replacement) -> existing + ", " + replacement  // 중복 키 병합: 메시지 연결
                 ));
 
         log.error("[ConstraintViolationException] errors={}", errors);

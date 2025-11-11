@@ -581,7 +581,13 @@ public class AuthService {
                     return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
                 });
 
-        // 2. 역할별 추가 정보 조회
+        // 2. Role 검증 (DB에 직접 삽입 시 role_id가 null일 수 있음)
+        if (user.getRole() == null) {
+            log.error("사용자의 역할이 설정되지 않음: userId={}", user.getUserId());
+            throw new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+        }
+
+        // 3. 역할별 추가 정보 조회
         String roleName = user.getRole().getRoleName();
         Object additionalInfo = null;
         String name = null;
@@ -730,7 +736,13 @@ public class AuthService {
                     return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
                 });
 
-        // 5. DB에 저장된 Refresh Token과 비교 (해시 비교)
+        // 5. Role 검증 (DB에 직접 삽입 시 role_id가 null일 수 있음)
+        if (user.getRole() == null) {
+            log.error("사용자의 역할이 설정되지 않음: userId={}", user.getUserId());
+            throw new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
+        }
+
+        // 6. DB에 저장된 Refresh Token과 비교 (해시 비교)
         String hashedRefreshToken = hashToken(refreshToken);
         if (!hashedRefreshToken.equals(user.getRefreshToken())) {
             log.warn("Refresh Token 불일치: userId={}", userId);
