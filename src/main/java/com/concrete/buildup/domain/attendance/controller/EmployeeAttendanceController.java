@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/attendance")
+@RequestMapping("/api/v1/attendance")
 @RequiredArgsConstructor
 @Tag(name = "Employee Attendance", description = "근로자용 출퇴근 API")
 public class EmployeeAttendanceController {
@@ -27,14 +27,14 @@ public class EmployeeAttendanceController {
     private final EmployeeFaceService employeeFaceService;
 
     /**
-     * POST /api/attendance/my-face
+     * POST /api/v1/attendance/my-face
      * 근로자 본인의 얼굴 이미지 등록
      *
      * 플로우:
      * 1. 클라이언트: face-api.js로 얼굴 1개 검출 확인
-     * 2. 클라이언트: POST /v1/uploads/presign (resourceType=EMPLOYEE_PROFILE) → Presigned URL 발급
+     * 2. 클라이언트: POST /api/v1/uploads/presign (resourceType=EMPLOYEE_PROFILE) → Presigned URL 발급
      * 3. 클라이언트: PUT {uploadUrl} → S3 직접 업로드
-     * 4. 클라이언트: POST /api/attendance/my-face (uploadId 전달)
+     * 4. 클라이언트: POST /api/v1/attendance/my-face (uploadId 전달)
      * 5. 백엔드: uploadId로 S3 URL 구성 후 DB 저장
      *
      * @param request uploadId (S3 객체 키)
@@ -49,7 +49,8 @@ public class EmployeeAttendanceController {
 
             **사전 작업:**
             1. 프론트엔드에서 face-api.js로 얼굴 1개 검출 확인
-            2. POST /v1/uploads/presign 호출하여 Presigned URL 발급
+            2. POST /api/v1/uploads/presign 호출하여 Presigned URL 발급
+               - Body: {"resourceType": "EMPLOYEE_PROFILE", "fileExtension": "jpg"}
             3. 발급받은 uploadUrl로 PUT 요청하여 이미지 S3 업로드
             4. 이 API에 uploadId(s3Key) 전달
 

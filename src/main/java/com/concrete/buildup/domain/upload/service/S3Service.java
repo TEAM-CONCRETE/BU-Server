@@ -222,6 +222,77 @@ public class S3Service {
     }
 
     /**
+     * 범용 Presigned URL 생성 (얼굴 이미지, 프로필 사진 등)
+     * 클라이언트가 직접 S3에 파일을 업로드할 수 있는 임시 URL을 발급합니다.
+     *
+     * @param userId 사용자 ID (JWT에서 추출)
+     * @param resourceType 리소스 타입 (EMPLOYEE_PROFILE, ATTENDANCE_PROBE 등)
+     * @param fileExtension 파일 확장자
+     * @return Presigned URL 응답 (uploadUrl, expiresAt, s3Key, bucket)
+     * @throws BusinessException Presigned URL 생성 실패 시
+     */
+    public PresignedUrlResponse generateSimplePresignedUrl(String userId, ResourceType resourceType, String fileExtension) {
+        try {
+            // S3 키 생성: uploads/{folderName}/{userId}/{timestamp}.{ext}
+            String s3Key = buildSimpleS3Key(userId, resourceType, fileExtension);
+
+            log.info("Generating simple presigned URL for userId: {}, s3Key: {}", userId, s3Key);
+
+            // PutObjectRequest 생성
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .contentType(getContentType(fileExtension))
+                    .build();
+
+            // Presigned URL 생성 요청
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(PRESIGNED_URL_EXPIRATION)
+                    .putObjectRequest(putObjectRequest)
+                    .build();
+
+            // Presigned URL 발급
+            PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+            String uploadUrl = presignedRequest.url().toString();
+
+            // AWS SDK가 생성한 실제 만료 시각 사용
+            Instant expiration = presignedRequest.expiration();
+            LocalDateTime expiresAt = LocalDateTime.ofInstant(expiration, ZoneId.systemDefault());
+
+            log.info("Simple presigned URL generated successfully. Expires at: {}", expiresAt);
+
+            return PresignedUrlResponse.builder()
+                    .uploadUrl(uploadUrl)
+                    .expiresAt(expiresAt)
+                    .s3Key(s3Key)
+                    .bucket(bucketName)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to generate simple presigned URL for userId: {}", userId, e);
+            throw new BusinessException(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED, e);
+        }
+    }
+
+    /**
+     * 범용 S3 키 생성 (얼굴 이미지, 프로필 사진 등)
+     * 파일명 규칙: uploads/{folderName}/{userId}/{timestamp}.{ext}
+     *
+     * @param userId 사용자 ID
+     * @param resourceType 리소스 타입
+     * @param fileExtension 파일 확장자
+     * @return S3 객체 키
+     */
+    private String buildSimpleS3Key(String userId, ResourceType resourceType, String fileExtension) {
+        long timestamp = System.currentTimeMillis();
+        return String.format("uploads/%s/%s/%d.%s",
+                resourceType.getFolderName(),
+                userId,
+                timestamp,
+                fileExtension);
+    }
+
+    /**
      * 파일 확장자에 따른 Content-Type 반환
      *
      * @param fileExtension 파일 확장자
