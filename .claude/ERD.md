@@ -31,6 +31,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `signing_sessions` | 전자서명 세션 관리 | contracts → signing_sessions |
 | `sites` | 현장 정보 | corporation, manager |
 | `attendances` | 근태 기록 | employee, contract, site |
+| `attendance_records` | 얼굴 인식 출퇴근 기록 | employee, site |
 | `payrolls` | 급여 정보 | employee, contract, corporation |
 | `payslip_items` | 급여 명세 항목 | payrolls → items |
 | `safety_docs` | 안전교육 문서 | site, manager |
@@ -116,6 +117,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `resident_num` | VARCHAR(500) | NULL | 주민등록번호 (AES-256-GCM 암호화, API 마스킹) |
 | `emp_address` | VARCHAR(255) | NULL | 주소 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 (DAILY/PERMANENT) |
+| `profile_image_url` | VARCHAR(500) | NULL | 등록된 얼굴 이미지 S3 URL (얼굴 인식 출퇴근용) |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
@@ -424,7 +426,48 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 12. payrolls (급여)
+### 12. attendance_records (얼굴 인식 출퇴근 기록)
+
+**설명:** 얼굴 인식 기반 출퇴근 기록 (Face Similarity API 검증 결과 저장)
+
+**컬럼:**
+
+| 컬럼명 | 타입 | 제약조건 | 설명 |
+|--------|------|----------|------|
+| `id` | BIGINT | PK, AUTO_INCREMENT | 출퇴근 기록 ID |
+| `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
+| `attendance_type` | ENUM('CHECK_IN', 'CHECK_OUT') | NOT NULL | 출퇴근 유형 |
+| `timestamp` | DATETIME | NOT NULL | 출퇴근 기록 시각 |
+| `captured_face_image_url` | VARCHAR(500) | NOT NULL | 촬영된 얼굴 이미지 S3 URL |
+| `similarity_score` | DOUBLE | NULL | 얼굴 유사도 점수 (0.0~1.0, Face API의 cosine_similarity) |
+| `state` | ENUM('CONFIRMED', 'PENDING_REVIEW', 'REJECTED') | NOT NULL | 출퇴근 기록 상태 (기본값: CONFIRMED) |
+| `site_id` | BIGINT | FK, NOT NULL | 현장 ID |
+| `failure_reason` | VARCHAR(255) | NULL | 실패 사유 (검증 실패 시, 예: "얼굴 유사도 미달 (0.72)") |
+| `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT FALSE | 삭제 여부 (소프트 삭제) |
+
+**인덱스:**
+- PRIMARY KEY: `id`
+- INDEX: `(employee_id, timestamp)` - 복합 인덱스 (사원별 출퇴근 기록 조회)
+- INDEX: `(site_id, timestamp)` - 복합 인덱스 (현장별 출퇴근 기록 조회)
+- INDEX: `state` (상태별 조회, PENDING_REVIEW 통계)
+- FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
+- FOREIGN KEY: `site_id` REFERENCES `sites(id)`
+
+**관계:**
+- N:1 → employees
+- N:1 → sites
+
+**비즈니스 로직:**
+- **상태 전이:** Face API verified=true → CONFIRMED, verified=false → PENDING_REVIEW
+- **관리자 검토:** PENDING_REVIEW → CONFIRMED (승인) / REJECTED (거부)
+- **급여 계산:** state=CONFIRMED인 레코드만 집계 (PENDING_REVIEW, REJECTED 제외)
+- **중복 체크:** 당일(00:00~23:59) 동일 employee_id + site_id에 대해 state=CONFIRMED인 CHECK_IN/CHECK_OUT 기록이 이미 있으면 거부
+
+---
+
+### 13. payrolls (급여)
 
 **설명:** 급여 정보
 
@@ -815,5 +858,7 @@ ON work_reports(work_report_status);
 | 2025-11-06 | roles 테이블 updated_at 컬럼 추가 | 김세원 |
 | 2025-11-06 | sites 테이블 manager_secret_key, employee_secret_key, secret_key_expires_at 컬럼 추가 (현장 관리자 회원가입 기능) | 김세원 |
 | 2025-11-07 | users 테이블 refresh_token, refresh_token_expires_at 컬럼 추가 (로그인 API 구현) | 김세원 |
+| 2025-11-12 | employees 테이블 profile_image_url 컬럼 추가 (얼굴 인식 출퇴근 시스템) | 김세원 |
+| 2025-11-12 | attendance_records 테이블 생성 (얼굴 인식 기반 출퇴근 기록) | 김세원 |
 
 ---
