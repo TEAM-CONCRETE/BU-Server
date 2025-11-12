@@ -49,3 +49,6 @@ out/
 
 ### QueryDSL ###
 src/main/generated/
+
+### Face Recognition Notes ###
+face_recognition_notes.md

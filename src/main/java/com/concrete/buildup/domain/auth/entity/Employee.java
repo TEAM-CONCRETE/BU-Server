@@ -63,6 +63,12 @@ public class Employee extends BaseEntity {
     private String empType;
 
     /**
+     * 등록된 얼굴 이미지 S3 URL (얼굴 인식 출퇴근용)
+     */
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
+    /**
      * 근로자 정보 수정
      */
     public void updateInfo(String empName, String subPhone, String empAddress) {
@@ -95,5 +101,12 @@ public class Employee extends BaseEntity {
      */
     public void changeEmpType(String empType) {
         this.empType = empType;
+    }
+
+    /**
+     * 얼굴 이미지 URL 업데이트
+     */
+    public void updateProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 }

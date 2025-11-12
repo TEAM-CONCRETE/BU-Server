@@ -13,7 +13,8 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum EmpType {
+public enum
+EmpType {
 
     /**
      * 일용직 - 일 단위로 고용되는 단기 근로자

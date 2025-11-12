@@ -2,7 +2,7 @@ spring:
   application:
     name: buildup-test
 
-  # 테스트용 데이터베이스 설정 (H2)
+  # 테스트용 데이터베이스 설정 (H2 인메모리 - MySQL 호환 모드)
   datasource:
     driver-class-name: org.h2.Driver
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -21,14 +21,14 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
     open-in-view: false
 
+  # H2 Console 비활성화 (테스트 환경)
+  h2:
+    console:
+      enabled: false
+
   # Flyway 비활성화 (테스트 환경)
   flyway:
     enabled: false
-
-  # H2 Console 활성화
-  h2:
-    console:
-      enabled: true
 
   # AWS S3 통합 테스트 설정
   # .env 파일의 환경변수를 사용합니다
@@ -46,9 +46,9 @@ spring:
         auto: false
 
 # 서버 설정 (테스트 환경)
+# context-path를 제거하여 테스트 간소화
 server:
-  servlet:
-    context-path: /api
+  port: 0  # 랜덤 포트 사용
 
 # JWT 테스트 설정
 jwt:
