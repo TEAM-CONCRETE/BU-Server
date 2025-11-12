@@ -1,5 +1,11 @@
 package com.concrete.buildup.domain.contract.service;
 
+import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
+import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
 import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
@@ -15,6 +21,7 @@ import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import com.concrete.buildup.global.util.CoordinateConverter;
+import com.concrete.buildup.global.util.SecurityUtil;
 import com.concrete.buildup.global.util.SignatureVerificationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +59,9 @@ public class ContractSignatureService {
     private final ContractRepository contractRepository;
     private final ContractDetailRepository contractDetailRepository;
     private final ContractSignLogRepository signLogRepository;
+    private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
+    private final ManagerRepository managerRepository;
     private final S3Service s3Service;
     private final PdfGenerationService pdfGenerationService;
 
@@ -147,7 +157,27 @@ public class ContractSignatureService {
             throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE);
         }
 
-        // 2. S3에서 서명 이미지 다운로드
+        // 2. 현재 사용자가 계약의 관리자인지 검증 (ADMIN이 아닌 경우에만)
+        if (!SecurityUtil.isAdmin()) {
+            String currentUserId = SecurityUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+            }
+
+            User currentUser = userRepository.findByUserId(currentUserId)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED));
+
+            Manager currentManager = managerRepository.findByUser(currentUser)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED));
+
+            if (!currentManager.getId().equals(contract.getManagerId())) {
+                log.warn("권한 없는 관리자의 서명 시도: currentManagerId={}, contractManagerId={}",
+                        currentManager.getId(), contract.getManagerId());
+                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+            }
+        }
+
+        // 3. S3에서 서명 이미지 다운로드
         byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
 
         // 3. 서버에서 해시 재계산 및 검증
@@ -261,9 +291,30 @@ public class ContractSignatureService {
             throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE);
         }
 
-        // 2. S3에서 서명 이미지 다운로드
+        // 2. 현재 사용자가 계약의 근로자인지 검증 (ADMIN/MANAGER가 아닌 경우에만)
+        if (!SecurityUtil.isAdmin() && !SecurityUtil.isManager()) {
+            String currentUserId = SecurityUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                throw new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED);
+            }
+
+            User currentUser = userRepository.findByUserId(currentUserId)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED));
+
+            Employee currentEmployee = employeeRepository.findByUser(currentUser)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED));
+
+            if (!currentEmployee.getId().equals(contract.getEmployeeId())) {
+                log.warn("권한 없는 근로자의 서명 시도: currentEmployeeId={}, contractEmployeeId={}",
+                        currentEmployee.getId(), contract.getEmployeeId());
+                throw new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED);
+            }
+        }
+
+        // 3. S3에서 서명 이미지 다운로드
         byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
-        // 3. 서버에서 해시 재계산 및 검증
+
+        // 4. 서버에서 해시 재계산 및 검증
         String serverHash = SignatureVerificationUtil.calculateSHA256(
                 new ByteArrayInputStream(signatureImageBytes)
         );

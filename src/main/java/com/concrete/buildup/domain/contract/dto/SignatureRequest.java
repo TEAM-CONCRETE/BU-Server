@@ -46,16 +46,4 @@ public class SignatureRequest {
     @Valid
     @Schema(description = "서명 이미지 좌표 정보", required = true)
     private SignatureCoordinates coordinates;
-
-    @Schema(
-            description = "서명 시점 IP 주소",
-            example = "192.168.0.1"
-    )
-    private String signedIp;
-
-    @Schema(
-            description = "서명 디바이스 정보 (User-Agent)",
-            example = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    )
-    private String signedDevice;
 }

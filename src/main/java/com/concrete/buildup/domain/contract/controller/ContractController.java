@@ -257,7 +257,7 @@ public class ContractController {
     ) {
         log.info("관리자 서명 처리 API 호출: siteId={}, contractId={}", siteId, contractId);
 
-        // IP 주소 추출 (X-Forwarded-For 헤더 우선, 없으면 RemoteAddr 사용)
+        // IP 주소 및 User-Agent 추출 (HTTP 헤더에서만 신뢰)
         String clientIp = extractClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
@@ -266,8 +266,8 @@ public class ContractController {
                 request.getSignatureS3Key(),
                 request.getClientHash(),
                 request.getCoordinates(),
-                clientIp != null ? clientIp : request.getSignedIp(),
-                userAgent != null ? userAgent : request.getSignedDevice()
+                clientIp,
+                userAgent
         );
 
         log.info("관리자 서명 처리 완료: contractId={}, newState={}", contractId, response.getContractState());
@@ -316,7 +316,7 @@ public class ContractController {
     ) {
         log.info("근로자 서명 처리 API 호출: siteId={}, contractId={}", siteId, contractId);
 
-        // IP 주소 추출
+        // IP 주소 및 User-Agent 추출 (HTTP 헤더에서만 신뢰)
         String clientIp = extractClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
@@ -325,8 +325,8 @@ public class ContractController {
                 request.getSignatureS3Key(),
                 request.getClientHash(),
                 request.getCoordinates(),
-                clientIp != null ? clientIp : request.getSignedIp(),
-                userAgent != null ? userAgent : request.getSignedDevice()
+                clientIp,
+                userAgent
         );
 
         log.info("근로자 서명 처리 완료: contractId={}, newState={}, pdfHash={}",
