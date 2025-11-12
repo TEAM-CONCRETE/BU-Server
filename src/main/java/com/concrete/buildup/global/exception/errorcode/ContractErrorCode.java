@@ -33,6 +33,7 @@ public enum ContractErrorCode implements BaseErrorCode {
 
     // 403 Forbidden
     MANAGER_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 4007, "해당 현장의 관리자가 아닙니다."),
+    EMPLOYEE_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 4014, "해당 계약의 근로자가 아닙니다."),
 
     // 422 Unprocessable Entity
     CONFLICTING_EMP_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, 4005, "이미 다른 유형의 계약이 존재합니다. 기존 계약을 종료한 후 진행해주세요.");

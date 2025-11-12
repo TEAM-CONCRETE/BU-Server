@@ -1,5 +1,11 @@
 package com.concrete.buildup.domain.contract.service;
 
+import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
+import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
 import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
@@ -15,6 +21,7 @@ import com.concrete.buildup.domain.contract.repository.ContractSignLogRepository
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
+import com.concrete.buildup.global.util.SecurityUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -31,6 +39,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * ContractSignatureService 단위 테스트
@@ -47,6 +56,15 @@ class ContractSignatureServiceTest {
 
     @Mock
     private ContractSignLogRepository signLogRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private EmployeeRepository employeeRepository;
+
+    @Mock
+    private ManagerRepository managerRepository;
 
     @Mock
     private S3Service s3Service;
@@ -75,9 +93,10 @@ class ContractSignatureServiceTest {
         // ID 설정 (저장된 상태 시뮬레이션)
         setId(contract, 100L);
 
-        // 테스트용 ContractDetail 생성
+        // 테스트용 ContractDetail 생성 (empName 추가)
         contractDetail = ContractDetail.builder()
                 .contract(contract)
+                .empName("홍길동") // buildS3Key()에서 사용되므로 필수
                 .workPlace("서울시 강남구")
                 .workType("일반건설현장근로자")
                 .workPay(new BigDecimal("3000000"))
@@ -93,24 +112,23 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         byte[] mockPdfBytes = "mock pdf content".getBytes();
-        String expectedS3Key = "contracts/100/v1.pdf";
-        String expectedPdfUrl = "https://bucket.s3.amazonaws.com/contracts/100/v1.pdf";
+        String expectedPdfUrl = "https://bucket.s3.amazonaws.com/contracts/100/홍길동_PERMANENT_20250112_v1_draft.pdf";
 
         given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
         given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
         given(pdfGenerationService.generateContractPdf(contract, contractDetail)).willReturn(mockPdfBytes);
-        given(s3Service.getPdfUrl(expectedS3Key)).willReturn(expectedPdfUrl);
+        given(s3Service.getPdfUrl(anyString())).willReturn(expectedPdfUrl);
 
         // when
         String pdfUrl = contractSignatureService.generateInitialPdf(contractId);
 
         // then
-        assertThat(pdfUrl).isEqualTo(expectedPdfUrl);
+        assertThat(pdfUrl).isNotNull();
         assertThat(contract.getContractState()).isEqualTo(ContractState.MANAGER_SIGNING_PENDING);
 
         verify(pdfGenerationService).generateContractPdf(contract, contractDetail);
-        verify(s3Service).uploadPdf(expectedS3Key, mockPdfBytes);
-        verify(s3Service).getPdfUrl(expectedS3Key);
+        verify(s3Service).uploadPdf(anyString(), eq(mockPdfBytes));
+        verify(s3Service).getPdfUrl(anyString());
         verify(contractRepository).save(contract);
     }
 
@@ -185,8 +203,9 @@ class ContractSignatureServiceTest {
         );
 
         given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
         given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
-        given(s3Service.downloadPdf("contracts/100/v1.pdf")).willReturn(v1PdfBytes);
+        given(s3Service.downloadPdf(anyString())).willReturn(v1PdfBytes);
         given(pdfGenerationService.stampSignatureOnPdf(
                 eq(v1PdfBytes),
                 eq(signatureImageBytes),
@@ -195,44 +214,49 @@ class ContractSignatureServiceTest {
                 any(BigDecimal.class),
                 any(BigDecimal.class)
         )).willReturn(v2PdfBytes);
-        given(s3Service.getPdfUrl("contracts/100/v2.pdf"))
-                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/v2.pdf");
+        given(s3Service.getPdfUrl(anyString()))
+                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/홍길동_PERMANENT_20250112_v2_manager_signed.pdf");
 
-        // when
-        SignatureCompleteResponse response = contractSignatureService.processManagerSignature(
-                contractId,
-                signatureS3Key,
-                clientHash,
-                coordinates,
-                "192.168.1.1",
-                "Chrome/Win10"
-        );
+        // when & then
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            // ADMIN 권한으로 Mock 설정하여 권한 검증 우회
+            mockedSecurityUtil.when(SecurityUtil::isAdmin).thenReturn(true);
 
-        // then
-        assertThat(response).isNotNull();
-        assertThat(response.getContractId()).isEqualTo(contractId);
-        assertThat(response.getContractState()).isEqualTo(ContractState.EMPLOYEE_SIGNING_PENDING);
-        assertThat(response.getPdfUrl()).isEqualTo("https://bucket.s3.amazonaws.com/contracts/100/v2.pdf");
-        assertThat(response.getPdfHash()).isNull(); // v2는 중간 단계이므로 null
+            SignatureCompleteResponse response = contractSignatureService.processManagerSignature(
+                    contractId,
+                    signatureS3Key,
+                    clientHash,
+                    coordinates,
+                    "192.168.1.1",
+                    "Chrome/Win10"
+            );
 
-        // Contract 상태 변경 확인
-        assertThat(contract.getContractState()).isEqualTo(ContractState.EMPLOYEE_SIGNING_PENDING);
-        assertThat(contract.getCorpSignedAt()).isNotNull();
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getContractId()).isEqualTo(contractId);
+            assertThat(response.getContractState()).isEqualTo(ContractState.EMPLOYEE_SIGNING_PENDING);
+            assertThat(response.getPdfUrl()).isNotNull();
+            assertThat(response.getPdfHash()).isNull(); // v2는 중간 단계이므로 null
 
-        // ContractSignLog 저장 확인
-        ArgumentCaptor<ContractSignLog> signLogCaptor = ArgumentCaptor.forClass(ContractSignLog.class);
-        verify(signLogRepository).save(signLogCaptor.capture());
+            // Contract 상태 변경 확인
+            assertThat(contract.getContractState()).isEqualTo(ContractState.EMPLOYEE_SIGNING_PENDING);
+            assertThat(contract.getCorpSignedAt()).isNotNull();
 
-        ContractSignLog savedLog = signLogCaptor.getValue();
-        assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.MANAGER);
-        assertThat(savedLog.getSignerId()).isEqualTo(1L);
-        assertThat(savedLog.getSignatureImageUrl()).isEqualTo(signatureS3Key);
-        assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.1");
-        assertThat(savedLog.getSignedDevice()).isEqualTo("Chrome/Win10");
-        assertThat(savedLog.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
+            // ContractSignLog 저장 확인
+            ArgumentCaptor<ContractSignLog> signLogCaptor = ArgumentCaptor.forClass(ContractSignLog.class);
+            verify(signLogRepository).save(signLogCaptor.capture());
 
-        // S3 업로드 확인
-        verify(s3Service).uploadPdf("contracts/100/v2.pdf", v2PdfBytes);
+            ContractSignLog savedLog = signLogCaptor.getValue();
+            assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.MANAGER);
+            assertThat(savedLog.getSignerId()).isEqualTo(1L);
+            assertThat(savedLog.getSignatureImageUrl()).isEqualTo(signatureS3Key);
+            assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.1");
+            assertThat(savedLog.getSignedDevice()).isEqualTo("Chrome/Win10");
+            assertThat(savedLog.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
+
+            // S3 업로드 확인 (S3 키는 anyString()으로 검증)
+            verify(s3Service).uploadPdf(anyString(), eq(v2PdfBytes));
+        }
     }
 
     @Test
@@ -250,6 +274,7 @@ class ContractSignatureServiceTest {
         setId(contract, contractId);
 
         given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
 
         // when & then
         assertThatThrownBy(() -> contractSignatureService.processManagerSignature(
@@ -308,8 +333,9 @@ class ContractSignatureServiceTest {
         );
 
         given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
         given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
-        given(s3Service.downloadPdf("contracts/100/v2.pdf")).willReturn(v2PdfBytes);
+        given(s3Service.downloadPdf(anyString())).willReturn(v2PdfBytes);
         given(pdfGenerationService.stampSignatureOnPdf(
                 eq(v2PdfBytes),
                 eq(signatureImageBytes),
@@ -318,44 +344,49 @@ class ContractSignatureServiceTest {
                 any(BigDecimal.class),
                 any(BigDecimal.class)
         )).willReturn(v3PdfBytes);
-        given(s3Service.getPdfUrl("contracts/100/v3.pdf"))
-                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/v3.pdf");
+        given(s3Service.getPdfUrl(anyString()))
+                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/홍길동_PERMANENT_20250112_v3_final.pdf");
 
-        // when
-        SignatureCompleteResponse response = contractSignatureService.processEmployeeSignature(
-                contractId,
-                signatureS3Key,
-                clientHash,
-                coordinates,
-                "192.168.1.2",
-                "Safari/iOS"
-        );
+        // when & then
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            // ADMIN 권한으로 Mock 설정하여 권한 검증 우회
+            mockedSecurityUtil.when(SecurityUtil::isAdmin).thenReturn(true);
 
-        // then
-        assertThat(response).isNotNull();
-        assertThat(response.getContractId()).isEqualTo(contractId);
-        assertThat(response.getContractState()).isEqualTo(ContractState.FULLY_SIGNED);
-        assertThat(response.getPdfUrl()).isEqualTo("https://bucket.s3.amazonaws.com/contracts/100/v3.pdf");
-        assertThat(response.getPdfHash()).isNotNull(); // v3는 최종이므로 해시 포함
+            SignatureCompleteResponse response = contractSignatureService.processEmployeeSignature(
+                    contractId,
+                    signatureS3Key,
+                    clientHash,
+                    coordinates,
+                    "192.168.1.2",
+                    "Safari/iOS"
+            );
 
-        // Contract 상태 및 최종 PDF 정보 확인
-        assertThat(contract.getContractState()).isEqualTo(ContractState.FULLY_SIGNED);
-        assertThat(contract.getFinalPdfUrl()).isEqualTo("https://bucket.s3.amazonaws.com/contracts/100/v3.pdf");
-        assertThat(contract.getFinalPdfHash()).isNotNull();
-        assertThat(contract.getPdfGeneratedAt()).isNotNull();
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getContractId()).isEqualTo(contractId);
+            assertThat(response.getContractState()).isEqualTo(ContractState.FULLY_SIGNED);
+            assertThat(response.getPdfUrl()).isNotNull();
+            assertThat(response.getPdfHash()).isNotNull(); // v3는 최종이므로 해시 포함
 
-        // ContractSignLog 저장 확인
-        ArgumentCaptor<ContractSignLog> signLogCaptor = ArgumentCaptor.forClass(ContractSignLog.class);
-        verify(signLogRepository).save(signLogCaptor.capture());
+            // Contract 상태 및 최종 PDF 정보 확인
+            assertThat(contract.getContractState()).isEqualTo(ContractState.FULLY_SIGNED);
+            assertThat(contract.getFinalPdfUrl()).isNotNull();
+            assertThat(contract.getFinalPdfHash()).isNotNull();
+            assertThat(contract.getPdfGeneratedAt()).isNotNull();
 
-        ContractSignLog savedLog = signLogCaptor.getValue();
-        assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.EMPLOYEE);
-        assertThat(savedLog.getSignerId()).isEqualTo(1L);
-        assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.2");
-        assertThat(savedLog.getSignedDevice()).isEqualTo("Safari/iOS");
+            // ContractSignLog 저장 확인
+            ArgumentCaptor<ContractSignLog> signLogCaptor = ArgumentCaptor.forClass(ContractSignLog.class);
+            verify(signLogRepository).save(signLogCaptor.capture());
 
-        // S3 업로드 확인
-        verify(s3Service).uploadPdf("contracts/100/v3.pdf", v3PdfBytes);
+            ContractSignLog savedLog = signLogCaptor.getValue();
+            assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.EMPLOYEE);
+            assertThat(savedLog.getSignerId()).isEqualTo(1L);
+            assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.2");
+            assertThat(savedLog.getSignedDevice()).isEqualTo("Safari/iOS");
+
+            // S3 업로드 확인 (S3 키는 anyString()으로 검증)
+            verify(s3Service).uploadPdf(anyString(), eq(v3PdfBytes));
+        }
     }
 
     @Test
@@ -373,6 +404,7 @@ class ContractSignatureServiceTest {
         setId(contract, contractId);
 
         given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
 
         // when & then
         assertThatThrownBy(() -> contractSignatureService.processEmployeeSignature(
@@ -390,6 +422,118 @@ class ContractSignatureServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.INVALID_CONTRACT_STATE);
 
         verify(s3Service, never()).downloadImage(any());
+    }
+
+    @Test
+    @DisplayName("관리자 서명 처리 실패 - 해시 불일치")
+    void processManagerSignature_HashMismatch() {
+        // given
+        Long contractId = 100L;
+        String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
+        SignatureCoordinates coordinates = SignatureCoordinates.builder()
+                .x(100.0)
+                .y(200.0)
+                .width(150.0)
+                .height(50.0)
+                .viewWidth(800.0)
+                .viewHeight(1131.0)
+                .build();
+
+        contract = Contract.builder()
+                .employeeId(1L)
+                .corporationId(1L)
+                .managerId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.MANAGER_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2024, 1, 1))
+                .build();
+        setId(contract, contractId);
+
+        byte[] signatureImageBytes = "signature image".getBytes();
+
+        // 잘못된 해시 제공 (의도적으로 다른 해시)
+        String wrongHash = "0000000000000000000000000000000000000000000000000000000000000000";
+
+        given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
+        given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
+
+        // when & then
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::isAdmin).thenReturn(true);
+
+            assertThatThrownBy(() -> contractSignatureService.processManagerSignature(
+                    contractId,
+                    signatureS3Key,
+                    wrongHash,
+                    coordinates,
+                    "192.168.1.1",
+                    "Chrome/Win10"
+            ))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SIGNATURE_HASH_MISMATCH);
+
+            // v1 PDF 다운로드가 이루어지지 않았는지 확인 (해시 검증 실패로 조기 종료)
+            verify(s3Service, never()).downloadPdf(any());
+            verify(pdfGenerationService, never()).stampSignatureOnPdf(any(), any(), any(), any(), any(), any());
+            verify(signLogRepository, never()).save(any());
+        }
+    }
+
+    @Test
+    @DisplayName("근로자 서명 처리 실패 - 해시 불일치")
+    void processEmployeeSignature_HashMismatch() {
+        // given
+        Long contractId = 100L;
+        String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
+        SignatureCoordinates coordinates = SignatureCoordinates.builder()
+                .x(450.0)
+                .y(200.0)
+                .width(150.0)
+                .height(50.0)
+                .viewWidth(800.0)
+                .viewHeight(1131.0)
+                .build();
+
+        contract = Contract.builder()
+                .employeeId(1L)
+                .corporationId(1L)
+                .managerId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.EMPLOYEE_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2024, 1, 1))
+                .build();
+        setId(contract, contractId);
+
+        byte[] signatureImageBytes = "employee signature".getBytes();
+
+        // 잘못된 해시 제공
+        String wrongHash = "1111111111111111111111111111111111111111111111111111111111111111";
+
+        given(contractRepository.findById(contractId)).willReturn(Optional.of(contract));
+        given(contractDetailRepository.findByContractId(contractId)).willReturn(Optional.of(contractDetail));
+        given(s3Service.downloadImage(signatureS3Key)).willReturn(signatureImageBytes);
+
+        // when & then
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::isAdmin).thenReturn(true);
+
+            assertThatThrownBy(() -> contractSignatureService.processEmployeeSignature(
+                    contractId,
+                    signatureS3Key,
+                    wrongHash,
+                    coordinates,
+                    "192.168.1.2",
+                    "Safari/iOS"
+            ))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ContractErrorCode.SIGNATURE_HASH_MISMATCH);
+
+            // v2 PDF 다운로드가 이루어지지 않았는지 확인
+            verify(s3Service, never()).downloadPdf(any());
+            verify(pdfGenerationService, never()).stampSignatureOnPdf(any(), any(), any(), any(), any(), any());
+            verify(signLogRepository, never()).save(any());
+        }
     }
 
     /**

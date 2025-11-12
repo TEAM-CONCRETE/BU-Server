@@ -1,5 +1,11 @@
 package com.concrete.buildup.domain.contract.service;
 
+import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
+import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
 import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
@@ -15,6 +21,7 @@ import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import com.concrete.buildup.global.util.CoordinateConverter;
+import com.concrete.buildup.global.util.SecurityUtil;
 import com.concrete.buildup.global.util.SignatureVerificationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 계약 서명 처리 서비스
@@ -51,8 +59,32 @@ public class ContractSignatureService {
     private final ContractRepository contractRepository;
     private final ContractDetailRepository contractDetailRepository;
     private final ContractSignLogRepository signLogRepository;
+    private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
+    private final ManagerRepository managerRepository;
     private final S3Service s3Service;
     private final PdfGenerationService pdfGenerationService;
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /**
+     * S3 키 생성 헬퍼 메서드
+     *
+     * @param contractId 계약 ID
+     * @param contractDetail 계약 상세 정보
+     * @param version PDF 버전 (v1_draft, v2_manager_signed, v3_final)
+     * @return S3 키 (예: contracts/2/홍길동_DAILY_20250112_v1_draft.pdf)
+     */
+    private String buildS3Key(Long contractId, ContractDetail contractDetail, String version) {
+        String employeeName = contractDetail.getEmpName();
+        String empType = contractDetail.getContract().getEmpType().name();
+        String dateStr = LocalDateTime.now().format(DATE_FORMATTER);
+
+        // 파일명 생성: {근로자이름}_{근로자타입}_{날짜}_{버전}.pdf
+        String fileName = String.format("%s_%s_%s_%s.pdf", employeeName, empType, dateStr, version);
+
+        return String.format("contracts/%d/%s", contractId, fileName);
+    }
 
     /**
      * 초안 PDF 생성 및 업로드 (v1)
@@ -76,8 +108,8 @@ public class ContractSignatureService {
         // 2. PDF 생성 (Contract와 ContractDetail의 모든 데이터 반영)
         byte[] pdfBytes = pdfGenerationService.generateContractPdf(contract, contractDetail);
 
-        // 3. S3에 v1.pdf 업로드
-        String s3Key = String.format("contracts/%d/v1.pdf", contractId);
+        // 3. S3에 v1_draft.pdf 업로드
+        String s3Key = buildS3Key(contractId, contractDetail, "v1_draft");
         s3Service.uploadPdf(s3Key, pdfBytes);
         String pdfUrl = s3Service.getPdfUrl(s3Key);
 
@@ -114,15 +146,38 @@ public class ContractSignatureService {
     ) {
         log.info("관리자 서명 처리 시작: contractId={}", contractId);
 
-        // 1. Contract 조회 및 상태 검증
+        // 1. Contract + ContractDetail 조회 및 상태 검증
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new BusinessException(ContractErrorCode.CONTRACT_NOT_FOUND));
+
+        ContractDetail contractDetail = contractDetailRepository.findByContractId(contractId)
+                .orElseThrow(() -> new BusinessException(ContractErrorCode.CONTRACT_DETAIL_NOT_FOUND));
 
         if (contract.getContractState() != ContractState.MANAGER_SIGNING_PENDING) {
             throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE);
         }
 
-        // 2. S3에서 서명 이미지 다운로드
+        // 2. 현재 사용자가 계약의 관리자인지 검증 (ADMIN이 아닌 경우에만)
+        if (!SecurityUtil.isAdmin()) {
+            String currentUserId = SecurityUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+            }
+
+            User currentUser = userRepository.findByUserId(currentUserId)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED));
+
+            Manager currentManager = managerRepository.findByUser(currentUser)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED));
+
+            if (!currentManager.getId().equals(contract.getManagerId())) {
+                log.warn("권한 없는 관리자의 서명 시도: currentManagerId={}, contractManagerId={}",
+                        currentManager.getId(), contract.getManagerId());
+                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
+            }
+        }
+
+        // 3. S3에서 서명 이미지 다운로드
         byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
 
         // 3. 서버에서 해시 재계산 및 검증
@@ -135,7 +190,7 @@ public class ContractSignatureService {
         }
 
         // 4. S3에서 v1 PDF 다운로드
-        String v1S3Key = String.format("contracts/%d/v1.pdf", contractId);
+        String v1S3Key = buildS3Key(contractId, contractDetail, "v1_draft");
         byte[] v1PdfBytes = s3Service.downloadPdf(v1S3Key);
 
         // 5. 좌표 변환 (뷰포트 → PDF)
@@ -161,7 +216,7 @@ public class ContractSignatureService {
         );
 
         // 8. v2 PDF를 S3에 업로드
-        String v2S3Key = String.format("contracts/%d/v2.pdf", contractId);
+        String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
         s3Service.uploadPdf(v2S3Key, v2PdfBytes);
         String v2PdfUrl = s3Service.getPdfUrl(v2S3Key);
 
@@ -225,17 +280,41 @@ public class ContractSignatureService {
     ) {
         log.info("근로자 서명 처리 시작: contractId={}", contractId);
 
-        // 1. Contract 조회 및 상태 검증
+        // 1. Contract + ContractDetail 조회 및 상태 검증
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new BusinessException(ContractErrorCode.CONTRACT_NOT_FOUND));
+
+        ContractDetail contractDetail = contractDetailRepository.findByContractId(contractId)
+                .orElseThrow(() -> new BusinessException(ContractErrorCode.CONTRACT_DETAIL_NOT_FOUND));
 
         if (contract.getContractState() != ContractState.EMPLOYEE_SIGNING_PENDING) {
             throw new BusinessException(ContractErrorCode.INVALID_CONTRACT_STATE);
         }
 
-        // 2. S3에서 서명 이미지 다운로드
+        // 2. 현재 사용자가 계약의 근로자인지 검증 (ADMIN/MANAGER가 아닌 경우에만)
+        if (!SecurityUtil.isAdmin() && !SecurityUtil.isManager()) {
+            String currentUserId = SecurityUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                throw new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED);
+            }
+
+            User currentUser = userRepository.findByUserId(currentUserId)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED));
+
+            Employee currentEmployee = employeeRepository.findByUser(currentUser)
+                    .orElseThrow(() -> new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED));
+
+            if (!currentEmployee.getId().equals(contract.getEmployeeId())) {
+                log.warn("권한 없는 근로자의 서명 시도: currentEmployeeId={}, contractEmployeeId={}",
+                        currentEmployee.getId(), contract.getEmployeeId());
+                throw new BusinessException(ContractErrorCode.EMPLOYEE_NOT_AUTHORIZED);
+            }
+        }
+
+        // 3. S3에서 서명 이미지 다운로드
         byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
-        // 3. 서버에서 해시 재계산 및 검증
+
+        // 4. 서버에서 해시 재계산 및 검증
         String serverHash = SignatureVerificationUtil.calculateSHA256(
                 new ByteArrayInputStream(signatureImageBytes)
         );
@@ -245,7 +324,7 @@ public class ContractSignatureService {
         }
 
         // 4. S3에서 v2 PDF 다운로드
-        String v2S3Key = String.format("contracts/%d/v2.pdf", contractId);
+        String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
         byte[] v2PdfBytes = s3Service.downloadPdf(v2S3Key);
 
         // 5. 좌표 변환 (뷰포트 → PDF)
@@ -276,7 +355,7 @@ public class ContractSignatureService {
         );
 
         // 9. v3 PDF를 S3에 업로드
-        String v3S3Key = String.format("contracts/%d/v3.pdf", contractId);
+        String v3S3Key = buildS3Key(contractId, contractDetail, "v3_final");
         s3Service.uploadPdf(v3S3Key, v3PdfBytes);
         String v3PdfUrl = s3Service.getPdfUrl(v3S3Key);
 

@@ -76,6 +76,9 @@ class ContractServiceTest {
     @Mock
     private SiteRepository siteRepository;
 
+    @Mock
+    private ContractSignatureService contractSignatureService;
+
     @InjectMocks
     private ContractService contractService;
 
@@ -117,8 +120,21 @@ class ContractServiceTest {
         given(managerRepository.findById(managerId)).willReturn(Optional.of(manager));
         given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
                 .willReturn(Collections.emptyList());
-        given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
+        given(contractRepository.save(any(Contract.class))).willAnswer(invocation -> {
+            Contract arg = invocation.getArgument(0);
+            // save 호출 시마다 savedContract에 상태 반영
+            if (arg.getContractState() != null) {
+                // 실제로는 엔티티의 상태가 변경되므로, 반환 객체도 동일한 상태를 가져야 함
+            }
+            return savedContract;
+        });
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+
+        // generateInitialPdf가 호출되면 savedContract의 상태를 변경
+        given(contractSignatureService.generateInitialPdf(100L)).willAnswer(invocation -> {
+            savedContract.transitionToManagerSigningPending();
+            return "https://bucket.s3.amazonaws.com/contracts/100/v1.pdf";
+        });
 
         // when
         CreateContractResponse response = contractService.createContract(siteId, request);
@@ -126,7 +142,8 @@ class ContractServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getContractId()).isEqualTo(100L);
-        assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
+        assertThat(response.getContractState()).isEqualTo(ContractState.MANAGER_SIGNING_PENDING);
+        assertThat(response.getPdfUrl()).isEqualTo("https://bucket.s3.amazonaws.com/contracts/100/v1.pdf");
 
         // Employee의 empType이 설정되었는지 검증
         verify(siteRepository).findById(siteId);
@@ -173,13 +190,19 @@ class ContractServiceTest {
         given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
+        given(contractSignatureService.generateInitialPdf(200L)).willAnswer(invocation -> {
+            savedContract.transitionToManagerSigningPending();
+            return "https://bucket.s3.amazonaws.com/contracts/200/v1.pdf";
+        });
+
         // when
         CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getContractId()).isEqualTo(200L);
-        assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
+        assertThat(response.getContractState()).isEqualTo(ContractState.MANAGER_SIGNING_PENDING);
+        assertThat(response.getPdfUrl()).isNotNull();
 
         verify(siteRepository).findById(siteId);
         verify(employeeRepository).findById(employeeId);
@@ -340,6 +363,8 @@ class ContractServiceTest {
                 .willReturn(List.of(existingContract));
         given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+        given(contractSignatureService.generateInitialPdf(300L))
+                .willReturn("https://bucket.s3.amazonaws.com/contracts/300/v1.pdf");
 
         // when - 같은 타입(PERMANENT) 계약 생성 시도
         CreateContractResponse response = contractService.createContract(siteId, request);
@@ -347,6 +372,7 @@ class ContractServiceTest {
         // then - 성공해야 함
         assertThat(response).isNotNull();
         assertThat(response.getContractId()).isEqualTo(300L);
+        assertThat(response.getPdfUrl()).isNotNull();
 
         verify(contractRepository).save(any(Contract.class));
         verify(contractDetailRepository).save(any(ContractDetail.class));
@@ -389,6 +415,8 @@ class ContractServiceTest {
                 .willReturn(Collections.emptyList());
         given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+        given(contractSignatureService.generateInitialPdf(400L))
+                .willReturn("https://bucket.s3.amazonaws.com/contracts/400/v1.pdf");
 
         // when
         contractService.createContract(siteId, request);
@@ -465,13 +493,19 @@ class ContractServiceTest {
         given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
         given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
 
+        given(contractSignatureService.generateInitialPdf(500L)).willAnswer(invocation -> {
+            savedContract.transitionToManagerSigningPending();
+            return "https://bucket.s3.amazonaws.com/contracts/500/v1.pdf";
+        });
+
         // when
         CreateContractResponse response = contractService.createContract(siteId, request);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getContractId()).isEqualTo(500L);
-        assertThat(response.getContractState()).isEqualTo(ContractState.DRAFT);
+        assertThat(response.getContractState()).isEqualTo(ContractState.MANAGER_SIGNING_PENDING);
+        assertThat(response.getPdfUrl()).isNotNull();
 
         verify(siteRepository).findById(siteId);
         verify(managerRepository).findById(managerId);
@@ -997,5 +1031,116 @@ class ContractServiceTest {
         }
 
         return contract;
+    }
+
+    // ========== PDF 자동 생성 기능 테스트 ==========
+
+    @Test
+    @DisplayName("계약 생성 시 PDF 자동 생성 성공")
+    void createContract_AutoGeneratePdf_Success() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 1L;
+        Long corporationId = 1L;
+
+        Site site = createSite(siteId, "테스트현장", null);
+        Employee employee = createEmployee(employeeId, "홍길동", null);
+        Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
+
+        CreateContractRequest request = createContractRequest(employeeId, corporationId, null);
+
+        Contract savedContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.DRAFT)
+                .build();
+        try {
+            java.lang.reflect.Field idField = Contract.class.getSuperclass().getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(savedContract, 999L);
+        } catch (Exception e) {
+            // ID 설정 실패 시 무시
+        }
+
+        String expectedPdfUrl = "https://bucket.s3.amazonaws.com/contracts/999/v1.pdf";
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
+        given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
+        given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
+                .willReturn(Collections.emptyList());
+        given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
+        given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+
+        given(contractSignatureService.generateInitialPdf(999L)).willAnswer(invocation -> {
+            savedContract.transitionToManagerSigningPending();
+            return expectedPdfUrl;
+        });
+
+        // when
+        CreateContractResponse response = contractService.createContract(siteId, request);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getContractId()).isEqualTo(999L);
+        assertThat(response.getPdfUrl()).isEqualTo(expectedPdfUrl);
+        assertThat(response.getContractState()).isEqualTo(ContractState.MANAGER_SIGNING_PENDING);
+
+        // PDF 생성 메서드가 호출되었는지 검증
+        verify(contractSignatureService).generateInitialPdf(999L);
+
+        // Repository 저장 검증
+        verify(contractRepository).save(any(Contract.class));
+        verify(contractDetailRepository).save(any(ContractDetail.class));
+    }
+
+    @Test
+    @DisplayName("계약 생성 시 PDF 생성 실패 시 트랜잭션 롤백")
+    void createContract_AutoGeneratePdf_Failure_Rollback() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 1L;
+        Long corporationId = 1L;
+
+        Site site = createSite(siteId, "테스트현장", null);
+        Employee employee = createEmployee(employeeId, "홍길동", null);
+        Corporation corporation = createCorporation(corporationId, "테스트회사", "서울시 강남구");
+
+        CreateContractRequest request = createContractRequest(employeeId, corporationId, null);
+
+        Contract savedContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(corporationId)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.DRAFT)
+                .build();
+        try {
+            java.lang.reflect.Field idField = Contract.class.getSuperclass().getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(savedContract, 888L);
+        } catch (Exception e) {
+            // ID 설정 실패 시 무시
+        }
+
+        given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        given(employeeRepository.findById(employeeId)).willReturn(Optional.of(employee));
+        given(corporationRepository.findById(corporationId)).willReturn(Optional.of(corporation));
+        given(contractRepository.findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED))
+                .willReturn(Collections.emptyList());
+        given(contractRepository.save(any(Contract.class))).willReturn(savedContract);
+        given(contractDetailRepository.save(any(ContractDetail.class))).willReturn(any());
+
+        // PDF 생성 실패 시뮬레이션
+        given(contractSignatureService.generateInitialPdf(888L))
+                .willThrow(new RuntimeException("PDF generation failed"));
+
+        // when & then
+        assertThatThrownBy(() -> contractService.createContract(siteId, request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("PDF generation failed");
+
+        // PDF 생성이 시도되었는지 확인
+        verify(contractSignatureService).generateInitialPdf(888L);
     }
 }
