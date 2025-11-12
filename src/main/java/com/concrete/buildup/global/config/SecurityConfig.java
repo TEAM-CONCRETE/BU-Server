@@ -92,6 +92,7 @@ public class SecurityConfig {
                     "/v1/auth/**",           // 인증 관련 API (회원가입, 로그인 등)
                     "/v1/public/**",         // 공개 API
                     "/swagger-ui/**",        // Swagger UI
+                    "/swagger-ui.html",      // Swagger UI (메인 페이지)
                     "/v3/api-docs/**",       // Swagger API Docs
                     "/actuator/health"       // Health Check
                 ).permitAll()
