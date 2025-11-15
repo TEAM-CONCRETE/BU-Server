@@ -8,6 +8,7 @@ import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.enums.PayStatus;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.payroll.util.PayrollCalculator;
+import com.concrete.buildup.domain.payroll.util.PayrollPdfGenerator;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class SalaryGenerationService {
     private final ContractRepository contractRepository;
     private final PayrollRepository payrollRepository;
     private final PayrollCalculator payrollCalculator;
+    private final PayrollPdfGenerator pdfGenerator;
     private final S3Service s3Service;
     // TODO: AttendanceRepository 구현 후 주입
     // private final AttendanceRepository attendanceRepository;
@@ -263,15 +265,76 @@ public class SalaryGenerationService {
             // TODO: 7. PayslipItem 저장 (급여 명세 항목)
             // savePayslipItems(savedPayroll.getId(), basePay, nightPay, overtimePay, ...);
 
-            // TODO: 8. PDF 생성 및 S3 업로드
-            // String s3Key = generateAndUploadPdf(savedPayroll, contractDetail, netPay);
-            // savedPayroll.updateS3Key(s3Key);
+            // 8. PDF 생성 및 S3 업로드
+            try {
+                String s3Key = generateAndUploadPdf(
+                        savedPayroll, basePay, nightPay, overtimePay,
+                        holidayPay, weeklyHolidayPay,
+                        nationalPension, healthInsurance, longTermCare, employmentInsurance,
+                        netPay
+                );
+                savedPayroll.updateS3Key(s3Key);
+
+                log.info("[급여 생성] PDF 생성 및 S3 업로드 완료 - payrollId: {}, s3Key: {}",
+                        savedPayroll.getId(), s3Key);
+            } catch (Exception e) {
+                log.error("[급여 생성] PDF 생성 실패 - payrollId: {}", savedPayroll.getId(), e);
+                // PDF 생성 실패해도 급여 데이터는 저장되었으므로 예외를 던지지 않음
+            }
 
         } catch (Exception e) {
             log.error("[급여 생성] 급여 생성 중 오류 발생 - contractId: {}, employeeId: {}",
                     contract.getId(), contract.getEmployeeId(), e);
             throw e;
         }
+    }
+
+    /**
+     * PDF 생성 및 S3 업로드
+     *
+     * @param payroll 급여 정보
+     * @param basePay 기본급
+     * @param nightPay 야간근로수당
+     * @param overtimePay 연장근로수당
+     * @param holidayPay 휴일근로수당
+     * @param weeklyHolidayPay 주휴수당
+     * @param nationalPension 국민연금
+     * @param healthInsurance 건강보험
+     * @param longTermCare 장기요양보험
+     * @param employmentInsurance 고용보험
+     * @param netPay 실수령액
+     * @return S3 키 (파일 경로)
+     */
+    private String generateAndUploadPdf(Payroll payroll,
+                                        BigDecimal basePay,
+                                        BigDecimal nightPay,
+                                        BigDecimal overtimePay,
+                                        BigDecimal holidayPay,
+                                        BigDecimal weeklyHolidayPay,
+                                        BigDecimal nationalPension,
+                                        BigDecimal healthInsurance,
+                                        BigDecimal longTermCare,
+                                        BigDecimal employmentInsurance,
+                                        BigDecimal netPay) {
+        // 1. PDF 생성
+        byte[] pdfBytes = pdfGenerator.generatePayrollPdf(
+                payroll, basePay, nightPay, overtimePay, holidayPay, weeklyHolidayPay,
+                nationalPension, healthInsurance, longTermCare, employmentInsurance, netPay
+        );
+
+        // 2. S3 키 생성
+        // payroll/EMP{employeeId}/{year}/{month}/payslip-{payrollId}.pdf
+        String s3Key = String.format("payroll/EMP%d/%d/%02d/payslip-%d.pdf",
+                payroll.getEmployeeId(),
+                payroll.getSalaryYear(),
+                payroll.getSalaryMonth(),
+                payroll.getId()
+        );
+
+        // 3. S3 업로드
+        s3Service.uploadPdf(s3Key, pdfBytes);
+
+        return s3Key;
     }
 
     /**

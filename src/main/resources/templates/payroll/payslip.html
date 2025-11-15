@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>급여명세서</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+
+        body {
+            font-family: '맑은 고딕', 'Malgun Gothic', sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #333;
+            padding-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24pt;
+            margin: 0 0 10px 0;
+            font-weight: bold;
+        }
+
+        .info-section {
+            margin-bottom: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .info-label {
+            width: 150px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .info-value {
+            flex: 1;
+            color: #333;
+        }
+
+        .section-title {
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 25px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #666;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .amount {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+
+        .total-row {
+            background-color: #f9f9f9;
+            font-weight: bold;
+        }
+
+        .net-pay-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f0f8ff;
+            border: 2px solid #4a90e2;
+            border-radius: 5px;
+        }
+
+        .net-pay-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16pt;
+            font-weight: bold;
+        }
+
+        .net-pay-amount {
+            color: #4a90e2;
+            font-size: 20pt;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #888;
+            font-size: 10pt;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+
+        .zero-amount {
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 헤더 -->
+    <div class="header">
+        <h1>급여명세서</h1>
+        <p style="margin: 0; color: #666;">Payroll Statement</p>
+    </div>
+
+    <!-- 기본 정보 -->
+    <div class="info-section">
+        <div class="info-row">
+            <div class="info-label">성명</div>
+            <div class="info-value" th:text="${empName}">홍길동</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">근로자 구분</div>
+            <div class="info-value" th:text="${empType}">상용직</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">급여 대상 기간</div>
+            <div class="info-value" th:text="${salaryPeriod}">2025년 1월</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">지급 예정일</div>
+            <div class="info-value" th:text="${payDueDate}">2025년 02월 10일</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">총 근무시간</div>
+            <div class="info-value" th:text="${totalWorkHour} + '시간'">209시간</div>
+        </div>
+    </div>
+
+    <!-- 지급 내역 -->
+    <div class="section-title">지급 내역</div>
+    <table>
+        <thead>
+        <tr>
+            <th style="width: 60%;">항목</th>
+            <th style="width: 40%;">금액</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>기본급</td>
+            <td class="amount" th:text="${basePay}">0원</td>
+        </tr>
+        <tr th:if="${nightPay != '0원'}">
+            <td>야간근로수당</td>
+            <td class="amount" th:text="${nightPay}">0원</td>
+        </tr>
+        <tr th:if="${overtimePay != '0원'}">
+            <td>연장근로수당</td>
+            <td class="amount" th:text="${overtimePay}">0원</td>
+        </tr>
+        <tr th:if="${holidayPay != '0원'}">
+            <td>휴일근로수당</td>
+            <td class="amount" th:text="${holidayPay}">0원</td>
+        </tr>
+        <tr th:if="${weeklyHolidayPay != '0원'}">
+            <td>주휴수당</td>
+            <td class="amount" th:text="${weeklyHolidayPay}">0원</td>
+        </tr>
+        <tr class="total-row">
+            <td>총 지급액</td>
+            <td class="amount" th:text="${totalPay}">0원</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <!-- 공제 내역 -->
+    <div class="section-title">공제 내역</div>
+    <table>
+        <thead>
+        <tr>
+            <th style="width: 60%;">항목</th>
+            <th style="width: 40%;">금액</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>소득세 (3.3%)</td>
+            <td class="amount" th:text="${incomeTax}">0원</td>
+        </tr>
+        <tr>
+            <td>주민세 (0.3%)</td>
+            <td class="amount" th:text="${residentTax}">0원</td>
+        </tr>
+        <tr th:if="${nationalPension != '0원'}">
+            <td>국민연금 (4.5%)</td>
+            <td class="amount" th:text="${nationalPension}">0원</td>
+        </tr>
+        <tr th:if="${healthInsurance != '0원'}">
+            <td>건강보험 (3.545%)</td>
+            <td class="amount" th:text="${healthInsurance}">0원</td>
+        </tr>
+        <tr th:if="${longTermCare != '0원'}">
+            <td>장기요양보험 (0.4591%)</td>
+            <td class="amount" th:text="${longTermCare}">0원</td>
+        </tr>
+        <tr th:if="${employmentInsurance != '0원'}">
+            <td>고용보험 (0.9%)</td>
+            <td class="amount" th:text="${employmentInsurance}">0원</td>
+        </tr>
+        <tr class="total-row">
+            <td>총 공제액</td>
+            <td class="amount" th:text="${totalDeduction}">0원</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <!-- 실수령액 -->
+    <div class="net-pay-section">
+        <div class="net-pay-row">
+            <div>실수령액</div>
+            <div class="net-pay-amount" th:text="${netPay}">0원</div>
+        </div>
+    </div>
+
+    <!-- 푸터 -->
+    <div class="footer">
+        <p>본 급여명세서는 자동으로 생성되었습니다.</p>
+        <p th:text="'생성일시: ' + ${generatedAt}">생성일시: 2025-01-15 14:30</p>
+        <p style="margin-top: 10px; font-size: 9pt;">Build-Up Platform | Payroll System</p>
+    </div>
+</div>
+</body>
+</html>
