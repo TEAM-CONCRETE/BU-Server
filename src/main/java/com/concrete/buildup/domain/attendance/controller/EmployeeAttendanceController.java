@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/v1/attendance")
 @RequiredArgsConstructor
-@Tag(name = "Employee Attendance", description = "근로자용 출퇴근 API")
+@Tag(name = "Attendance", description = "근태 관리 API")
 public class
 
 EmployeeAttendanceController {
