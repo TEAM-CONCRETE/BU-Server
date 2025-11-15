@@ -46,14 +46,21 @@ public class FaceSimilarityClient {
     /**
      * 두 얼굴 이미지의 유사도를 비교합니다.
      *
+     * <p>재시도 전략:</p>
+     * <ul>
+     *   <li>재시도 O: 네트워크 오류, 서버 오류 (500, 503)</li>
+     *   <li>재시도 X: 클라이언트 오류 (400, 403, 413, 422)</li>
+     * </ul>
+     *
      * @param registeredImageUrl 등록된 얼굴 이미지 S3 URL
      * @param capturedImageUrl 촬영된 얼굴 이미지 S3 URL
      * @return Face Similarity API 응답
-     * @throws FaceNotDetectedException 얼굴이 검출되지 않은 경우
-     * @throws FaceApiException API 호출 실패
+     * @throws FaceNotDetectedException 얼굴이 검출되지 않은 경우 (재시도 안함)
+     * @throws FaceApiClientException 클라이언트 오류 (재시도 안함)
+     * @throws FaceApiException 서버 오류 또는 네트워크 오류 (재시도 가능)
      */
     @Retryable(
-        retryFor = {WebClientRequestException.class},
+        retryFor = {WebClientRequestException.class, FaceApiException.class},
         noRetryFor = {FaceNotDetectedException.class, FaceApiClientException.class},
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)

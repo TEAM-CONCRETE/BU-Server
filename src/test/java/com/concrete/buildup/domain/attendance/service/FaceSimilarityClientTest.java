@@ -1,6 +1,7 @@
 package com.concrete.buildup.domain.attendance.service;
 
 import com.concrete.buildup.domain.attendance.dto.FaceSimilarityResponseDto;
+import com.concrete.buildup.domain.attendance.exception.FaceApiClientException;
 import com.concrete.buildup.domain.attendance.exception.FaceApiException;
 import com.concrete.buildup.domain.attendance.exception.FaceNotDetectedException;
 import okhttp3.mockwebserver.MockResponse;
@@ -150,7 +151,7 @@ class FaceSimilarityClientTest {
     }
 
     @Test
-    @DisplayName("이미지 크기 초과 - 413 Payload Too Large")
+    @DisplayName("이미지 크기 초과 - 413 Payload Too Large (재시도 안함)")
     void compareFaces_PayloadTooLarge() {
         // Given
         String registeredUrl = "https://s3.amazonaws.com/bucket/registered.jpg";
@@ -163,7 +164,7 @@ class FaceSimilarityClientTest {
 
         // When & Then
         assertThatThrownBy(() -> faceSimilarityClient.compareFaces(registeredUrl, capturedUrl))
-            .isInstanceOf(FaceApiException.class)
+            .isInstanceOf(FaceApiClientException.class)
             .hasMessageContaining("이미지 크기가 너무 큽니다");
     }
 
