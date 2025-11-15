@@ -1,18 +1,25 @@
 package com.concrete.buildup.domain.payroll.service;
 
 import com.concrete.buildup.domain.contract.entity.Contract;
-import com.concrete.buildup.domain.contract.enums.ContractState;
-import com.concrete.buildup.domain.contract.enums.EmpType;
+import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.enums.PayPeriod;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.payroll.entity.Payroll;
+import com.concrete.buildup.domain.payroll.enums.PayStatus;
+import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
+import com.concrete.buildup.domain.payroll.util.PayrollCalculator;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 급여 자동 생성 서비스
@@ -26,11 +33,11 @@ import java.util.List;
 public class SalaryGenerationService {
 
     private final ContractRepository contractRepository;
-    // TODO: 추가 Repository 및 Service 주입
+    private final PayrollRepository payrollRepository;
+    private final PayrollCalculator payrollCalculator;
+    private final S3Service s3Service;
+    // TODO: AttendanceRepository 구현 후 주입
     // private final AttendanceRepository attendanceRepository;
-    // private final PayrollRepository payrollRepository;
-    // private final PayrollCalculator payrollCalculator;
-    // private final S3Service s3Service;
 
     /**
      * 상용직 월급 생성
@@ -47,22 +54,26 @@ public class SalaryGenerationService {
         log.info("[급여 생성] 대상 기간: {} ~ {}", startDate, endDate);
 
         // 2. 상용직 대상자 조회
-        List<Contract> contracts = contractRepository.findAll(); // TODO: 조건 쿼리 구현 필요
-
-        // TODO: 필터링 로직 구현
-        // - empType = PERMANENT
-        // - contractState = FULLY_SIGNED
-        // - employeeStartDate <= endDate
-        // - employeeEndDate >= startDate (또는 NULL)
+        List<Contract> contracts = contractRepository.findPermanentContractsForPayroll(startDate, endDate);
 
         log.info("[급여 생성] 상용직 대상자: {}명", contracts.size());
 
-        // TODO: 각 대상자별 급여 생성 로직
-        // for (Contract contract : contracts) {
-        //     generatePayrollForContract(contract, targetMonth);
-        // }
+        // 3. 각 대상자별 급여 생성
+        int successCount = 0;
+        int failCount = 0;
 
-        log.info("[급여 생성] 상용직 월급 생성 완료");
+        for (Contract contract : contracts) {
+            try {
+                generatePayrollForContract(contract, targetMonth, PayPeriod.MONTHLY, null, null);
+                successCount++;
+            } catch (Exception e) {
+                log.error("[급여 생성] 급여 생성 실패 - contractId: {}, employeeId: {}",
+                        contract.getId(), contract.getEmployeeId(), e);
+                failCount++;
+            }
+        }
+
+        log.info("[급여 생성] 상용직 월급 생성 완료 - 성공: {}명, 실패: {}명", successCount, failCount);
     }
 
     /**
@@ -125,13 +136,154 @@ public class SalaryGenerationService {
         log.info("[급여 생성] 일용직 일급 생성 완료");
     }
 
-    // TODO: 개별 계약에 대한 급여 생성 로직
-    // private void generatePayrollForContract(Contract contract, YearMonth targetMonth) {
-    //     1. 근무 기록 조회 (AttendanceRepository)
-    //     2. 급여 계산 (PayrollCalculator)
-    //     3. PayrollMaster/Detail 저장
-    //     4. PDF 생성
-    //     5. S3 업로드
-    //     6. PayrollMaster.s3Key 업데이트
-    // }
+    /**
+     * 개별 계약에 대한 급여 생성
+     *
+     * @param contract 근로계약
+     * @param targetMonth 급여 대상 월
+     * @param payCycle 급여 주기
+     * @param week 주차 (주급인 경우)
+     * @param day 일자 (일급인 경우)
+     */
+    private void generatePayrollForContract(Contract contract, YearMonth targetMonth,
+                                           PayPeriod payCycle, Integer week, LocalDate day) {
+        try {
+            // 1. 중복 체크
+            Optional<Payroll> existing = payrollRepository.findByEmployeeAndPeriod(
+                    contract.getEmployeeId(),
+                    targetMonth.getYear(),
+                    targetMonth.getMonthValue(),
+                    payCycle,
+                    week,
+                    day
+            );
+
+            if (existing.isPresent()) {
+                log.warn("[급여 생성] 이미 생성된 급여 존재 - employeeId: {}, period: {}-{}",
+                        contract.getEmployeeId(), targetMonth.getYear(), targetMonth.getMonthValue());
+                return;
+            }
+
+            // 2. 계약 상세 정보 조회
+            ContractDetail contractDetail = contract.getContractDetail();
+            if (contractDetail == null) {
+                log.error("[급여 생성] 계약 상세 정보 없음 - contractId: {}", contract.getId());
+                return;
+            }
+
+            // TODO: 3. 근무 기록 조회 (AttendanceRepository 구현 후)
+            // List<Attendance> attendances = attendanceRepository.findByEmployeeAndPeriod(...);
+            // 현재는 계약 상세의 기본 정보로 급여 계산
+
+            // 4. 급여 계산
+            BigDecimal hourlyRate = contractDetail.getWorkPay(); // 시급
+            BigDecimal workHours = BigDecimal.ZERO; // TODO: 실제 근무시간으로 대체
+            BigDecimal nightHours = BigDecimal.ZERO;
+            BigDecimal overtimeHours = BigDecimal.ZERO;
+            BigDecimal holidayHours = BigDecimal.ZERO;
+            BigDecimal weeklyWorkHours = BigDecimal.ZERO;
+
+            // 임시: 상용직 월급은 월 209시간 기준 (주 40시간 * 4.345주)
+            if (contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.PERMANENT
+                    && payCycle == PayPeriod.MONTHLY) {
+                workHours = new BigDecimal("209");
+            }
+
+            // 급여 항목별 계산
+            BigDecimal basePay = payrollCalculator.calculateBasePay(hourlyRate, workHours);
+            BigDecimal nightPay = payrollCalculator.calculateNightWorkPay(hourlyRate, nightHours);
+            BigDecimal overtimePay = payrollCalculator.calculateOvertimePay(hourlyRate, overtimeHours);
+            BigDecimal holidayPay = payrollCalculator.calculateHolidayPay(hourlyRate, holidayHours);
+            BigDecimal weeklyHolidayPay = payrollCalculator.calculateWeeklyHolidayPay(hourlyRate, weeklyWorkHours);
+
+            // 총 지급액 계산
+            BigDecimal totalPay = basePay.add(nightPay).add(overtimePay)
+                    .add(holidayPay).add(weeklyHolidayPay);
+
+            // 비과세 소득 계산
+            BigDecimal nonTaxIncome = payrollCalculator.calculateNonTaxableIncome(contractDetail);
+
+            // 과세 소득 = 총 지급액 - 비과세 소득
+            BigDecimal taxableIncome = totalPay.subtract(nonTaxIncome);
+
+            // 세금 계산
+            BigDecimal incomeTax = payrollCalculator.calculateIncomeTax(taxableIncome);
+            BigDecimal residentTax = payrollCalculator.calculateResidentTax(taxableIncome);
+
+            // 4대보험 계산
+            boolean hasNationalPension = Boolean.TRUE.equals(contractDetail.getIsNpsApplicable());
+            boolean hasHealthInsurance = Boolean.TRUE.equals(contractDetail.getIsNhiApplicable());
+            boolean hasEmploymentInsurance = Boolean.TRUE.equals(contractDetail.getIsEoiApplicable());
+
+            BigDecimal nationalPension = payrollCalculator.calculateNationalPension(totalPay, hasNationalPension);
+            BigDecimal healthInsurance = payrollCalculator.calculateHealthInsurance(totalPay, hasHealthInsurance);
+            BigDecimal longTermCare = payrollCalculator.calculateLongTermCare(totalPay, hasHealthInsurance);
+            BigDecimal employmentInsurance = payrollCalculator.calculateEmploymentInsurance(totalPay, hasEmploymentInsurance);
+
+            // 실수령액 계산
+            BigDecimal netPay = payrollCalculator.calculateNetPay(
+                    totalPay, incomeTax, residentTax,
+                    nationalPension, healthInsurance, longTermCare, employmentInsurance
+            );
+
+            // 5. Payroll 엔티티 생성
+            LocalDate searchDate = targetMonth.atDay(1); // 지급 기준월
+            LocalDate payDueDate = calculatePayDueDate(targetMonth, payCycle); // 지급 예정일
+
+            Payroll payroll = Payroll.builder()
+                    .employeeId(contract.getEmployeeId())
+                    .contractId(contract.getId())
+                    .corporationId(contract.getCorporationId())
+                    .salaryYear(targetMonth.getYear())
+                    .salaryMonth(targetMonth.getMonthValue())
+                    .salaryWeek(week)
+                    .salaryDay(day)
+                    .searchDate(searchDate)
+                    .payDueDate(payDueDate)
+                    .empType(contract.getEmpType())
+                    .empName(contractDetail.getEmpName())
+                    .residentNum(null) // TODO: Employee 정보에서 가져오기
+                    .totalWorkHour(workHours)
+                    .totalPay(totalPay)
+                    .totalPayByDay(basePay) // 일급 기준 지급액
+                    .noneTaxIncome(nonTaxIncome)
+                    .incomeTax(incomeTax)
+                    .residentTax(residentTax)
+                    .payCycle(payCycle)
+                    .payStatus(PayStatus.PENDING)
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+
+            // 6. Payroll 저장
+            Payroll savedPayroll = payrollRepository.save(payroll);
+
+            log.info("[급여 생성] 급여 저장 완료 - payrollId: {}, employeeId: {}, totalPay: {}, netPay: {}",
+                    savedPayroll.getId(), contract.getEmployeeId(), totalPay, netPay);
+
+            // TODO: 7. PayslipItem 저장 (급여 명세 항목)
+            // savePayslipItems(savedPayroll.getId(), basePay, nightPay, overtimePay, ...);
+
+            // TODO: 8. PDF 생성 및 S3 업로드
+            // String s3Key = generateAndUploadPdf(savedPayroll, contractDetail, netPay);
+            // savedPayroll.updateS3Key(s3Key);
+
+        } catch (Exception e) {
+            log.error("[급여 생성] 급여 생성 중 오류 발생 - contractId: {}, employeeId: {}",
+                    contract.getId(), contract.getEmployeeId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 지급 예정일 계산
+     *
+     * @param targetMonth 급여 대상 월
+     * @param payCycle 급여 주기
+     * @return 지급 예정일
+     */
+    private LocalDate calculatePayDueDate(YearMonth targetMonth, PayPeriod payCycle) {
+        // 일반적으로 급여는 다음달 10일에 지급
+        YearMonth nextMonth = targetMonth.plusMonths(1);
+        return nextMonth.atDay(10);
+    }
 }
