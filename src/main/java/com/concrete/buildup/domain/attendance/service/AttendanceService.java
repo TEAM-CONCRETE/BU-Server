@@ -12,6 +12,7 @@ import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
+import com.concrete.buildup.global.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -59,12 +60,18 @@ public class AttendanceService {
         Integer page,
         Integer size
     ) {
-        // 1. Site 조회 → managerId 획득
+        // 1. 입력 검증
+        validateEmploymentType(employmentType);
+        if (day != null) {
+            validateDay(year, month, day);
+        }
+
+        // 2. Site 조회 → managerId 획득
         Site site = siteRepository.findById(siteId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장을 찾을 수 없습니다."));
         Long managerId = site.getManager().getId();
 
-        // 2. 날짜 범위 계산
+        // 3. 날짜 범위 계산
         LocalDate startDate;
         LocalDate endDate;
 
@@ -78,8 +85,8 @@ public class AttendanceService {
             endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         }
 
-        // 3. 근로자 유형 매핑 (REGULAR → PERMANENT, DAILY → DAILY)
-        EmpType empType = "REGULAR".equals(employmentType) ? EmpType.PERMANENT : EmpType.DAILY;
+        // 4. 근로자 유형 매핑 (REGULAR → PERMANENT, DAILY → DAILY)
+        EmpType empType = mapEmploymentType(employmentType);
 
         // 4. 해당 현장(managerId), 날짜, 근로자 유형에 맞는 활성 계약 조회
         List<Contract> activeContracts;
@@ -195,7 +202,7 @@ public class AttendanceService {
             return AttendanceDetailDto.builder()
                 .workerId(employee.getId())
                 .workerName(employee.getEmpName())
-                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .residentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .attendanceStatus(attendance.getAttendanceStatus())
                 .checkInTime(formatTime(attendance.getCheckInTime()))
                 .checkOutTime(formatTime(attendance.getCheckOutTime()))
@@ -209,7 +216,7 @@ public class AttendanceService {
             return AttendanceDetailDto.builder()
                 .workerId(employee.getId())
                 .workerName(employee.getEmpName())
-                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .residentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .attendanceStatus("ABSENT")
                 .checkInTime("-")
                 .checkOutTime("-")
@@ -219,20 +226,6 @@ public class AttendanceService {
                 .holidayWorkHours("-")
                 .build();
         }
-    }
-
-    /**
-     * 주민번호 마스킹 처리
-     */
-    private String maskResidentNumber(String residentNum) {
-        if (residentNum == null || residentNum.isEmpty()) {
-            return "";
-        }
-        // "850101-1******" 형식으로 마스킹
-        if (residentNum.length() >= 8) {
-            return residentNum.substring(0, 8) + "******";
-        }
-        return residentNum;
     }
 
     /**
@@ -253,5 +246,64 @@ public class AttendanceService {
             return "-";
         }
         return hours.stripTrailingZeros().toPlainString() + "시간";
+    }
+
+    /**
+     * 근로자 유형 검증 및 매핑
+     *
+     * @param employmentType 근로자 유형 문자열 (REGULAR/DAILY)
+     * @return EmpType enum
+     * @throws IllegalArgumentException 유효하지 않은 근로자 유형인 경우
+     */
+    private EmpType mapEmploymentType(String employmentType) {
+        if (employmentType == null || employmentType.trim().isEmpty()) {
+            throw new IllegalArgumentException("근로자 유형은 필수입니다.");
+        }
+
+        return switch (employmentType.toUpperCase().trim()) {
+            case "REGULAR" -> EmpType.PERMANENT;
+            case "DAILY" -> EmpType.DAILY;
+            default -> throw new IllegalArgumentException(
+                String.format("유효하지 않은 근로자 유형입니다: %s (허용값: REGULAR, DAILY)", employmentType)
+            );
+        };
+    }
+
+    /**
+     * 근로자 유형 검증
+     *
+     * @param employmentType 근로자 유형 문자열
+     * @throws IllegalArgumentException 유효하지 않은 근로자 유형인 경우
+     */
+    private void validateEmploymentType(String employmentType) {
+        if (employmentType == null || employmentType.trim().isEmpty()) {
+            throw new IllegalArgumentException("근로자 유형은 필수입니다.");
+        }
+
+        String normalized = employmentType.toUpperCase().trim();
+        if (!normalized.equals("REGULAR") && !normalized.equals("DAILY")) {
+            throw new IllegalArgumentException(
+                String.format("유효하지 않은 근로자 유형입니다: %s (허용값: REGULAR, DAILY)", employmentType)
+            );
+        }
+    }
+
+    /**
+     * 날짜 유효성 검증 (해당 년월의 실제 일수 확인)
+     *
+     * @param year 년도
+     * @param month 월
+     * @param day 일
+     * @throws IllegalArgumentException 해당 년월에 존재하지 않는 날짜인 경우
+     */
+    private void validateDay(Integer year, Integer month, Integer day) {
+        try {
+            LocalDate.of(year, month, day);
+        } catch (Exception e) {
+            int maxDay = LocalDate.of(year, month, 1).lengthOfMonth();
+            throw new IllegalArgumentException(
+                String.format("유효하지 않은 날짜입니다: %d년 %d월 %d일 (최대 일수: %d)", year, month, day, maxDay)
+            );
+        }
     }
 }

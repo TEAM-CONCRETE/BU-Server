@@ -6,8 +6,12 @@ import com.concrete.buildup.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -22,6 +26,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v1")
 @RequiredArgsConstructor
 @Tag(name = "Attendance", description = "근태 관리 API")
+@PreAuthorize("hasAnyRole('MANAGER', 'CORPORATION')")
+@Validated
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
@@ -61,18 +67,18 @@ public class AttendanceController {
     public ResponseEntity<ApiResponse<AttendanceListResponseDto>> getAttendanceRecords(
         @Parameter(description = "현장 ID", required = true, example = "1")
         @PathVariable Long siteId,
-        @Parameter(description = "조회 년도", required = true, example = "2025")
-        @RequestParam Integer year,
+        @Parameter(description = "조회 년도 (2000~2100)", required = true, example = "2025")
+        @RequestParam @Min(2000) @Max(2100) Integer year,
         @Parameter(description = "조회 월 (1~12)", required = true, example = "11")
-        @RequestParam Integer month,
-        @Parameter(description = "조회 일 (선택, 미입력시 월 전체 조회)", required = false, example = "15")
-        @RequestParam(required = false) Integer day,
+        @RequestParam @Min(1) @Max(12) Integer month,
+        @Parameter(description = "조회 일 (1~31, 선택, 미입력시 월 전체 조회)", required = false, example = "15")
+        @RequestParam(required = false) @Min(1) @Max(31) Integer day,
         @Parameter(description = "근로자 유형 (REGULAR: 상용직, DAILY: 일용직)", required = true, example = "REGULAR")
         @RequestParam String employmentType,
         @Parameter(description = "페이지 번호 (1부터 시작)", required = false, example = "1")
-        @RequestParam(defaultValue = "1") Integer page,
-        @Parameter(description = "페이지 크기", required = false, example = "20")
-        @RequestParam(defaultValue = "20") Integer size
+        @RequestParam(defaultValue = "1") @Min(1) Integer page,
+        @Parameter(description = "페이지 크기 (1~100)", required = false, example = "20")
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) Integer size
     ) {
         AttendanceListResponseDto response = attendanceService.getAttendanceRecords(
             siteId, year, month, day, employmentType, page, size
