@@ -20,4 +20,5 @@ public class AttendanceDetailDto {
     private String nightWorkHours;
     private String overtimeHours;
     private String holidayWorkHours;
+    private Boolean isLate; // 지각 여부 (출근 기록이 있고 지각한 경우 true)
 }

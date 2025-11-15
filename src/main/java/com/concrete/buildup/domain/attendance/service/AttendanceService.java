@@ -216,17 +216,21 @@ public class AttendanceService {
     private AttendanceDetailDto convertToDetailDto(Employee employee, Attendance attendance) {
         if (attendance != null) {
             // Attendance 기록이 있는 경우
+            // 출근 기록이 있으면 isLate 필드 기반으로 상태 결정
+            String status = (attendance.getIsLate() != null && attendance.getIsLate()) ? "LATE" : "NORMAL";
+
             return AttendanceDetailDto.builder()
                 .workerId(employee.getId())
                 .workerName(employee.getEmpName())
                 .residentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
-                .attendanceStatus(attendance.getAttendanceStatus())
+                .attendanceStatus(status)
                 .checkInTime(formatTime(attendance.getCheckInTime()))
                 .checkOutTime(formatTime(attendance.getCheckOutTime()))
                 .totalWorkHours(formatHours(attendance.getTotalWorkHour()))
                 .nightWorkHours(formatHours(attendance.getNightWorkHour()))
                 .overtimeHours(formatHours(attendance.getAdditionalWorkHour()))
                 .holidayWorkHours(formatHours(attendance.getHolidayWorkHour()))
+                .isLate(attendance.getIsLate())
                 .build();
         } else {
             // Attendance 기록이 없는 경우 → ABSENT로 표시
@@ -241,6 +245,7 @@ public class AttendanceService {
                 .nightWorkHours("-")
                 .overtimeHours("-")
                 .holidayWorkHours("-")
+                .isLate(null)
                 .build();
         }
     }
