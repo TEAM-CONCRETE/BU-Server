@@ -1,11 +1,14 @@
 package com.concrete.buildup.domain.attendance.controller;
 
 import com.concrete.buildup.domain.attendance.dto.AttendanceListResponseDto;
+import com.concrete.buildup.domain.attendance.dto.AttendanceVerificationRequestDto;
+import com.concrete.buildup.domain.attendance.dto.AttendanceVerificationResponseDto;
 import com.concrete.buildup.domain.attendance.service.AttendanceService;
 import com.concrete.buildup.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +89,45 @@ public class AttendanceController {
 
         return ResponseEntity.ok(
             ApiResponse.success(response, "근태 현황을 조회했습니다.")
+        );
+    }
+
+    /**
+     * 출퇴근 검증 및 기록 (얼굴 인식)
+     *
+     * <p>현장 관리자가 로그인한 공용 태블릿에서 근로자가 사용합니다.
+     * 근로자가 주민번호를 입력하고 얼굴 이미지를 촬영하면, Presigned URL을 통해
+     * S3에 업로드한 후 이 API를 호출하여 얼굴 인식 검증 및 출퇴근 기록을 수행합니다.</p>
+     *
+     * <p>처리 흐름:</p>
+     * <ol>
+     *   <li>로그인한 현장 관리자의 현장 ID를 SecurityContext에서 자동 조회</li>
+     *   <li>근로자의 얼굴 이미지 등록 여부 확인</li>
+     *   <li>출퇴근 유형 자동 판단 (당일 마지막 기록 기준)</li>
+     *   <li>중복 기록 검증</li>
+     *   <li>Face API를 통한 얼굴 유사도 검증</li>
+     *   <li>검증 성공 시 출퇴근 기록 저장</li>
+     * </ol>
+     *
+     * @param request 출퇴근 검증 요청 (employeeId, uploadId)
+     * @return AttendanceVerificationResponseDto - 검증 결과 및 출퇴근 기록 정보
+     */
+    @Operation(
+            summary = "출퇴근 검증 및 기록 (얼굴 인식)",
+            description = "현장 공용 태블릿에서 얼굴 인식을 통한 출퇴근 검증 및 기록을 수행합니다. " +
+                    "Presigned URL을 통해 업로드한 얼굴 이미지를 기반으로 검증하며, " +
+                    "출퇴근 유형(CHECK_IN/CHECK_OUT)은 당일 마지막 기록을 기반으로 자동 판단됩니다. " +
+                    "현장 ID는 로그인한 관리자 정보에서 자동으로 조회됩니다. " +
+                    "예: POST /v1/attendance/verify"
+    )
+    @PostMapping("/attendance/verify")
+    public ResponseEntity<ApiResponse<AttendanceVerificationResponseDto>> verifyAttendance(
+        @Valid @RequestBody AttendanceVerificationRequestDto request
+    ) {
+        AttendanceVerificationResponseDto response = attendanceService.verifyAndRecordAttendance(request);
+
+        return ResponseEntity.ok(
+            ApiResponse.success(response, response.getMessage())
         );
     }
 }

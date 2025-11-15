@@ -2,21 +2,32 @@ package com.concrete.buildup.domain.attendance.service;
 
 import com.concrete.buildup.domain.attendance.dto.*;
 import com.concrete.buildup.domain.attendance.entity.Attendance;
+import com.concrete.buildup.domain.attendance.enums.AttendanceType;
+import com.concrete.buildup.domain.attendance.exception.AttendanceNotFoundException;
+import com.concrete.buildup.domain.attendance.exception.DuplicateAttendanceException;
+import com.concrete.buildup.domain.attendance.exception.FaceImageNotRegisteredException;
 import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
 import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +35,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,6 +48,9 @@ public class AttendanceService {
     private final ContractRepository contractRepository;
     private final SiteRepository siteRepository;
     private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
+    private final FaceSimilarityClient faceSimilarityClient;
+    private final S3Service s3Service;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -305,5 +320,335 @@ public class AttendanceService {
                 String.format("유효하지 않은 날짜입니다: %d년 %d월 %d일 (최대 일수: %d)", year, month, day, maxDay)
             );
         }
+    }
+
+    /**
+     * 출퇴근 검증 및 기록 (Presigned URL 방식)
+     *
+     * <p>현장 관리자가 로그인한 공용 태블릿에서 근로자가 얼굴 인식을 통해 출퇴근을 기록합니다.
+     * Presigned URL을 통해 S3에 업로드한 이미지를 기반으로 얼굴 인식 검증을 수행하고
+     * 출퇴근 기록을 생성합니다.</p>
+     *
+     * <p>처리 흐름:</p>
+     * <ol>
+     *   <li>로그인한 현장 관리자의 현장 ID 조회 (SecurityContext)</li>
+     *   <li>근로자 정보 조회 및 얼굴 이미지 등록 여부 확인</li>
+     *   <li>출퇴근 유형 자동 판단 (당일 마지막 기록 조회)</li>
+     *   <li>중복 기록 검증 (같은 날, 같은 유형 체크)</li>
+     *   <li>S3 URL 생성 및 Face API 호출</li>
+     *   <li>검증 결과 처리 및 출퇴근 기록 저장</li>
+     * </ol>
+     *
+     * @param request 출퇴근 검증 요청 (employeeId, uploadId)
+     * @return 출퇴근 검증 응답 (verified, recordId, attendanceType 등)
+     * @throws FaceImageNotRegisteredException 얼굴 이미지가 등록되지 않은 경우
+     * @throws DuplicateAttendanceException 중복 출퇴근 기록이 존재하는 경우
+     */
+    @Transactional
+    public AttendanceVerificationResponseDto verifyAndRecordAttendance(AttendanceVerificationRequestDto request) {
+        // 1. 로그인한 현장 관리자의 현장 ID 조회
+        Long siteId = getCurrentManagerSiteId();
+
+        log.info("출퇴근 검증 시작 - phoneNumber: {}, uploadId: {}, siteId: {}",
+                 request.getPhoneNumber(), request.getUploadId(), siteId);
+
+        // 2. 전화번호로 근로자 정보 조회
+        Employee employee = employeeRepository.findByPhoneWithUser(request.getPhoneNumber())
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                "해당 전화번호로 등록된 근로자를 찾을 수 없습니다: " + request.getPhoneNumber()));
+
+        Long employeeId = employee.getId();
+        log.info("전화번호로 근로자 조회 성공 - employeeId: {}, empName: {}", employeeId, employee.getEmpName());
+
+        // 3. 얼굴 이미지 등록 여부 확인
+        if (employee.getProfileImageUrl() == null || employee.getProfileImageUrl().isBlank()) {
+            throw new FaceImageNotRegisteredException(employeeId);
+        }
+
+        // 4. 출퇴근 유형 자동 판단
+        AttendanceType attendanceType = determineAttendanceType(employeeId);
+        log.info("자동 판단된 출퇴근 유형: {}", attendanceType);
+
+        // 5. 중복 기록 검증
+        validateDuplicateAttendance(employeeId, attendanceType);
+
+        // 6. S3 URL 생성 (등록된 얼굴 이미지, 촬영된 이미지)
+        String registeredImageUrl = buildS3Url(employee.getProfileImageUrl());
+        String capturedImageUrl = buildS3Url(request.getUploadId());
+
+        log.info("Face API 호출 - registered: {}, captured: {}",
+                 maskUrl(registeredImageUrl), maskUrl(capturedImageUrl));
+
+        // 7. Face API 호출
+        FaceSimilarityResponseDto faceApiResponse = faceSimilarityClient.compareFaces(
+            registeredImageUrl,
+            capturedImageUrl
+        );
+
+        // 8. 검증 결과 처리
+        return processVerificationResult(
+            employee,
+            siteId,
+            attendanceType,
+            faceApiResponse
+        );
+    }
+
+    /**
+     * 로그인한 현장 관리자의 현장 ID 조회
+     *
+     * <p>SecurityContext에서 로그인한 사용자의 username을 가져와서
+     * User를 조회하고, 해당 관리자가 관리하는 현장의 ID를 반환합니다.</p>
+     *
+     * @return 현장 ID
+     * @throws BusinessException 로그인 정보가 없거나 현장을 찾을 수 없는 경우
+     */
+    private Long getCurrentManagerSiteId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN, "로그인이 필요합니다.");
+        }
+
+        // JWT 토큰의 subject는 username (userId 문자열)
+        String username = authentication.getName();
+
+        // username으로 User 조회
+        User user = userRepository.findByUserId(username)
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                "사용자를 찾을 수 없습니다."));
+
+        // User의 ID로 Manager의 현장 조회
+        Site site = siteRepository.findByManagerUserId(user.getId())
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                "관리 중인 현장을 찾을 수 없습니다."));
+
+        return site.getId();
+    }
+
+    /**
+     * 출퇴근 유형 자동 판단
+     *
+     * <p>당일 마지막 출퇴근 기록을 조회하여 다음 유형을 결정합니다:</p>
+     * <ul>
+     *   <li>마지막 기록이 없거나 CHECK_OUT인 경우 → CHECK_IN</li>
+     *   <li>마지막 기록이 CHECK_IN인 경우 → CHECK_OUT</li>
+     * </ul>
+     *
+     * @param employeeId 근로자 ID
+     * @return 자동 판단된 출퇴근 유형
+     */
+    private AttendanceType determineAttendanceType(Long employeeId) {
+        LocalDate today = LocalDate.now();
+
+        List<Attendance> todayRecords = attendanceRepository
+            .findByEmployeeIdAndSearchDate(employeeId, today);
+
+        // 오늘 기록이 없으면 출근
+        if (todayRecords.isEmpty()) {
+            return AttendanceType.CHECK_IN;
+        }
+
+        // 마지막 기록 조회 (checkInTime 기준 정렬)
+        Attendance lastRecord = todayRecords.stream()
+            .max(Comparator.comparing(
+                attendance -> attendance.getCheckInTime() != null
+                    ? attendance.getCheckInTime()
+                    : attendance.getCreatedAt()
+            ))
+            .orElse(null);
+
+        // 마지막 기록이 퇴근이면 출근, 출근이면 퇴근
+        if (lastRecord != null && lastRecord.getCheckOutTime() != null) {
+            return AttendanceType.CHECK_IN;
+        }
+
+        return AttendanceType.CHECK_OUT;
+    }
+
+    /**
+     * 중복 출퇴근 기록 검증
+     *
+     * <p>당일 같은 유형의 출퇴근 기록이 이미 존재하는지 확인합니다.</p>
+     *
+     * @param employeeId 근로자 ID
+     * @param attendanceType 출퇴근 유형
+     * @throws DuplicateAttendanceException 중복 기록이 존재하는 경우
+     */
+    private void validateDuplicateAttendance(Long employeeId, AttendanceType attendanceType) {
+        LocalDate today = LocalDate.now();
+
+        List<Attendance> todayRecords = attendanceRepository
+            .findByEmployeeIdAndSearchDate(employeeId, today);
+
+        // CHECK_IN: checkInTime이 있는 기록 확인
+        if (attendanceType == AttendanceType.CHECK_IN) {
+            boolean hasCheckIn = todayRecords.stream()
+                .anyMatch(record -> record.getCheckInTime() != null);
+            if (hasCheckIn) {
+                throw new DuplicateAttendanceException(attendanceType);
+            }
+        }
+
+        // CHECK_OUT: checkOutTime이 있는 기록 확인
+        if (attendanceType == AttendanceType.CHECK_OUT) {
+            boolean hasCheckOut = todayRecords.stream()
+                .anyMatch(record -> record.getCheckOutTime() != null);
+            if (hasCheckOut) {
+                throw new DuplicateAttendanceException(attendanceType);
+            }
+        }
+    }
+
+    /**
+     * 검증 결과 처리 및 출퇴근 기록 저장
+     *
+     * @param employee 근로자 엔티티
+     * @param siteId 현장 ID
+     * @param attendanceType 출퇴근 유형
+     * @param faceApiResponse Face API 응답
+     * @return 출퇴근 검증 응답
+     */
+    private AttendanceVerificationResponseDto processVerificationResult(
+        Employee employee,
+        Long siteId,
+        AttendanceType attendanceType,
+        FaceSimilarityResponseDto faceApiResponse
+    ) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        if (!faceApiResponse.getVerified()) {
+            // 검증 실패
+            log.warn("얼굴 인식 검증 실패 - employeeId: {}, similarity: {}",
+                     employee.getId(), faceApiResponse.getSimilarity());
+
+            return AttendanceVerificationResponseDto.builder()
+                .success(true)
+                .verified(false)
+                .recordId(null)
+                .employeeName(employee.getEmpName())
+                .attendanceType(attendanceType)
+                .timestamp(now)
+                .similarityScore(faceApiResponse.getSimilarity())
+                .message(String.format("얼굴 인식에 실패했습니다. 유사도: %.2f%%",
+                                       faceApiResponse.getSimilarity() * 100))
+                .build();
+        }
+
+        // 검증 성공 - 출퇴근 기록 저장
+        Attendance savedAttendance;
+
+        if (attendanceType == AttendanceType.CHECK_OUT) {
+            // 퇴근: 기존 레코드 UPDATE
+            LocalDate today = LocalDate.now();
+            List<Attendance> todayRecords = attendanceRepository
+                .findByEmployeeIdAndSearchDate(employee.getId(), today);
+
+            Attendance existingRecord = todayRecords.stream()
+                .filter(record -> record.getCheckInTime() != null && record.getCheckOutTime() == null)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                    "출근 기록을 찾을 수 없습니다."));
+
+            existingRecord.setCheckOutTime(now);
+            savedAttendance = attendanceRepository.save(existingRecord);
+
+            log.info("퇴근 기록 업데이트 완료 - recordId: {}, employeeId: {}",
+                     savedAttendance.getId(), employee.getId());
+        } else {
+            // 출근: 새 레코드 INSERT
+            Attendance attendance = createAttendanceRecord(employee, siteId, attendanceType, now);
+            savedAttendance = attendanceRepository.save(attendance);
+
+            log.info("출근 기록 저장 완료 - recordId: {}, employeeId: {}",
+                     savedAttendance.getId(), employee.getId());
+        }
+
+        return AttendanceVerificationResponseDto.builder()
+            .success(true)
+            .verified(true)
+            .recordId(savedAttendance.getId())
+            .employeeName(employee.getEmpName())
+            .attendanceType(attendanceType)
+            .timestamp(now)
+            .similarityScore(faceApiResponse.getSimilarity())
+            .message(String.format("%s이 정상적으로 기록되었습니다.", attendanceType.getDescription()))
+            .build();
+    }
+
+    /**
+     * Attendance 엔티티 생성
+     *
+     * @param employee 근로자 엔티티
+     * @param siteId 현장 ID
+     * @param attendanceType 출퇴근 유형
+     * @param timestamp 기록 시각
+     * @return Attendance 엔티티
+     */
+    private Attendance createAttendanceRecord(
+        Employee employee,
+        Long siteId,
+        AttendanceType attendanceType,
+        java.time.LocalDateTime timestamp
+    ) {
+        // 해당 근로자의 활성 계약 조회
+        LocalDate today = LocalDate.now();
+        Site site = siteRepository.findById(siteId)
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장을 찾을 수 없습니다."));
+
+        Long managerId = site.getManager().getId();
+
+        Contract activeContract = contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(
+                managerId,
+                EmpType.valueOf(employee.getEmpType()),
+                today
+            )
+            .stream()
+            .filter(c -> c.getEmployeeId().equals(employee.getId()))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                "활성화된 계약을 찾을 수 없습니다. 근로자 ID: " + employee.getId()));
+
+        Attendance.AttendanceBuilder builder = Attendance.builder()
+            .contractId(activeContract.getId())
+            .employeeId(employee.getId())
+            .siteId(siteId)
+            .searchDate(today)
+            .empType(employee.getEmpType())
+            .empName(employee.getEmpName())
+            .residentNum(employee.getResidentNum())
+            .attendanceStatus("NORMAL"); // 기본 상태, 추후 로직으로 판단 가능
+
+        // 출퇴근 유형에 따라 checkInTime 또는 checkOutTime 설정
+        if (attendanceType == AttendanceType.CHECK_IN) {
+            builder.checkInTime(timestamp);
+        } else {
+            builder.checkOutTime(timestamp);
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * S3 객체 키를 Presigned GET URL로 변환
+     * Face API가 S3 이미지에 접근할 수 있도록 임시 URL을 생성합니다.
+     *
+     * @param s3Key S3 객체 키 (예: "attendance/1/1/1735708800000.jpg")
+     * @return Presigned GET URL (15분 유효)
+     */
+    private String buildS3Url(String s3Key) {
+        return s3Service.generatePresignedGetUrl(s3Key);
+    }
+
+    /**
+     * URL 마스킹 (로그용)
+     *
+     * @param url S3 URL
+     * @return 마스킹된 URL
+     */
+    private String maskUrl(String url) {
+        if (url == null || url.length() < 30) {
+            return url;
+        }
+        return url.substring(0, 30) + "***";
     }
 }
