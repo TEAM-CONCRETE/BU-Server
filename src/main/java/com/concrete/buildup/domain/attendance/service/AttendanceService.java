@@ -3,8 +3,17 @@ package com.concrete.buildup.domain.attendance.service;
 import com.concrete.buildup.domain.attendance.dto.*;
 import com.concrete.buildup.domain.attendance.entity.Attendance;
 import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
+import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
+import com.concrete.buildup.domain.contract.entity.Contract;
+import com.concrete.buildup.domain.contract.enums.EmpType;
+import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.site.entity.Site;
+import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -13,19 +22,24 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AttendanceService {
 
     private final AttendanceRepository attendanceRepository;
+    private final ContractRepository contractRepository;
+    private final SiteRepository siteRepository;
+    private final EmployeeRepository employeeRepository;
+
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     /**
-     * 근태 현황 조회
+     * 근태 현황 조회 (계약 기반 - 출퇴근 기록 없어도 표시)
      *
      * @param siteId 현장 ID
      * @param year 년도
@@ -45,7 +59,12 @@ public class AttendanceService {
         Integer page,
         Integer size
     ) {
-        // 날짜 범위 계산
+        // 1. Site 조회 → managerId 획득
+        Site site = siteRepository.findById(siteId)
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장을 찾을 수 없습니다."));
+        Long managerId = site.getManager().getId();
+
+        // 2. 날짜 범위 계산
         LocalDate startDate;
         LocalDate endDate;
 
@@ -59,43 +78,82 @@ public class AttendanceService {
             endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         }
 
-        // 근로자 유형 매핑 (REGULAR -> PERMANENT, DAILY -> DAILY)
-        String empType = "REGULAR".equals(employmentType) ? "PERMANENT" : "DAILY";
+        // 3. 근로자 유형 매핑 (REGULAR → PERMANENT, DAILY → DAILY)
+        EmpType empType = "REGULAR".equals(employmentType) ? EmpType.PERMANENT : EmpType.DAILY;
 
-        // 페이징 설정
-        Pageable pageable = PageRequest.of(page - 1, size);
-
-        // 근태 기록 조회
-        Page<Attendance> attendancePage;
+        // 4. 해당 현장(managerId), 날짜, 근로자 유형에 맞는 활성 계약 조회
+        List<Contract> activeContracts;
         if (day != null) {
-            attendancePage = attendanceRepository.findBySiteIdAndEmpTypeAndSearchDate(
-                siteId, empType, startDate, pageable
+            activeContracts = contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(
+                managerId, empType, startDate
             );
         } else {
-            attendancePage = attendanceRepository.findBySiteIdAndEmpTypeAndSearchDateBetween(
-                siteId, empType, startDate, endDate, pageable
-            );
+            // 월 조회의 경우 startDate부터 endDate 사이에 활성화된 계약 조회
+            activeContracts = contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(
+                managerId, empType, startDate
+            ).stream()
+            .filter(c -> c.getEmployeeStartDate().isBefore(endDate.plusDays(1)))
+            .collect(Collectors.toList());
         }
 
-        // Summary 계산
-        AttendanceSummaryDto summary = calculateSummary(siteId, empType, startDate, endDate);
+        log.info("Active contracts found: {} for site: {}, date: {}-{}-{}, empType: {}",
+            activeContracts.size(), siteId, year, month, day, empType);
 
-        // 상세 레코드 변환
-        List<AttendanceDetailDto> records = attendancePage.getContent().stream()
-            .map(this::convertToDetailDto)
+        // 5. 각 계약에 대해 근태 데이터 생성
+        Map<Long, Employee> employeeCache = new HashMap<>();
+        List<AttendanceDetailDto> allRecords = activeContracts.stream()
+            .map(contract -> {
+                // Employee 정보 조회 (캐싱)
+                Employee employee = employeeCache.computeIfAbsent(
+                    contract.getEmployeeId(),
+                    id -> employeeRepository.findById(id).orElse(null)
+                );
+
+                if (employee == null) {
+                    log.warn("Employee not found for contract: {}, employeeId: {}",
+                        contract.getId(), contract.getEmployeeId());
+                    return null;
+                }
+
+                // Attendance 조회
+                Optional<Attendance> attendanceOpt;
+                if (day != null) {
+                    attendanceOpt = attendanceRepository
+                        .findByEmployeeIdAndSearchDate(contract.getEmployeeId(), startDate)
+                        .stream()
+                        .findFirst();
+                } else {
+                    attendanceOpt = Optional.empty(); // 월 조회시에는 복잡하므로 일단 ABSENT 처리
+                }
+
+                return convertToDetailDto(employee, attendanceOpt.orElse(null));
+            })
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
-        // 페이징 정보 구성
+        // 6. 페이징 처리
+        int totalRecords = allRecords.size();
+        int start = (page - 1) * size;
+        int end = Math.min(start + size, totalRecords);
+
+        List<AttendanceDetailDto> pagedRecords = start < totalRecords
+            ? allRecords.subList(start, end)
+            : Collections.emptyList();
+
+        // 7. Summary 계산
+        AttendanceSummaryDto summary = calculateSummary(allRecords);
+
+        // 8. 페이징 정보 구성
         PaginationDto pagination = PaginationDto.builder()
             .currentPage(page)
-            .totalPages(attendancePage.getTotalPages())
-            .totalRecords(attendancePage.getTotalElements())
+            .totalPages((int) Math.ceil((double) totalRecords / size))
+            .totalRecords((long) totalRecords)
             .pageSize(size)
             .build();
 
         return AttendanceListResponseDto.builder()
             .summary(summary)
-            .records(records)
+            .records(pagedRecords)
             .pagination(pagination)
             .build();
     }
@@ -103,52 +161,64 @@ public class AttendanceService {
     /**
      * 근태 요약 정보 계산
      */
-    private AttendanceSummaryDto calculateSummary(
-        Long siteId,
-        String empType,
-        LocalDate startDate,
-        LocalDate endDate
-    ) {
-        Long normalCount = attendanceRepository.countBySiteIdAndEmpTypeAndSearchDateBetweenAndAttendanceStatus(
-            siteId, empType, startDate, endDate, "NORMAL"
-        );
+    private AttendanceSummaryDto calculateSummary(List<AttendanceDetailDto> records) {
+        long normalCount = records.stream()
+            .filter(r -> "NORMAL".equals(r.getAttendanceStatus()))
+            .count();
 
-        Long lateCount = attendanceRepository.countBySiteIdAndEmpTypeAndSearchDateBetweenAndAttendanceStatus(
-            siteId, empType, startDate, endDate, "LATE"
-        );
+        long lateCount = records.stream()
+            .filter(r -> "LATE".equals(r.getAttendanceStatus()))
+            .count();
 
-        Long earlyLeaveCount = attendanceRepository.countBySiteIdAndEmpTypeAndSearchDateBetweenAndAttendanceStatus(
-            siteId, empType, startDate, endDate, "EARLY_LEAVE"
-        );
+        long earlyLeaveCount = records.stream()
+            .filter(r -> "EARLY_LEAVE".equals(r.getAttendanceStatus()))
+            .count();
 
-        Long absentCount = attendanceRepository.countBySiteIdAndEmpTypeAndSearchDateBetweenAndAttendanceStatus(
-            siteId, empType, startDate, endDate, "ABSENT"
-        );
+        long absentCount = records.stream()
+            .filter(r -> "ABSENT".equals(r.getAttendanceStatus()))
+            .count();
 
         return AttendanceSummaryDto.builder()
-            .normalAttendance(normalCount != null ? normalCount : 0L)
-            .late(lateCount != null ? lateCount : 0L)
-            .earlyLeave(earlyLeaveCount != null ? earlyLeaveCount : 0L)
-            .absent(absentCount != null ? absentCount : 0L)
+            .normalAttendance(normalCount)
+            .late(lateCount)
+            .earlyLeave(earlyLeaveCount)
+            .absent(absentCount)
             .build();
     }
 
     /**
-     * Attendance Entity를 AttendanceDetailDto로 변환
+     * Employee와 Attendance를 AttendanceDetailDto로 변환
      */
-    private AttendanceDetailDto convertToDetailDto(Attendance attendance) {
-        return AttendanceDetailDto.builder()
-            .workerId(attendance.getEmployeeId())
-            .workerName(attendance.getEmpName())
-            .residentNumber(maskResidentNumber(attendance.getResidentNum()))
-            .attendanceStatus(attendance.getAttendanceStatus())
-            .checkInTime(formatTime(attendance.getCheckInTime()))
-            .checkOutTime(formatTime(attendance.getCheckOutTime()))
-            .totalWorkHours(formatHours(attendance.getTotalWorkHour()))
-            .nightWorkHours(formatHours(attendance.getNightWorkHour()))
-            .overtimeHours(formatHours(attendance.getAdditionalWorkHour()))
-            .holidayWorkHours(formatHours(attendance.getHolidayWorkHour()))
-            .build();
+    private AttendanceDetailDto convertToDetailDto(Employee employee, Attendance attendance) {
+        if (attendance != null) {
+            // Attendance 기록이 있는 경우
+            return AttendanceDetailDto.builder()
+                .workerId(employee.getId())
+                .workerName(employee.getEmpName())
+                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .attendanceStatus(attendance.getAttendanceStatus())
+                .checkInTime(formatTime(attendance.getCheckInTime()))
+                .checkOutTime(formatTime(attendance.getCheckOutTime()))
+                .totalWorkHours(formatHours(attendance.getTotalWorkHour()))
+                .nightWorkHours(formatHours(attendance.getNightWorkHour()))
+                .overtimeHours(formatHours(attendance.getAdditionalWorkHour()))
+                .holidayWorkHours(formatHours(attendance.getHolidayWorkHour()))
+                .build();
+        } else {
+            // Attendance 기록이 없는 경우 → ABSENT로 표시
+            return AttendanceDetailDto.builder()
+                .workerId(employee.getId())
+                .workerName(employee.getEmpName())
+                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .attendanceStatus("ABSENT")
+                .checkInTime("-")
+                .checkOutTime("-")
+                .totalWorkHours("-")
+                .nightWorkHours("-")
+                .overtimeHours("-")
+                .holidayWorkHours("-")
+                .build();
+        }
     }
 
     /**
