@@ -356,13 +356,17 @@ public class AttendanceService {
         // 1. 로그인한 현장 관리자의 현장 ID 조회
         Long siteId = getCurrentManagerSiteId();
 
-        log.info("출퇴근 검증 시작 - phoneNumber: {}, uploadId: {}, siteId: {}",
-                 request.getPhoneNumber(), request.getUploadId(), siteId);
+        log.info("출퇴근 검증 시작 - siteId: {}, uploadId: {}",
+                 siteId, maskUrl(request.getUploadId()));
 
-        // 2. 전화번호로 근로자 정보 조회
-        Employee employee = employeeRepository.findByPhoneWithUser(request.getPhoneNumber())
+        // 2. 전화번호 정규화 (하이픈 제거)
+        String normalizedPhone = normalizePhoneNumber(request.getPhoneNumber());
+        log.debug("전화번호 정규화 완료 - 원본: {}, 정규화: {}", request.getPhoneNumber(), normalizedPhone);
+
+        // 3. 전화번호로 근로자 정보 조회
+        Employee employee = employeeRepository.findByPhoneWithUser(normalizedPhone)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
-                "해당 전화번호로 등록된 근로자를 찾을 수 없습니다: " + request.getPhoneNumber()));
+                "해당 전화번호로 등록된 근로자를 찾을 수 없습니다: " + normalizedPhone));
 
         Long employeeId = employee.getId();
         log.info("전화번호로 근로자 조회 성공 - employeeId: {}, empName: {}", employeeId, employee.getEmpName());
@@ -523,10 +527,15 @@ public class AttendanceService {
     ) {
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
 
-        if (!faceApiResponse.getVerified()) {
+        // Null 안전성 처리: verified가 null이면 false로 간주
+        boolean isVerified = Boolean.TRUE.equals(faceApiResponse.getVerified());
+        // Null 안전성 처리: similarity가 null이면 0.0으로 간주
+        double similarity = faceApiResponse.getSimilarity() != null ? faceApiResponse.getSimilarity() : 0.0;
+
+        if (!isVerified) {
             // 검증 실패
             log.warn("얼굴 인식 검증 실패 - employeeId: {}, similarity: {}",
-                     employee.getId(), faceApiResponse.getSimilarity());
+                     employee.getId(), similarity);
 
             return AttendanceVerificationResponseDto.builder()
                 .success(true)
@@ -535,9 +544,9 @@ public class AttendanceService {
                 .employeeName(employee.getEmpName())
                 .attendanceType(attendanceType)
                 .timestamp(now)
-                .similarityScore(faceApiResponse.getSimilarity())
+                .similarityScore(similarity)
                 .message(String.format("얼굴 인식에 실패했습니다. 유사도: %.2f%%",
-                                       faceApiResponse.getSimilarity() * 100))
+                                       similarity * 100))
                 .build();
         }
 
@@ -577,7 +586,7 @@ public class AttendanceService {
             .employeeName(employee.getEmpName())
             .attendanceType(attendanceType)
             .timestamp(now)
-            .similarityScore(faceApiResponse.getSimilarity())
+            .similarityScore(similarity)
             .message(String.format("%s이 정상적으로 기록되었습니다.", attendanceType.getDescription()))
             .isLate(savedAttendance.getIsLate())
             .build();
@@ -622,6 +631,9 @@ public class AttendanceService {
             isLate = checkIfLate(activeContract, timestamp);
         }
 
+        // 근태 상태 결정: 지각이면 LATE, 아니면 NORMAL
+        String attendanceStatus = (isLate != null && isLate) ? "LATE" : "NORMAL";
+
         Attendance.AttendanceBuilder builder = Attendance.builder()
             .contractId(activeContract.getId())
             .employeeId(employee.getId())
@@ -630,7 +642,7 @@ public class AttendanceService {
             .empType(employee.getEmpType())
             .empName(employee.getEmpName())
             .residentNum(employee.getResidentNum())
-            .attendanceStatus("NORMAL") // 기본 상태, 추후 로직으로 판단 가능
+            .attendanceStatus(attendanceStatus)
             .isLate(isLate);
 
         // 출퇴근 유형에 따라 checkInTime 또는 checkOutTime 설정
@@ -694,6 +706,23 @@ public class AttendanceService {
                  contract.getId(), contractStartTime, actualCheckInTime, allowedLatestTime, late);
 
         return late;
+    }
+
+    /**
+     * 전화번호 정규화 (하이픈 제거)
+     *
+     * <p>클라이언트가 하이픈 포함 또는 제외 형식으로 전송할 수 있으므로,
+     * 데이터베이스 저장 형식과 일치시키기 위해 하이픈을 제거합니다.</p>
+     *
+     * @param phoneNumber 원본 전화번호 (예: "010-1234-5678" 또는 "01012345678")
+     * @return 정규화된 전화번호 (예: "01012345678")
+     */
+    private String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null) {
+            return null;
+        }
+        // 하이픈, 공백, 괄호 등 제거하고 숫자만 남김
+        return phoneNumber.replaceAll("[^0-9]", "");
     }
 
     /**
