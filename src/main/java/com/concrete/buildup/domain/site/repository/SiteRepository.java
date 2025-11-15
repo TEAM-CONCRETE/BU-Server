@@ -2,6 +2,8 @@ package com.concrete.buildup.domain.site.repository;
 
 import com.concrete.buildup.domain.site.entity.Site;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -27,4 +29,13 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      * @return 현장 정보
      */
     Optional<Site> findByEmployeeSecretKey(String employeeSecretKey);
+
+    /**
+     * 현장 관리자 User ID로 현장 조회
+     *
+     * @param userId 현장 관리자 User ID
+     * @return 현장 정보
+     */
+    @Query("SELECT s FROM Site s JOIN s.manager m WHERE m.user.id = :userId")
+    Optional<Site> findByManagerUserId(@Param("userId") Long userId);
 }

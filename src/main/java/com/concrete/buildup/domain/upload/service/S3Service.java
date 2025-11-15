@@ -17,6 +17,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -228,13 +230,15 @@ public class S3Service {
      * @param userId 사용자 ID (JWT에서 추출)
      * @param resourceType 리소스 타입 (EMPLOYEE_PROFILE, ATTENDANCE_PROBE 등)
      * @param fileExtension 파일 확장자
+     * @param siteId 현장 ID (ATTENDANCE_PROBE일 때 사용)
+     * @param employeeId 근로자 ID (ATTENDANCE_PROBE일 때 사용)
      * @return Presigned URL 응답 (uploadUrl, expiresAt, s3Key, bucket)
      * @throws BusinessException Presigned URL 생성 실패 시
      */
-    public PresignedUrlResponse generateSimplePresignedUrl(String userId, ResourceType resourceType, String fileExtension) {
+    public PresignedUrlResponse generateSimplePresignedUrl(String userId, ResourceType resourceType, String fileExtension, Long siteId, Long employeeId) {
         try {
-            // S3 키 생성: uploads/{folderName}/{userId}/{timestamp}.{ext}
-            String s3Key = buildSimpleS3Key(userId, resourceType, fileExtension);
+            // S3 키 생성
+            String s3Key = buildSimpleS3Key(userId, resourceType, fileExtension, siteId, employeeId);
 
             log.info("Generating simple presigned URL for userId: {}, s3Key: {}", userId, s3Key);
 
@@ -276,20 +280,86 @@ public class S3Service {
 
     /**
      * 범용 S3 키 생성 (얼굴 이미지, 프로필 사진 등)
-     * 파일명 규칙: uploads/{folderName}/{userId}/{timestamp}.{ext}
+     * 파일명 규칙:
+     * - ATTENDANCE_PROBE: attendance/{siteId}/{employeeId}/{timestamp}.{ext}
+     * - EMPLOYEE_PROFILE: profile/{employeeId}/face.{ext} (덮어쓰기)
+     * - 기타: uploads/{folderName}/{userId}/{timestamp}.{ext}
      *
      * @param userId 사용자 ID
      * @param resourceType 리소스 타입
      * @param fileExtension 파일 확장자
+     * @param siteId 현장 ID (ATTENDANCE_PROBE 전용)
+     * @param employeeId 근로자 ID (ATTENDANCE_PROBE, EMPLOYEE_PROFILE 전용)
      * @return S3 객체 키
      */
-    private String buildSimpleS3Key(String userId, ResourceType resourceType, String fileExtension) {
+    private String buildSimpleS3Key(String userId, ResourceType resourceType, String fileExtension, Long siteId, Long employeeId) {
         long timestamp = System.currentTimeMillis();
+
+        // ATTENDANCE_PROBE는 현장/근로자 기반 폴더 구조 사용 (타임스탬프 포함)
+        if (resourceType == ResourceType.ATTENDANCE_PROBE) {
+            if (siteId == null || employeeId == null) {
+                throw new BusinessException(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED,
+                    "ATTENDANCE_PROBE 타입은 siteId와 employeeId가 필수입니다.");
+            }
+            return String.format("attendance/%d/%d/%d.%s",
+                    siteId,
+                    employeeId,
+                    timestamp,
+                    fileExtension);
+        }
+
+        // EMPLOYEE_PROFILE는 근로자 ID 기반 고정 파일명 사용 (덮어쓰기)
+        if (resourceType == ResourceType.EMPLOYEE_PROFILE) {
+            if (employeeId == null) {
+                throw new BusinessException(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED,
+                    "EMPLOYEE_PROFILE 타입은 employeeId가 필수입니다.");
+            }
+            return String.format("profile/%d/face.%s",
+                    employeeId,
+                    fileExtension);
+        }
+
+        // 기타 타입은 기존 폴더 구조 사용
         return String.format("uploads/%s/%s/%d.%s",
                 resourceType.getFolderName(),
                 userId,
                 timestamp,
                 fileExtension);
+    }
+
+    /**
+     * S3 객체에 대한 Presigned GET URL 생성
+     * Face API 등 외부 서비스가 임시로 S3 이미지를 다운로드할 수 있도록 합니다.
+     *
+     * @param s3Key S3 객체 키
+     * @return Presigned GET URL (15분 유효)
+     * @throws BusinessException Presigned URL 생성 실패 시
+     */
+    public String generatePresignedGetUrl(String s3Key) {
+        try {
+            log.info("Generating presigned GET URL for s3Key: {}", s3Key);
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(PRESIGNED_URL_EXPIRATION)
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            String getUrl = presignedRequest.url().toString();
+
+            log.info("Presigned GET URL generated successfully for s3Key: {}", s3Key);
+
+            return getUrl;
+
+        } catch (Exception e) {
+            log.error("Failed to generate presigned GET URL for s3Key: {}", s3Key, e);
+            throw new BusinessException(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED, e);
+        }
     }
 
     /**

@@ -76,4 +76,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      * @return 근로자 엔티티 (Optional)
      */
     Optional<Employee> findByUser(User user);
+
+    /**
+     * 전화번호로 근로자 조회 (출퇴근 검증용)
+     * User의 phone으로 근로자를 조회합니다.
+     *
+     * @param phone 전화번호 (하이픈 포함 또는 제외)
+     * @return 근로자 + User (Optional)
+     */
+    @Query("SELECT e FROM Employee e JOIN FETCH e.user u WHERE u.phone = :phone")
+    Optional<Employee> findByPhoneWithUser(@Param("phone") String phone);
 }
