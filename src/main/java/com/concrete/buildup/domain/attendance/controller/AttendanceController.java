@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v1")
 @RequiredArgsConstructor
 @Tag(name = "Attendance", description = "근태 관리 API")
+@PreAuthorize("hasAnyRole('MANAGER', 'CORPORATION')")
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
