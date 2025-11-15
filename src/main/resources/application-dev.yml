@@ -63,8 +63,8 @@ spring:
   cloud:
     aws:
       s3:
-        enabled: ${AWS_S3_ENABLED:false}  # 기본값: false (S3 비활성화)
-        bucket: ${AWS_S3_BUCKET:build-up-contracts}
+        enabled: ${AWS_S3_ENABLED:true}  # 기본값: false (S3 비활성화)
+        bucket: ${AWS_S3_BUCKET:concrete-build-up}
       region:
         static: ${AWS_REGION:ap-northeast-2}  # 서울 리전
       credentials:

@@ -19,15 +19,17 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/attendance")
+@RequestMapping("/v1/attendance")
 @RequiredArgsConstructor
 @Tag(name = "Employee Attendance", description = "근로자용 출퇴근 API")
-public class EmployeeAttendanceController {
+public class
+
+EmployeeAttendanceController {
 
     private final EmployeeFaceService employeeFaceService;
 
     /**
-     * POST /api/v1/attendance/my-face
+     * POST /api/v1/attendance/my-face (실제 URL, context-path 포함)
      * 근로자 본인의 얼굴 이미지 등록
      *
      * 플로우:
