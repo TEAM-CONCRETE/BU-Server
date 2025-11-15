@@ -48,7 +48,7 @@ public class AttendanceController {
         );
 
         return ResponseEntity.ok(
-            ApiResponse.success("근태 현황을 조회했습니다.", response)
+            ApiResponse.success(response, "근태 현황을 조회했습니다.")
         );
     }
 }
