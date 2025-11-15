@@ -245,6 +245,41 @@ domain/notification/
 기존 도메인에 기능을 추가할 때는 해당 도메인 패키지 내에서 작업합니다.
 예: `employee` 도메인에 퇴사 처리 기능 추가 시 `EmployeeService`에 메서드 추가
 
+## Git 커밋 규칙
+
+### Conventional Commits 준수
+- 커밋 메시지 형식: `type: subject`
+- Type 종류: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+- Subject는 한글로 작성
+- Jira 이슈 참조: 커밋 메시지 마지막에 `Refs: BU-XXX` 추가
+
+### 커밋 메시지 작성 규칙
+**IMPORTANT: 커밋 메시지에 Claude 관련 내용을 포함하지 마세요.**
+- ❌ "🤖 Generated with Claude Code" 포함 금지
+- ❌ "Co-Authored-By: Claude" 포함 금지
+- ✅ Jira 이슈 참조만 포함: `Refs: BU-XXX`
+
+**올바른 커밋 메시지 예시:**
+```
+feat: 근태 조회 API에 지각 판단 기능 추가
+
+- isLate 필드 기반으로 정상/지각 구분
+- 계약서 출근 시간 +5분 기준 적용
+
+Refs: BU-151
+```
+
+**잘못된 커밋 메시지 예시:**
+```
+feat: 근태 조회 API에 지각 판단 기능 추가
+
+Refs: BU-151
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
 ## 추가 리소스
 
 자주 사용하는 작업은 `.claude/commands/`의 슬래시 명령어를 활용하세요.
