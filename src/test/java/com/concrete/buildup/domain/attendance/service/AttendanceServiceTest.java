@@ -134,7 +134,7 @@ class AttendanceServiceTest {
         mockEmployee = Employee.builder()
             .user(mockEmployeeUser)
             .empName("테스트 근로자")
-            .profileImageUrl("uploads/employee-profiles/200/face.jpg")
+            .profileImageUrl("profile/200/face.jpg")
             .build();
         ReflectionTestUtils.setField(mockEmployee, "id", 20L);
         ReflectionTestUtils.setField(mockEmployee, "empType", "DAILY"); // empType 설정
@@ -150,7 +150,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("uploads/attendance-probes/20/probe.jpg")
+            .uploadId("attendance/1/20/1234567890.jpg")
             .build();
 
         // Mock 설정
@@ -169,10 +169,10 @@ class AttendanceServiceTest {
         when(contractRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(mockContract));
 
         // S3Service 모킹 - Presigned URL 생성
-        when(s3Service.generatePresignedGetUrl("uploads/employee-profiles/200/face.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/employee-profiles/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl("uploads/attendance-probes/20/probe.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/attendance-probes/20/probe.jpg");
+        when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
+        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
         FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
         faceApiResponse.setVerified(true);
@@ -207,7 +207,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("uploads/attendance-probes/20/probe.jpg")
+            .uploadId("attendance/1/20/1234567890.jpg")
             .build();
 
         // 오늘 출근 기록 존재
@@ -224,10 +224,10 @@ class AttendanceServiceTest {
             .thenReturn(List.of(existingCheckIn)); // 출근 기록 있음 → CHECK_OUT
 
         // S3Service 모킹
-        when(s3Service.generatePresignedGetUrl("uploads/employee-profiles/200/face.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/employee-profiles/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl("uploads/attendance-probes/20/probe.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/attendance-probes/20/probe.jpg");
+        when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
+        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
         FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
         faceApiResponse.setVerified(true);
@@ -260,7 +260,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("uploads/attendance-probes/20/probe.jpg")
+            .uploadId("attendance/1/20/1234567890.jpg")
             .build();
 
         when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
@@ -270,10 +270,10 @@ class AttendanceServiceTest {
             .thenReturn(Collections.emptyList());
 
         // S3Service 모킹
-        when(s3Service.generatePresignedGetUrl("uploads/employee-profiles/200/face.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/employee-profiles/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl("uploads/attendance-probes/20/probe.jpg"))
-            .thenReturn("https://test-bucket.s3.amazonaws.com/uploads/attendance-probes/20/probe.jpg");
+        when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
+        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+            .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
         // 얼굴 인식 실패 (유사도 낮음)
         FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
@@ -300,7 +300,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("uploads/attendance-probes/20/probe.jpg")
+            .uploadId("attendance/1/20/1234567890.jpg")
             .build();
 
         // 얼굴 이미지 미등록 근로자
@@ -329,7 +329,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("uploads/attendance-probes/20/probe.jpg")
+            .uploadId("attendance/1/20/1234567890.jpg")
             .build();
 
         // 이미 출근+퇴근 완료된 기록 존재
@@ -360,7 +360,7 @@ class AttendanceServiceTest {
         // Given
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-9999-9999")
-            .uploadId("uploads/attendance-probes/999/probe.jpg")
+            .uploadId("attendance/1/999/1234567890.jpg")
             .build();
 
         when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
