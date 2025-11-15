@@ -162,8 +162,11 @@ class AttendanceServiceTest {
             .thenReturn(Collections.emptyList()); // 오늘 기록 없음 → CHECK_IN
 
         // Contract 조회 모킹
+        when(mockContract.getId()).thenReturn(1L);
+        when(mockContract.getEmployeeId()).thenReturn(20L); // Must match mockEmployee.id
         when(contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(eq(10L), eq(EmpType.DAILY), any(LocalDate.class)))
             .thenReturn(List.of(mockContract));
+        when(contractRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(mockContract));
 
         // S3Service 모킹 - Presigned URL 생성
         when(s3Service.generatePresignedGetUrl("uploads/employee-profiles/200/face.jpg"))
@@ -216,14 +219,9 @@ class AttendanceServiceTest {
 
         when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
         when(siteRepository.findByManagerUserId(100L)).thenReturn(Optional.of(mockSite));
-        when(siteRepository.findById(1L)).thenReturn(Optional.of(mockSite)); // createAttendanceRecord에서 필요
         when(employeeRepository.findByPhoneWithUser("01012345678")).thenReturn(Optional.of(mockEmployee));
         when(attendanceRepository.findByEmployeeIdAndSearchDate(eq(20L), any(LocalDate.class)))
             .thenReturn(List.of(existingCheckIn)); // 출근 기록 있음 → CHECK_OUT
-
-        // Contract 조회 모킹
-        when(contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(eq(10L), eq(EmpType.DAILY), any(LocalDate.class)))
-            .thenReturn(List.of(mockContract));
 
         // S3Service 모킹
         when(s3Service.generatePresignedGetUrl("uploads/employee-profiles/200/face.jpg"))
