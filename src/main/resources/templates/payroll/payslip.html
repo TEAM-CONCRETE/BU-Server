@@ -223,9 +223,9 @@
             <td>건강보험 (3.545%)</td>
             <td class="amount" th:text="${healthInsurance}">0원</td>
         </tr>
-        <tr th:if="${longTermCare != '0원'}">
-            <td>장기요양보험 (0.4591%)</td>
-            <td class="amount" th:text="${longTermCare}">0원</td>
+        <tr th:if="${workersCompInsurance != '0원'}">
+            <td>산재보험 (0.7%)</td>
+            <td class="amount" th:text="${workersCompInsurance}">0원</td>
         </tr>
         <tr th:if="${employmentInsurance != '0원'}">
             <td>고용보험 (0.9%)</td>

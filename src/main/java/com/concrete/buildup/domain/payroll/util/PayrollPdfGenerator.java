@@ -42,7 +42,7 @@ public class PayrollPdfGenerator {
      * @param weeklyHolidayPay 주휴수당
      * @param nationalPension 국민연금
      * @param healthInsurance 건강보험
-     * @param longTermCare 장기요양보험
+     * @param workersCompInsurance 산재보험
      * @param employmentInsurance 고용보험
      * @param netPay 실수령액
      * @return PDF 바이트 배열
@@ -55,7 +55,7 @@ public class PayrollPdfGenerator {
                                      BigDecimal weeklyHolidayPay,
                                      BigDecimal nationalPension,
                                      BigDecimal healthInsurance,
-                                     BigDecimal longTermCare,
+                                     BigDecimal workersCompInsurance,
                                      BigDecimal employmentInsurance,
                                      BigDecimal netPay) {
         try {
@@ -85,7 +85,7 @@ public class PayrollPdfGenerator {
             context.setVariable("residentTax", formatCurrency(payroll.getResidentTax()));
             context.setVariable("nationalPension", formatCurrency(nationalPension));
             context.setVariable("healthInsurance", formatCurrency(healthInsurance));
-            context.setVariable("longTermCare", formatCurrency(longTermCare));
+            context.setVariable("workersCompInsurance", formatCurrency(workersCompInsurance));
             context.setVariable("employmentInsurance", formatCurrency(employmentInsurance));
 
             // 총 공제액
@@ -93,7 +93,7 @@ public class PayrollPdfGenerator {
                     .add(payroll.getResidentTax())
                     .add(nationalPension)
                     .add(healthInsurance)
-                    .add(longTermCare)
+                    .add(workersCompInsurance)
                     .add(employmentInsurance);
             context.setVariable("totalDeduction", formatCurrency(totalDeduction));
 
