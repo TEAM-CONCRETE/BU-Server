@@ -7,6 +7,8 @@ import com.concrete.buildup.domain.attendance.exception.FaceNotDetectedException
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
@@ -47,6 +49,11 @@ public class FaceSimilarityClient {
      * @throws FaceNotDetectedException 얼굴이 검출되지 않은 경우
      * @throws FaceApiException API 호출 실패
      */
+    @Retryable(
+        retryFor = {WebClientRequestException.class, FaceApiException.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
     public FaceSimilarityResponseDto compareFaces(String registeredImageUrl, String capturedImageUrl) {
         log.info("Face Similarity API 호출 시작 - registered: {}, captured: {}",
                  maskUrl(registeredImageUrl), maskUrl(capturedImageUrl));
