@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.upload.dto;
 
 import com.concrete.buildup.domain.upload.enums.ResourceType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
@@ -57,5 +58,27 @@ public class SimplePresignedUrlRequest {
      */
     public String getFileExtension() {
         return fileExtension != null ? fileExtension : "jpg";
+    }
+
+    /**
+     * ATTENDANCE_PROBE 타입인 경우 siteId와 employeeId가 모두 필수
+     */
+    @AssertTrue(message = "ATTENDANCE_PROBE 타입인 경우 siteId와 employeeId가 모두 필요합니다.")
+    private boolean isAttendanceProbeFieldsValid() {
+        if (resourceType == ResourceType.ATTENDANCE_PROBE) {
+            return siteId != null && employeeId != null;
+        }
+        return true;
+    }
+
+    /**
+     * EMPLOYEE_PROFILE 타입인 경우 employeeId가 필수
+     */
+    @AssertTrue(message = "EMPLOYEE_PROFILE 타입인 경우 employeeId가 필요합니다.")
+    private boolean isEmployeeProfileFieldsValid() {
+        if (resourceType == ResourceType.EMPLOYEE_PROFILE) {
+            return employeeId != null;
+        }
+        return true;
     }
 }
