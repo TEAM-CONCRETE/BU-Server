@@ -479,6 +479,10 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
 | `contract_id` | BIGINT | FK, NOT NULL | 계약 ID |
 | `corporation_id` | BIGINT | FK, NOT NULL | 기업 ID |
+| `salary_year` | INT | NOT NULL | 급여 대상 연도 (예: 2025) |
+| `salary_month` | INT | NOT NULL | 급여 대상 월 (1~12) |
+| `salary_week` | INT | NULL | 급여 대상 주차 (주급인 경우, 1~5) |
+| `salary_day` | DATE | NULL | 급여 대상 일자 (일급인 경우) |
 | `search_date` | DATE | NOT NULL | 지급 기준월 (yyyy-mm) |
 | `pay_due_date` | DATE | NULL | 지급 예정일 |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
@@ -492,6 +496,8 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `resident_tax` | DECIMAL(15,2) | NULL | 주민세 |
 | `pay_cycle` | VARCHAR(20) | NULL | 급여 주기 (DAILY/WEEKLY/MONTHLY) |
 | `pay_status` | VARCHAR(20) | NULL | 지급 상태 (PENDING/PAID/CANCELLED) |
+| `s3_key` | VARCHAR(500) | NULL | 급여명세서 PDF 저장 S3 경로 |
+| `generated_at` | DATETIME | NULL | 급여명세서 자동 생성 시각 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
@@ -500,6 +506,8 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 - INDEX: `employee_id`, `contract_id`, `corporation_id`
 - INDEX: `search_date`
 - INDEX: `pay_status`
+- INDEX: `s3_key`
+- UNIQUE INDEX: `(employee_id, salary_year, salary_month, pay_cycle, salary_week, salary_day)` - 중복 방지
 - FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
 - FOREIGN KEY: `contract_id` REFERENCES `contracts(id)`
 - FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
@@ -860,5 +868,6 @@ ON work_reports(work_report_status);
 | 2025-11-07 | users 테이블 refresh_token, refresh_token_expires_at 컬럼 추가 (로그인 API 구현) | 김세원 |
 | 2025-11-12 | employees 테이블 profile_image_url 컬럼 추가 (얼굴 인식 출퇴근 시스템) | 김세원 |
 | 2025-11-12 | attendance_records 테이블 생성 (얼굴 인식 기반 출퇴근 기록) | 김세원 |
+| 2025-11-15 | payrolls 테이블 컬럼 추가 (salary_year, salary_month, salary_week, salary_day, s3_key, generated_at) 및 중복 방지 UNIQUE INDEX 추가 (급여명세서 자동 생성 기능) | 문현민 |
 
 ---
