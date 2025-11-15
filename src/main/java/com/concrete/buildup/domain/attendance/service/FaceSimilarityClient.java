@@ -61,7 +61,7 @@ public class FaceSimilarityClient {
                  maskUrl(registeredImageUrl), maskUrl(capturedImageUrl));
 
         log.info("Face API 요청 생성 - image1_url: {}, image2_url: {}, threshold: {}",
-                 registeredImageUrl, capturedImageUrl, DEFAULT_THRESHOLD);
+                 maskUrl(registeredImageUrl), maskUrl(capturedImageUrl), DEFAULT_THRESHOLD);
 
         try {
             FaceSimilarityResponseDto response = faceSimilarityWebClient.get()
