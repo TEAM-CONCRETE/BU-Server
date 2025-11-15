@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.attendance.service;
 
 import com.concrete.buildup.domain.attendance.dto.FaceSimilarityRequestDto;
 import com.concrete.buildup.domain.attendance.dto.FaceSimilarityResponseDto;
+import com.concrete.buildup.domain.attendance.exception.FaceApiClientException;
 import com.concrete.buildup.domain.attendance.exception.FaceApiException;
 import com.concrete.buildup.domain.attendance.exception.FaceNotDetectedException;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,8 @@ public class FaceSimilarityClient {
      * @throws FaceApiException API 호출 실패
      */
     @Retryable(
-        retryFor = {WebClientRequestException.class, FaceApiException.class},
+        retryFor = {WebClientRequestException.class},
+        noRetryFor = {FaceNotDetectedException.class, FaceApiClientException.class},
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
@@ -103,8 +105,9 @@ public class FaceSimilarityClient {
      * HTTP 오류 상태 코드별 예외 처리
      *
      * @param e WebClientResponseException
-     * @throws FaceNotDetectedException 422 Unprocessable Entity
-     * @throws FaceApiException 기타 오류
+     * @throws FaceNotDetectedException 422 Unprocessable Entity (재시도 안함)
+     * @throws FaceApiClientException 클라이언트 오류 (400, 403, 413 - 재시도 안함)
+     * @throws FaceApiException 서버 오류 (500, 503 - 재시도 가능)
      */
     private void handleHttpError(WebClientResponseException e) {
         HttpStatus status = HttpStatus.resolve(e.getStatusCode().value());
@@ -113,38 +116,38 @@ public class FaceSimilarityClient {
         log.error("Face API HTTP 오류 - status: {}, body: {}", status, responseBody);
 
         if (status == HttpStatus.UNPROCESSABLE_ENTITY) {
-            // 422: 얼굴 미검출 (No face detected in image1/image2)
+            // 422: 얼굴 미검출 (No face detected in image1/image2) - 재시도 불필요
             String detail = extractDetailFromErrorResponse(responseBody);
             throw new FaceNotDetectedException(
                 detail != null ? detail : "얼굴이 감지되지 않았습니다. 다시 촬영해주세요."
             );
 
         } else if (status == HttpStatus.BAD_REQUEST) {
-            // 400: 이미지 다운로드/디코딩 실패
+            // 400: 이미지 다운로드/디코딩 실패 - 재시도 불필요
             String detail = extractDetailFromErrorResponse(responseBody);
-            throw new FaceApiException("이미지 처리 실패: " + (detail != null ? detail : "잘못된 요청입니다."), e);
+            throw new FaceApiClientException("이미지 처리 실패: " + (detail != null ? detail : "잘못된 요청입니다."), e);
 
         } else if (status == HttpStatus.FORBIDDEN) {
-            // 403: S3 이미지 접근 권한 없음
+            // 403: S3 이미지 접근 권한 없음 - 재시도 불필요
             String detail = extractDetailFromErrorResponse(responseBody);
-            throw new FaceApiException("이미지 접근 권한이 없습니다: " + (detail != null ? detail : "S3 이미지 다운로드 실패"), e);
+            throw new FaceApiClientException("이미지 접근 권한이 없습니다: " + (detail != null ? detail : "S3 이미지 다운로드 실패"), e);
 
         } else if (status == HttpStatus.PAYLOAD_TOO_LARGE) {
-            // 413: 이미지 크기 초과 (10MB)
-            throw new FaceApiException("이미지 크기가 너무 큽니다. 10MB 이하의 이미지를 사용해주세요.", e);
+            // 413: 이미지 크기 초과 (10MB) - 재시도 불필요
+            throw new FaceApiClientException("이미지 크기가 너무 큽니다. 10MB 이하의 이미지를 사용해주세요.", e);
 
         } else if (status == HttpStatus.SERVICE_UNAVAILABLE) {
-            // 503: 모델 준비 중
+            // 503: 모델 준비 중 - 재시도 시 성공 가능
             throw new FaceApiException("얼굴 인식 서비스가 준비 중입니다. 잠시 후 다시 시도해주세요.", e);
 
         } else if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
-            // 500: 서버 내부 오류
+            // 500: 서버 내부 오류 - 재시도 시 성공 가능
             String detail = extractDetailFromErrorResponse(responseBody);
             throw new FaceApiException("얼굴 인식 서비스 내부 오류: " + (detail != null ? detail : "서버 오류"), e);
 
         } else {
-            // 기타 오류
-            throw new FaceApiException("Face API 호출 실패: HTTP " + status, e);
+            // 기타 오류 - 안전하게 재시도 불필요로 처리
+            throw new FaceApiClientException("Face API 호출 실패: HTTP " + status, e);
         }
     }
 
