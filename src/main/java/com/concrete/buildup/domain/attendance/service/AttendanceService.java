@@ -361,15 +361,14 @@ public class AttendanceService {
 
         // 2. 전화번호 정규화 (하이픈 제거)
         String normalizedPhone = normalizePhoneNumber(request.getPhoneNumber());
-        log.debug("전화번호 정규화 완료 - 원본: {}, 정규화: {}", request.getPhoneNumber(), normalizedPhone);
 
         // 3. 전화번호로 근로자 정보 조회
         Employee employee = employeeRepository.findByPhoneWithUser(normalizedPhone)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
-                "해당 전화번호로 등록된 근로자를 찾을 수 없습니다: " + normalizedPhone));
+                "등록된 근로자를 찾을 수 없습니다."));
 
         Long employeeId = employee.getId();
-        log.info("전화번호로 근로자 조회 성공 - employeeId: {}, empName: {}", employeeId, employee.getEmpName());
+        log.info("근로자 조회 성공 - employeeId: {}", employeeId);
 
         // 3. 얼굴 이미지 등록 여부 확인
         if (employee.getProfileImageUrl() == null || employee.getProfileImageUrl().isBlank()) {
@@ -554,14 +553,14 @@ public class AttendanceService {
         Attendance savedAttendance;
 
         if (attendanceType == AttendanceType.CHECK_OUT) {
-            // 퇴근: 기존 레코드 UPDATE
+            // 퇴근: 기존 레코드 UPDATE (최신 레코드 선택)
             LocalDate today = LocalDate.now();
             List<Attendance> todayRecords = attendanceRepository
                 .findByEmployeeIdAndSearchDate(employee.getId(), today);
 
             Attendance existingRecord = todayRecords.stream()
                 .filter(record -> record.getCheckInTime() != null && record.getCheckOutTime() == null)
-                .findFirst()
+                .max(Comparator.comparing(a -> Optional.ofNullable(a.getCheckInTime()).orElse(a.getCreatedAt())))
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
                     "출근 기록을 찾을 수 없습니다."));
 
@@ -614,9 +613,19 @@ public class AttendanceService {
 
         Long managerId = site.getManager().getId();
 
+        // EmpType 안전하게 변환
+        EmpType empType;
+        try {
+            empType = EmpType.valueOf(employee.getEmpType());
+        } catch (IllegalArgumentException e) {
+            log.error("잘못된 EmpType - employeeId: {}, empType: {}", employee.getId(), employee.getEmpType());
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                "잘못된 근로자 타입입니다.");
+        }
+
         Contract activeContract = contractRepository.findActiveContractsByManagerIdAndEmpTypeAndDate(
                 managerId,
-                EmpType.valueOf(employee.getEmpType()),
+                empType,
                 today
             )
             .stream()
