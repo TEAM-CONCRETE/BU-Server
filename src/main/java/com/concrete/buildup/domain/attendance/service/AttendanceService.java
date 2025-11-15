@@ -12,6 +12,7 @@ import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
+import com.concrete.buildup.global.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -195,7 +196,7 @@ public class AttendanceService {
             return AttendanceDetailDto.builder()
                 .workerId(employee.getId())
                 .workerName(employee.getEmpName())
-                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .residentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .attendanceStatus(attendance.getAttendanceStatus())
                 .checkInTime(formatTime(attendance.getCheckInTime()))
                 .checkOutTime(formatTime(attendance.getCheckOutTime()))
@@ -209,7 +210,7 @@ public class AttendanceService {
             return AttendanceDetailDto.builder()
                 .workerId(employee.getId())
                 .workerName(employee.getEmpName())
-                .residentNumber(maskResidentNumber(employee.getResidentNum()))
+                .residentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .attendanceStatus("ABSENT")
                 .checkInTime("-")
                 .checkOutTime("-")
@@ -219,20 +220,6 @@ public class AttendanceService {
                 .holidayWorkHours("-")
                 .build();
         }
-    }
-
-    /**
-     * 주민번호 마스킹 처리
-     */
-    private String maskResidentNumber(String residentNum) {
-        if (residentNum == null || residentNum.isEmpty()) {
-            return "";
-        }
-        // "850101-1******" 형식으로 마스킹
-        if (residentNum.length() >= 8) {
-            return residentNum.substring(0, 8) + "******";
-        }
-        return residentNum;
     }
 
     /**
