@@ -20,18 +20,35 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * Face Similarity API 클라이언트
  * Railway에 배포된 얼굴 유사도 검증 서비스와 통신합니다.
  *
- * 처리 흐름:
- * 1. GET 요청으로 이미지 URL을 쿼리 파라미터로 전달
- * 2. API가 S3에서 이미지를 다운로드하여 얼굴 검출 및 유사도 비교 수행
- * 3. 응답 분석 및 예외 처리
+ * <p><b>처리 흐름:</b></p>
+ * <ol>
+ *   <li>GET 요청으로 이미지 URL을 쿼리 파라미터로 전달</li>
+ *   <li>API가 S3에서 이미지를 다운로드하여 얼굴 검출 및 유사도 비교 수행</li>
+ *   <li>응답 분석 및 예외 처리</li>
+ * </ol>
  *
- * 오류 상태 코드:
- * - 422: 얼굴 미검출 (No face detected)
- * - 400: 이미지 다운로드/디코딩 실패
- * - 403: S3 이미지 접근 권한 없음
- * - 413: 이미지 크기 초과 (10MB)
- * - 503: 모델 준비 중
- * - 500: 서버 내부 오류
+ * <p><b>재시도 전략 (Spring Retry):</b></p>
+ * <ul>
+ *   <li><b>재시도 O:</b> 서버 오류 (500, 503), 네트워크 오류</li>
+ *   <li><b>재시도 X:</b> 클라이언트 오류 (400, 403, 413, 422)</li>
+ *   <li><b>최대 재시도:</b> 3회 (초기 1회 + 재시도 2회)</li>
+ *   <li><b>백오프 전략:</b> 1초 초기 지연, 배수 2.0 (1초 → 2초)</li>
+ * </ul>
+ *
+ * <p><b>오류 상태 코드 및 예외 매핑:</b></p>
+ * <table>
+ *   <tr><th>코드</th><th>설명</th><th>예외</th><th>재시도</th></tr>
+ *   <tr><td>422</td><td>얼굴 미검출</td><td>FaceNotDetectedException</td><td>X</td></tr>
+ *   <tr><td>400</td><td>이미지 처리 실패</td><td>FaceApiClientException</td><td>X</td></tr>
+ *   <tr><td>403</td><td>S3 접근 권한 없음</td><td>FaceApiClientException</td><td>X</td></tr>
+ *   <tr><td>413</td><td>이미지 크기 초과 (10MB)</td><td>FaceApiClientException</td><td>X</td></tr>
+ *   <tr><td>500</td><td>서버 내부 오류</td><td>FaceApiException</td><td>O</td></tr>
+ *   <tr><td>503</td><td>서비스 일시 중단</td><td>FaceApiException</td><td>O</td></tr>
+ * </table>
+ *
+ * @see FaceApiException 재시도 가능한 서버 오류
+ * @see FaceApiClientException 재시도 불가능한 클라이언트 오류
+ * @see FaceNotDetectedException 얼굴 미검출 오류
  */
 @Slf4j
 @Service
