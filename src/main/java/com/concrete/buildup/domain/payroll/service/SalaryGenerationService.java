@@ -5,8 +5,11 @@ import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.enums.PayPeriod;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
+import com.concrete.buildup.domain.payroll.entity.PayslipItem;
+import com.concrete.buildup.domain.payroll.enums.ItemType;
 import com.concrete.buildup.domain.payroll.enums.PayStatus;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
+import com.concrete.buildup.domain.payroll.repository.PayslipItemRepository;
 import com.concrete.buildup.domain.payroll.util.PayrollCalculator;
 import com.concrete.buildup.domain.payroll.util.PayrollPdfGenerator;
 import com.concrete.buildup.domain.upload.service.S3Service;
@@ -37,6 +40,7 @@ public class SalaryGenerationService {
 
     private final ContractRepository contractRepository;
     private final PayrollRepository payrollRepository;
+    private final PayslipItemRepository payslipItemRepository;
     private final PayrollCalculator payrollCalculator;
     private final PayrollPdfGenerator pdfGenerator;
     private final S3Service s3Service;
@@ -307,17 +311,18 @@ public class SalaryGenerationService {
             // 4대보험 계산
             boolean hasNationalPension = Boolean.TRUE.equals(contractDetail.getIsNpsApplicable());
             boolean hasHealthInsurance = Boolean.TRUE.equals(contractDetail.getIsNhiApplicable());
+            boolean hasWorkersCompInsurance = Boolean.TRUE.equals(contractDetail.getIsWciApplicable());
             boolean hasEmploymentInsurance = Boolean.TRUE.equals(contractDetail.getIsEoiApplicable());
 
             BigDecimal nationalPension = payrollCalculator.calculateNationalPension(totalPay, hasNationalPension);
             BigDecimal healthInsurance = payrollCalculator.calculateHealthInsurance(totalPay, hasHealthInsurance);
-            BigDecimal longTermCare = payrollCalculator.calculateLongTermCare(totalPay, hasHealthInsurance);
+            BigDecimal workersCompInsurance = payrollCalculator.calculateWorkersCompInsurance(totalPay, hasWorkersCompInsurance);
             BigDecimal employmentInsurance = payrollCalculator.calculateEmploymentInsurance(totalPay, hasEmploymentInsurance);
 
             // 실수령액 계산
             BigDecimal netPay = payrollCalculator.calculateNetPay(
                     totalPay, incomeTax, residentTax,
-                    nationalPension, healthInsurance, longTermCare, employmentInsurance
+                    nationalPension, healthInsurance, workersCompInsurance, employmentInsurance
             );
 
             // 5. Payroll 엔티티 생성
@@ -354,15 +359,21 @@ public class SalaryGenerationService {
             log.info("[급여 생성] 급여 저장 완료 - payrollId: {}, employeeId: {}, totalPay: {}, netPay: {}",
                     savedPayroll.getId(), contract.getEmployeeId(), totalPay, netPay);
 
-            // TODO: 7. PayslipItem 저장 (급여 명세 항목)
-            // savePayslipItems(savedPayroll.getId(), basePay, nightPay, overtimePay, ...);
+            // 7. PayslipItem 저장 (급여 명세 항목)
+            savePayslipItems(
+                    savedPayroll.getId(),
+                    searchDate,
+                    basePay, nightPay, overtimePay,
+                    incomeTax, residentTax,
+                    nationalPension, healthInsurance, workersCompInsurance, employmentInsurance
+            );
 
             // 8. PDF 생성 및 S3 업로드
             try {
                 String s3Key = generateAndUploadPdf(
                         savedPayroll, basePay, nightPay, overtimePay,
                         holidayPay, weeklyHolidayPay,
-                        nationalPension, healthInsurance, longTermCare, employmentInsurance,
+                        nationalPension, healthInsurance, workersCompInsurance, employmentInsurance,
                         netPay
                 );
                 savedPayroll.updateS3Key(s3Key);
@@ -392,7 +403,7 @@ public class SalaryGenerationService {
      * @param weeklyHolidayPay 주휴수당
      * @param nationalPension 국민연금
      * @param healthInsurance 건강보험
-     * @param longTermCare 장기요양보험
+     * @param workersCompInsurance 산재보험
      * @param employmentInsurance 고용보험
      * @param netPay 실수령액
      * @return S3 키 (파일 경로)
@@ -405,13 +416,13 @@ public class SalaryGenerationService {
                                         BigDecimal weeklyHolidayPay,
                                         BigDecimal nationalPension,
                                         BigDecimal healthInsurance,
-                                        BigDecimal longTermCare,
+                                        BigDecimal workersCompInsurance,
                                         BigDecimal employmentInsurance,
                                         BigDecimal netPay) {
         // 1. PDF 생성
         byte[] pdfBytes = pdfGenerator.generatePayrollPdf(
                 payroll, basePay, nightPay, overtimePay, holidayPay, weeklyHolidayPay,
-                nationalPension, healthInsurance, longTermCare, employmentInsurance, netPay
+                nationalPension, healthInsurance, workersCompInsurance, employmentInsurance, netPay
         );
 
         // 2. S3 키 생성
@@ -461,5 +472,136 @@ public class SalaryGenerationService {
         // 주차 계산 (첫 주는 1주차)
         // (일수 + 첫날요일 - 1) / 7 + 1
         return (daysSinceFirstDay + firstDayOfWeek - 2) / 7 + 1;
+    }
+
+    /**
+     * 급여 명세 항목 저장
+     *
+     * PayslipItem 테이블에 급여 세부 항목들을 저장합니다.
+     * - 지급 항목: 기본급, 연장근로수당, 야간근로수당
+     * - 공제 항목: 소득세, 주민세, 4대보험 (국민연금, 건강보험, 산재보험, 고용보험)
+     *
+     * @param payrollId 급여 ID
+     * @param effectiveDate 적용 날짜
+     * @param basePay 기본급
+     * @param nightPay 야간근로수당
+     * @param overtimePay 연장근로수당
+     * @param incomeTax 소득세
+     * @param residentTax 주민세
+     * @param nationalPension 국민연금
+     * @param healthInsurance 건강보험
+     * @param workersCompInsurance 산재보험
+     * @param employmentInsurance 고용보험
+     */
+    private void savePayslipItems(Long payrollId, LocalDate effectiveDate,
+                                   BigDecimal basePay, BigDecimal nightPay, BigDecimal overtimePay,
+                                   BigDecimal incomeTax, BigDecimal residentTax,
+                                   BigDecimal nationalPension, BigDecimal healthInsurance,
+                                   BigDecimal workersCompInsurance, BigDecimal employmentInsurance) {
+
+        List<PayslipItem> items = new java.util.ArrayList<>();
+
+        // ========== 지급 항목 (EARNING) ==========
+
+        // 기본급 (항상 저장)
+        items.add(PayslipItem.builder()
+                .payrollId(payrollId)
+                .itemName("기본급")
+                .itemType(ItemType.EARNING)
+                .amount(basePay)
+                .effectiveDate(effectiveDate)
+                .build());
+
+        // 야간근로수당 (0보다 크면 저장)
+        if (nightPay.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("야간근로수당")
+                    .itemType(ItemType.EARNING)
+                    .amount(nightPay)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 연장근로수당 (0보다 크면 저장)
+        if (overtimePay.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("연장근로수당")
+                    .itemType(ItemType.EARNING)
+                    .amount(overtimePay)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // ========== 공제 항목 (DEDUCTION) ==========
+
+        // 소득세 (항상 저장)
+        items.add(PayslipItem.builder()
+                .payrollId(payrollId)
+                .itemName("소득세")
+                .itemType(ItemType.DEDUCTION)
+                .amount(incomeTax)
+                .effectiveDate(effectiveDate)
+                .build());
+
+        // 주민세 (항상 저장)
+        items.add(PayslipItem.builder()
+                .payrollId(payrollId)
+                .itemName("주민세")
+                .itemType(ItemType.DEDUCTION)
+                .amount(residentTax)
+                .effectiveDate(effectiveDate)
+                .build());
+
+        // 국민연금 (0보다 크면 저장)
+        if (nationalPension.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("국민연금")
+                    .itemType(ItemType.DEDUCTION)
+                    .amount(nationalPension)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 건강보험 (0보다 크면 저장)
+        if (healthInsurance.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("건강보험")
+                    .itemType(ItemType.DEDUCTION)
+                    .amount(healthInsurance)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 산재보험 (0보다 크면 저장)
+        if (workersCompInsurance.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("산재보험")
+                    .itemType(ItemType.DEDUCTION)
+                    .amount(workersCompInsurance)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 고용보험 (0보다 크면 저장)
+        if (employmentInsurance.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("고용보험")
+                    .itemType(ItemType.DEDUCTION)
+                    .amount(employmentInsurance)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 일괄 저장
+        payslipItemRepository.saveAll(items);
+
+        log.info("[급여 생성] 급여 명세 항목 저장 완료 - payrollId: {}, 항목 수: {}개",
+                payrollId, items.size());
     }
 }

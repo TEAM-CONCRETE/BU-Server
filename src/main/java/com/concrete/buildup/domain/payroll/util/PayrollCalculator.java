@@ -30,7 +30,7 @@ public class PayrollCalculator {
     // 4대보험 요율 (근로자 부담분)
     private static final BigDecimal NATIONAL_PENSION_RATE = new BigDecimal("0.045"); // 국민연금 4.5%
     private static final BigDecimal HEALTH_INSURANCE_RATE = new BigDecimal("0.03545"); // 건강보험 3.545%
-    private static final BigDecimal LONG_TERM_CARE_RATE = new BigDecimal("0.004591"); // 장기요양 0.4591%
+    private static final BigDecimal WORKERS_COMP_INSURANCE_RATE = new BigDecimal("0.007"); // 산재보험 0.7% (업종별 상이)
     private static final BigDecimal EMPLOYMENT_INSURANCE_RATE = new BigDecimal("0.009"); // 고용보험 0.9%
 
     // 비과세 한도 (식대 등)
@@ -210,18 +210,18 @@ public class PayrollCalculator {
     }
 
     /**
-     * 장기요양보험 계산
-     * 건강보험의 12.95% (기준소득월액의 0.4591%)
+     * 산재보험 계산
+     * 기준소득월액의 0.7% (업종별로 요율 상이, 건설업 평균 적용)
      *
      * @param baseSalary 기준소득월액
      * @param isApplicable 적용 여부
-     * @return 장기요양보험
+     * @return 산재보험
      */
-    public BigDecimal calculateLongTermCare(BigDecimal baseSalary, boolean isApplicable) {
+    public BigDecimal calculateWorkersCompInsurance(BigDecimal baseSalary, boolean isApplicable) {
         if (!isApplicable || baseSalary == null || baseSalary.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        return baseSalary.multiply(LONG_TERM_CARE_RATE).setScale(0, RoundingMode.FLOOR);
+        return baseSalary.multiply(WORKERS_COMP_INSURANCE_RATE).setScale(0, RoundingMode.FLOOR);
     }
 
     /**
@@ -248,13 +248,13 @@ public class PayrollCalculator {
      * @param residentTax 주민세
      * @param nationalPension 국민연금
      * @param healthInsurance 건강보험
-     * @param longTermCare 장기요양보험
+     * @param workersCompInsurance 산재보험
      * @param employmentInsurance 고용보험
      * @return 실수령액
      */
     public BigDecimal calculateNetPay(BigDecimal totalPay, BigDecimal incomeTax, BigDecimal residentTax,
                                        BigDecimal nationalPension, BigDecimal healthInsurance,
-                                       BigDecimal longTermCare, BigDecimal employmentInsurance) {
+                                       BigDecimal workersCompInsurance, BigDecimal employmentInsurance) {
         if (totalPay == null) {
             return BigDecimal.ZERO;
         }
@@ -265,7 +265,7 @@ public class PayrollCalculator {
         if (residentTax != null) totalDeduction = totalDeduction.add(residentTax);
         if (nationalPension != null) totalDeduction = totalDeduction.add(nationalPension);
         if (healthInsurance != null) totalDeduction = totalDeduction.add(healthInsurance);
-        if (longTermCare != null) totalDeduction = totalDeduction.add(longTermCare);
+        if (workersCompInsurance != null) totalDeduction = totalDeduction.add(workersCompInsurance);
         if (employmentInsurance != null) totalDeduction = totalDeduction.add(employmentInsurance);
 
         return totalPay.subtract(totalDeduction).setScale(0, RoundingMode.FLOOR);
