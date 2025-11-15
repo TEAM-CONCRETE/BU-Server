@@ -10,6 +10,8 @@ import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.payroll.util.PayrollCalculator;
 import com.concrete.buildup.domain.payroll.util.PayrollPdfGenerator;
 import com.concrete.buildup.domain.upload.service.S3Service;
+import com.concrete.buildup.domain.attendance.entity.Attendance;
+import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,8 +40,7 @@ public class SalaryGenerationService {
     private final PayrollCalculator payrollCalculator;
     private final PayrollPdfGenerator pdfGenerator;
     private final S3Service s3Service;
-    // TODO: AttendanceRepository 구현 후 주입
-    // private final AttendanceRepository attendanceRepository;
+    private final AttendanceRepository attendanceRepository;
 
     /**
      * 상용직 월급 생성
@@ -85,17 +86,36 @@ public class SalaryGenerationService {
     public void generateMonthlyPayrollForDaily() {
         log.info("[급여 생성] 일용직 월급 생성 시작");
 
+        // 1. 급여 대상 기간 계산 (전월)
         YearMonth targetMonth = YearMonth.now().minusMonths(1);
         LocalDate startDate = targetMonth.atDay(1);
         LocalDate endDate = targetMonth.atEndOfMonth();
 
         log.info("[급여 생성] 대상 기간: {} ~ {}", startDate, endDate);
 
-        // TODO: 일용직 월급 대상자 조회 및 생성
-        // - empType = DAILY
-        // - payPeriod = MONTHLY
+        // 2. 일용직 월급 대상자 조회 (empType = DAILY, payPeriod = MONTHLY)
+        List<Contract> contracts = contractRepository.findDailyContractsForPayrollByPeriod(
+                startDate, endDate, PayPeriod.MONTHLY
+        );
 
-        log.info("[급여 생성] 일용직 월급 생성 완료");
+        log.info("[급여 생성] 일용직 월급 대상자: {}명", contracts.size());
+
+        // 3. 각 대상자별 급여 생성
+        int successCount = 0;
+        int failCount = 0;
+
+        for (Contract contract : contracts) {
+            try {
+                generatePayrollForContract(contract, targetMonth, PayPeriod.MONTHLY, null, null);
+                successCount++;
+            } catch (Exception e) {
+                log.error("[급여 생성] 급여 생성 실패 - contractId: {}, employeeId: {}",
+                        contract.getId(), contract.getEmployeeId(), e);
+                failCount++;
+            }
+        }
+
+        log.info("[급여 생성] 일용직 월급 생성 완료 - 성공: {}명, 실패: {}명", successCount, failCount);
     }
 
     /**
@@ -105,18 +125,40 @@ public class SalaryGenerationService {
     public void generateWeeklyPayrollForDaily() {
         log.info("[급여 생성] 일용직 주급 생성 시작");
 
-        // 지난 주(월~일) 계산
+        // 1. 지난 주(월~일) 계산
         LocalDate today = LocalDate.now();
         LocalDate lastMonday = today.minusWeeks(1).with(java.time.DayOfWeek.MONDAY);
         LocalDate lastSunday = lastMonday.plusDays(6);
 
         log.info("[급여 생성] 대상 기간: {} ~ {}", lastMonday, lastSunday);
 
-        // TODO: 일용직 주급 대상자 조회 및 생성
-        // - empType = DAILY
-        // - payPeriod = WEEKLY
+        // 2. 일용직 주급 대상자 조회 (empType = DAILY, payPeriod = WEEKLY)
+        List<Contract> contracts = contractRepository.findDailyContractsForPayrollByPeriod(
+                lastMonday, lastSunday, PayPeriod.WEEKLY
+        );
 
-        log.info("[급여 생성] 일용직 주급 생성 완료");
+        log.info("[급여 생성] 일용직 주급 대상자: {}명", contracts.size());
+
+        // 3. 주차 계산 (해당 주가 속한 월의 몇 번째 주인지)
+        YearMonth targetMonth = YearMonth.from(lastMonday);
+        int weekOfMonth = calculateWeekOfMonth(lastMonday);
+
+        // 4. 각 대상자별 급여 생성
+        int successCount = 0;
+        int failCount = 0;
+
+        for (Contract contract : contracts) {
+            try {
+                generatePayrollForContract(contract, targetMonth, PayPeriod.WEEKLY, weekOfMonth, null);
+                successCount++;
+            } catch (Exception e) {
+                log.error("[급여 생성] 급여 생성 실패 - contractId: {}, employeeId: {}",
+                        contract.getId(), contract.getEmployeeId(), e);
+                failCount++;
+            }
+        }
+
+        log.info("[급여 생성] 일용직 주급 생성 완료 - 성공: {}명, 실패: {}명", successCount, failCount);
     }
 
     /**
@@ -126,16 +168,37 @@ public class SalaryGenerationService {
     public void generateDailyPayrollForDaily() {
         log.info("[급여 생성] 일용직 일급 생성 시작");
 
-        // 어제 날짜
+        // 1. 어제 날짜
         LocalDate yesterday = LocalDate.now().minusDays(1);
 
         log.info("[급여 생성] 대상 일자: {}", yesterday);
 
-        // TODO: 일용직 일급 대상자 조회 및 생성
-        // - empType = DAILY
-        // - payPeriod = DAILY
+        // 2. 일용직 일급 대상자 조회 (empType = DAILY, payPeriod = DAILY)
+        List<Contract> contracts = contractRepository.findDailyContractsForPayrollByPeriod(
+                yesterday, yesterday, PayPeriod.DAILY
+        );
 
-        log.info("[급여 생성] 일용직 일급 생성 완료");
+        log.info("[급여 생성] 일용직 일급 대상자: {}명", contracts.size());
+
+        // 3. 대상 월 계산
+        YearMonth targetMonth = YearMonth.from(yesterday);
+
+        // 4. 각 대상자별 급여 생성
+        int successCount = 0;
+        int failCount = 0;
+
+        for (Contract contract : contracts) {
+            try {
+                generatePayrollForContract(contract, targetMonth, PayPeriod.DAILY, null, yesterday);
+                successCount++;
+            } catch (Exception e) {
+                log.error("[급여 생성] 급여 생성 실패 - contractId: {}, employeeId: {}",
+                        contract.getId(), contract.getEmployeeId(), e);
+                failCount++;
+            }
+        }
+
+        log.info("[급여 생성] 일용직 일급 생성 완료 - 성공: {}명, 실패: {}명", successCount, failCount);
     }
 
     /**
@@ -173,22 +236,51 @@ public class SalaryGenerationService {
                 return;
             }
 
-            // TODO: 3. 근무 기록 조회 (AttendanceRepository 구현 후)
-            // List<Attendance> attendances = attendanceRepository.findByEmployeeAndPeriod(...);
-            // 현재는 계약 상세의 기본 정보로 급여 계산
+            // 3. 근무 기록 조회 및 집계
+            LocalDate startDate = targetMonth.atDay(1);
+            LocalDate endDate = targetMonth.atEndOfMonth();
+
+            List<Attendance> attendances = attendanceRepository.findNormalAttendancesForPayroll(
+                    contract.getEmployeeId(),
+                    startDate,
+                    endDate
+            );
+
+            log.info("[급여 생성] 근태 기록 조회 - employeeId: {}, 정상 출근 일수: {}일",
+                    contract.getEmployeeId(), attendances.size());
 
             // 4. 급여 계산
             BigDecimal hourlyRate = contractDetail.getWorkPay(); // 시급
-            BigDecimal workHours = BigDecimal.ZERO; // TODO: 실제 근무시간으로 대체
+            BigDecimal workHours = BigDecimal.ZERO;
             BigDecimal nightHours = BigDecimal.ZERO;
             BigDecimal overtimeHours = BigDecimal.ZERO;
             BigDecimal holidayHours = BigDecimal.ZERO;
             BigDecimal weeklyWorkHours = BigDecimal.ZERO;
 
-            // 임시: 상용직 월급은 월 209시간 기준 (주 40시간 * 4.345주)
-            if (contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.PERMANENT
-                    && payCycle == PayPeriod.MONTHLY) {
-                workHours = new BigDecimal("209");
+            // 출퇴근 기록이 있으면 실제 근무시간 집계
+            if (!attendances.isEmpty()) {
+                for (Attendance attendance : attendances) {
+                    workHours = workHours.add(attendance.getTotalWorkHour() != null
+                            ? attendance.getTotalWorkHour() : BigDecimal.ZERO);
+                    nightHours = nightHours.add(attendance.getNightWorkHour() != null
+                            ? attendance.getNightWorkHour() : BigDecimal.ZERO);
+                    overtimeHours = overtimeHours.add(attendance.getAdditionalWorkHour() != null
+                            ? attendance.getAdditionalWorkHour() : BigDecimal.ZERO);
+                    holidayHours = holidayHours.add(attendance.getHolidayWorkHour() != null
+                            ? attendance.getHolidayWorkHour() : BigDecimal.ZERO);
+                }
+
+                log.info("[급여 생성] 근무시간 집계 - 총: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
+                        workHours, nightHours, overtimeHours, holidayHours);
+            } else {
+                // 출퇴근 기록이 없는 경우 (임시 처리)
+                log.warn("[급여 생성] 근태 기록 없음 - 임시 계산 적용");
+
+                // 상용직 월급은 월 209시간 기준 (주 40시간 * 4.345주)
+                if (contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.PERMANENT
+                        && payCycle == PayPeriod.MONTHLY) {
+                    workHours = new BigDecimal("209");
+                }
             }
 
             // 급여 항목별 계산
@@ -348,5 +440,26 @@ public class SalaryGenerationService {
         // 일반적으로 급여는 다음달 10일에 지급
         YearMonth nextMonth = targetMonth.plusMonths(1);
         return nextMonth.atDay(10);
+    }
+
+    /**
+     * 해당 날짜가 속한 월의 몇 번째 주인지 계산
+     *
+     * @param date 날짜
+     * @return 주차 (1~5)
+     */
+    private int calculateWeekOfMonth(LocalDate date) {
+        // 해당 월의 첫 날
+        LocalDate firstDayOfMonth = date.withDayOfMonth(1);
+
+        // 첫 날부터 해당 날짜까지의 일수
+        int daysSinceFirstDay = date.getDayOfMonth();
+
+        // 첫 날의 요일 (월요일 = 1, 일요일 = 7)
+        int firstDayOfWeek = firstDayOfMonth.getDayOfWeek().getValue();
+
+        // 주차 계산 (첫 주는 1주차)
+        // (일수 + 첫날요일 - 1) / 7 + 1
+        return (daysSinceFirstDay + firstDayOfWeek - 2) / 7 + 1;
     }
 }
