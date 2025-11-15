@@ -92,4 +92,13 @@ public class AttendanceVerificationResponseDto {
      */
     @Schema(description = "응답 메시지", example = "출근이 정상적으로 기록되었습니다")
     private String message;
+
+    /**
+     * 지각 여부
+     *
+     * <p>출근 시에만 판단되며, 계약서상 출근 시간 기준 +5분 초과 시 true입니다.</p>
+     * <p>퇴근 기록의 경우 null 또는 false입니다.</p>
+     */
+    @Schema(description = "지각 여부 (출근 시에만 해당)", example = "false")
+    private Boolean isLate;
 }

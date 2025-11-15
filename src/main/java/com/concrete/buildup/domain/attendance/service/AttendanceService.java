@@ -12,6 +12,7 @@ import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.entity.Contract;
+import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.site.entity.Site;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.Comparator;
@@ -572,6 +574,7 @@ public class AttendanceService {
             .timestamp(now)
             .similarityScore(faceApiResponse.getSimilarity())
             .message(String.format("%s이 정상적으로 기록되었습니다.", attendanceType.getDescription()))
+            .isLate(savedAttendance.getIsLate())
             .build();
     }
 
@@ -608,6 +611,12 @@ public class AttendanceService {
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
                 "활성화된 계약을 찾을 수 없습니다. 근로자 ID: " + employee.getId()));
 
+        // 지각 여부 판단 (출근 시에만)
+        Boolean isLate = false;
+        if (attendanceType == AttendanceType.CHECK_IN) {
+            isLate = checkIfLate(activeContract, timestamp);
+        }
+
         Attendance.AttendanceBuilder builder = Attendance.builder()
             .contractId(activeContract.getId())
             .employeeId(employee.getId())
@@ -616,7 +625,8 @@ public class AttendanceService {
             .empType(employee.getEmpType())
             .empName(employee.getEmpName())
             .residentNum(employee.getResidentNum())
-            .attendanceStatus("NORMAL"); // 기본 상태, 추후 로직으로 판단 가능
+            .attendanceStatus("NORMAL") // 기본 상태, 추후 로직으로 판단 가능
+            .isLate(isLate);
 
         // 출퇴근 유형에 따라 checkInTime 또는 checkOutTime 설정
         if (attendanceType == AttendanceType.CHECK_IN) {
@@ -637,6 +647,48 @@ public class AttendanceService {
      */
     private String buildS3Url(String s3Key) {
         return s3Service.generatePresignedGetUrl(s3Key);
+    }
+
+    /**
+     * 지각 여부 판단
+     *
+     * <p>계약서상 출근 시간을 기준으로 지각 여부를 판단합니다.</p>
+     * <ul>
+     *   <li>계약서상 출근 시간부터 +5분까지: 정상 출근 (false)</li>
+     *   <li>계약서상 출근 시간 +5분 초과: 지각 (true)</li>
+     *   <li>계약서에 출근 시간이 없는 경우: 정상 출근 (false)</li>
+     * </ul>
+     *
+     * @param contract 근로 계약 (ContractDetail 포함)
+     * @param checkInTime 실제 출근 시각
+     * @return 지각 여부 (true: 지각, false: 정상)
+     */
+    private Boolean checkIfLate(Contract contract, java.time.LocalDateTime checkInTime) {
+        // ContractDetail 조회
+        Contract contractWithDetail = contractRepository.findByIdWithDetails(contract.getId())
+            .orElse(contract);
+
+        ContractDetail contractDetail = contractWithDetail.getContractDetail();
+
+        // ContractDetail이 없거나 출근 시간이 설정되지 않은 경우 정상 출근으로 처리
+        if (contractDetail == null || contractDetail.getWorkStartTime() == null) {
+            log.warn("계약서에 출근 시간이 설정되지 않음 - contractId: {}", contract.getId());
+            return false;
+        }
+
+        LocalTime contractStartTime = contractDetail.getWorkStartTime();
+        LocalTime actualCheckInTime = checkInTime.toLocalTime();
+
+        // 출근 시간 기준 +5분까지 허용
+        LocalTime allowedLatestTime = contractStartTime.plusMinutes(5);
+
+        // 실제 출근 시간이 허용 시간을 초과했는지 확인
+        boolean late = actualCheckInTime.isAfter(allowedLatestTime);
+
+        log.info("지각 판단 - contractId: {}, 계약상 출근시간: {}, 실제 출근시간: {}, 허용시간: {}, 지각여부: {}",
+                 contract.getId(), contractStartTime, actualCheckInTime, allowedLatestTime, late);
+
+        return late;
     }
 
     /**

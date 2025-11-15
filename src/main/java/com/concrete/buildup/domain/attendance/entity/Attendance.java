@@ -75,4 +75,11 @@ public class Attendance extends BaseEntity {
 
     @Column(name = "holiday_work_hour", precision = 6, scale = 2)
     private BigDecimal holidayWorkHour;
+
+    /**
+     * 지각 여부
+     * 계약서상 출근 시간 기준 +5분 초과 시 true
+     */
+    @Column(name = "is_late")
+    private Boolean isLate;
 }
