@@ -43,7 +43,7 @@ public class SalaryGenerationService {
     private final PayslipItemRepository payslipItemRepository;
     private final PayrollCalculator payrollCalculator;
     private final PayrollPdfGenerator pdfGenerator;
-    private final S3Service s3Service;
+    private final Optional<S3Service> s3Service;
     private final AttendanceRepository attendanceRepository;
 
     /**
@@ -369,20 +369,25 @@ public class SalaryGenerationService {
             );
 
             // 8. PDF 생성 및 S3 업로드
-            try {
-                String s3Key = generateAndUploadPdf(
-                        savedPayroll, basePay, nightPay, overtimePay,
-                        holidayPay, weeklyHolidayPay,
-                        nationalPension, healthInsurance, workersCompInsurance, employmentInsurance,
-                        netPay
-                );
-                savedPayroll.updateS3Key(s3Key);
+            if (s3Service.isPresent()) {
+                try {
+                    String s3Key = generateAndUploadPdf(
+                            savedPayroll, basePay, nightPay, overtimePay,
+                            holidayPay, weeklyHolidayPay,
+                            nationalPension, healthInsurance, workersCompInsurance, employmentInsurance,
+                            netPay
+                    );
+                    savedPayroll.updateS3Key(s3Key);
 
-                log.info("[급여 생성] PDF 생성 및 S3 업로드 완료 - payrollId: {}, s3Key: {}",
-                        savedPayroll.getId(), s3Key);
-            } catch (Exception e) {
-                log.error("[급여 생성] PDF 생성 실패 - payrollId: {}", savedPayroll.getId(), e);
-                // PDF 생성 실패해도 급여 데이터는 저장되었으므로 예외를 던지지 않음
+                    log.info("[급여 생성] PDF 생성 및 S3 업로드 완료 - payrollId: {}, s3Key: {}",
+                            savedPayroll.getId(), s3Key);
+                } catch (Exception e) {
+                    log.error("[급여 생성] PDF 생성 실패 - payrollId: {}", savedPayroll.getId(), e);
+                    // PDF 생성 실패해도 급여 데이터는 저장되었으므로 예외를 던지지 않음
+                }
+            } else {
+                log.warn("[급여 생성] S3 서비스가 비활성화되어 PDF 업로드를 건너뜁니다 - payrollId: {}", savedPayroll.getId());
+                log.warn("[급여 생성] S3를 활성화하려면 AWS_S3_ENABLED=true 환경 변수를 설정하세요.");
             }
 
         } catch (Exception e) {
@@ -435,7 +440,8 @@ public class SalaryGenerationService {
         );
 
         // 3. S3 업로드
-        s3Service.uploadPdf(s3Key, pdfBytes);
+        s3Service.orElseThrow(() -> new IllegalStateException("S3 서비스가 활성화되지 않았습니다"))
+                .uploadPdf(s3Key, pdfBytes);
 
         return s3Key;
     }
