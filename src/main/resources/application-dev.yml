@@ -63,8 +63,8 @@ spring:
   cloud:
     aws:
       s3:
-        enabled: ${AWS_S3_ENABLED:false}  # 기본값: false (S3 비활성화)
-        bucket: ${AWS_S3_BUCKET:build-up-contracts}
+        enabled: ${AWS_S3_ENABLED:true}  # 기본값: false (S3 비활성화)
+        bucket: ${AWS_S3_BUCKET:concrete-build-up}
       region:
         static: ${AWS_REGION:ap-northeast-2}  # 서울 리전
       credentials:
@@ -95,6 +95,17 @@ external:
   fastapi:
     base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
     timeout: ${FASTAPI_TIMEOUT:30000}  # 30초
+
+# ===================================
+# AI 서비스 설정
+# ===================================
+ai:
+  face-similarity:
+    base-url: ${AI_FACE_SIMILARITY_BASE_URL:https://bubbly-reprieve-production-52a0.up.railway.app}
+    connect-timeout-ms: ${AI_FACE_SIMILARITY_CONNECT_TIMEOUT:10000}  # 10초
+    read-timeout-s: ${AI_FACE_SIMILARITY_READ_TIMEOUT:30}  # 30초
+    write-timeout-s: ${AI_FACE_SIMILARITY_WRITE_TIMEOUT:10}  # 10초
+    api-key: ${AI_FACE_SIMILARITY_API_KEY:}  # 환경변수로 주입 (선택사항)
 
 # 서버 설정
 server:

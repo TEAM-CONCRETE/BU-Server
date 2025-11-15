@@ -62,6 +62,15 @@ security:
   encryption:
     key: 0123456789abcdef0123456789abcdef
 
+# AI 서비스 설정 (테스트 환경)
+ai:
+  face-similarity:
+    base-url: ${AI_FACE_SIMILARITY_BASE_URL:http://localhost:8000}
+    connect-timeout-ms: ${AI_FACE_SIMILARITY_CONNECT_TIMEOUT:5000}
+    read-timeout-s: ${AI_FACE_SIMILARITY_READ_TIMEOUT:10}
+    write-timeout-s: ${AI_FACE_SIMILARITY_WRITE_TIMEOUT:10}
+    api-key: ${AI_FACE_SIMILARITY_API_KEY:test-api-key}
+
 # 로깅 설정
 logging:
   level:
