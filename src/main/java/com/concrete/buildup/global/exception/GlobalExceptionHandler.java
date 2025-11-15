@@ -1,7 +1,6 @@
 package com.concrete.buildup.global.exception;
 
-import com.concrete.buildup.domain.attendance.exception.FaceApiException;
-import com.concrete.buildup.domain.attendance.exception.FaceNotDetectedException;
+import com.concrete.buildup.domain.attendance.exception.*;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.exception.errorcode.S3ErrorCode;
@@ -79,6 +78,61 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(
                         "얼굴 인식 서비스 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
                         "FACE_002"
+                ));
+    }
+
+    /**
+     * MultipleFacesDetectedException 처리
+     * 여러 명의 얼굴이 감지되었을 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(MultipleFacesDetectedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMultipleFacesDetected(MultipleFacesDetectedException e) {
+        log.warn("[MultipleFacesDetectedException] message={}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(e.getMessage(), "FACE_003"));
+    }
+
+    /**
+     * DuplicateAttendanceException 처리
+     * 중복 출퇴근 시도 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(DuplicateAttendanceException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateAttendance(DuplicateAttendanceException e) {
+        log.warn("[DuplicateAttendanceException] message={}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), "ATTENDANCE_001"));
+    }
+
+    /**
+     * AttendanceNotFoundException 처리
+     * 출퇴근 기록을 찾을 수 없을 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(AttendanceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAttendanceNotFound(AttendanceNotFoundException e) {
+        log.error("[AttendanceNotFoundException] message={}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage(), "ATTENDANCE_002"));
+    }
+
+    /**
+     * FaceImageNotRegisteredException 처리
+     * 사원의 얼굴 이미지가 등록되지 않았을 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(FaceImageNotRegisteredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFaceImageNotRegistered(FaceImageNotRegisteredException e) {
+        log.error("[FaceImageNotRegisteredException] message={}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(
+                        "얼굴 이미지가 등록되지 않았습니다. 먼저 얼굴을 등록해주세요.",
+                        "ATTENDANCE_003"
                 ));
     }
 
