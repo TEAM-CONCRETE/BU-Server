@@ -7,6 +7,7 @@ import com.concrete.buildup.domain.attendance.exception.FaceNotDetectedException
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
@@ -19,13 +20,14 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * Railway에 배포된 얼굴 유사도 검증 서비스와 통신합니다.
  *
  * 처리 흐름:
- * 1. 이미지 URL을 Face API에 전달
- * 2. API가 얼굴 검출 및 유사도 비교 수행
+ * 1. GET 요청으로 이미지 URL을 쿼리 파라미터로 전달
+ * 2. API가 S3에서 이미지를 다운로드하여 얼굴 검출 및 유사도 비교 수행
  * 3. 응답 분석 및 예외 처리
  *
  * 오류 상태 코드:
  * - 422: 얼굴 미검출 (No face detected)
- * - 400: 다운로드/디코딩 실패
+ * - 400: 이미지 다운로드/디코딩 실패
+ * - 403: S3 이미지 접근 권한 없음
  * - 413: 이미지 크기 초과 (10MB)
  * - 503: 모델 준비 중
  * - 500: 서버 내부 오류
@@ -58,16 +60,17 @@ public class FaceSimilarityClient {
         log.info("Face Similarity API 호출 시작 - registered: {}, captured: {}",
                  maskUrl(registeredImageUrl), maskUrl(capturedImageUrl));
 
-        FaceSimilarityRequestDto request = FaceSimilarityRequestDto.builder()
-            .image1Url(registeredImageUrl)
-            .image2Url(capturedImageUrl)
-            .threshold(DEFAULT_THRESHOLD)
-            .build();
+        log.info("Face API 요청 생성 - image1_url: {}, image2_url: {}, threshold: {}",
+                 registeredImageUrl, capturedImageUrl, DEFAULT_THRESHOLD);
 
         try {
-            FaceSimilarityResponseDto response = faceSimilarityWebClient.post()
-                .uri(FACE_SIMILARITY_ENDPOINT)
-                .bodyValue(request)
+            FaceSimilarityResponseDto response = faceSimilarityWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path(FACE_SIMILARITY_ENDPOINT)
+                    .queryParam("image1_url", registeredImageUrl)
+                    .queryParam("image2_url", capturedImageUrl)
+                    .queryParam("threshold", DEFAULT_THRESHOLD)
+                    .build())
                 .retrieve()
                 .bodyToMono(FaceSimilarityResponseDto.class)
                 .doOnError(error -> log.error("Face API 호출 중 오류 발생", error))
@@ -120,6 +123,11 @@ public class FaceSimilarityClient {
             // 400: 이미지 다운로드/디코딩 실패
             String detail = extractDetailFromErrorResponse(responseBody);
             throw new FaceApiException("이미지 처리 실패: " + (detail != null ? detail : "잘못된 요청입니다."), e);
+
+        } else if (status == HttpStatus.FORBIDDEN) {
+            // 403: S3 이미지 접근 권한 없음
+            String detail = extractDetailFromErrorResponse(responseBody);
+            throw new FaceApiException("이미지 접근 권한이 없습니다: " + (detail != null ? detail : "S3 이미지 다운로드 실패"), e);
 
         } else if (status == HttpStatus.PAYLOAD_TOO_LARGE) {
             // 413: 이미지 크기 초과 (10MB)
