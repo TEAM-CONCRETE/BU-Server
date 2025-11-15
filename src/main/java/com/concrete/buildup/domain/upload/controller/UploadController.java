@@ -303,13 +303,15 @@ public class UploadController {
         // JWT에서 userId 추출
         String userId = SecurityUtil.getCurrentUserId();
 
-        log.info("Simple Presigned URL 발급 요청: userId={}, resourceType={}, fileExtension={}",
-                userId, request.getResourceType(), request.getFileExtension());
+        log.info("Simple Presigned URL 발급 요청: userId={}, resourceType={}, fileExtension={}, siteId={}, employeeId={}",
+                userId, request.getResourceType(), request.getFileExtension(), request.getSiteId(), request.getEmployeeId());
 
         PresignedUrlResponse response = s3Service.generateSimplePresignedUrl(
                 userId,
                 request.getResourceType(),
-                request.getFileExtension()
+                request.getFileExtension(),
+                request.getSiteId(),
+                request.getEmployeeId()
         );
 
         log.info("Simple Presigned URL 발급 완료: s3Key={}, expiresAt={}",

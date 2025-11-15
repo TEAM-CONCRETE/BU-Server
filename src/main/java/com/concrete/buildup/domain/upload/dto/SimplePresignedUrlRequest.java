@@ -40,6 +40,18 @@ public class SimplePresignedUrlRequest {
     )
     private String fileExtension;
 
+    @Schema(
+        description = "현장 ID (ATTENDANCE_PROBE인 경우 필수)",
+        example = "174"
+    )
+    private Long siteId;
+
+    @Schema(
+        description = "근로자 ID (ATTENDANCE_PROBE, EMPLOYEE_PROFILE인 경우 필수)",
+        example = "1"
+    )
+    private Long employeeId;
+
     /**
      * fileExtension이 null인 경우 기본값 설정
      */
