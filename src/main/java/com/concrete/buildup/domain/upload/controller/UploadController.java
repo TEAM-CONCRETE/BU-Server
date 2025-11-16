@@ -5,7 +5,11 @@ import com.concrete.buildup.domain.upload.dto.PresignedUrlResponse;
 import com.concrete.buildup.domain.upload.dto.SimplePresignedUrlRequest;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.common.ApiResponse;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.util.SecurityUtil;
+
+import java.util.Optional;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -34,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "Bearer Authentication")
 public class UploadController {
 
-    private final S3Service s3Service;
+    private final Optional<S3Service> s3Service;
 
     /**
      * 서명 이미지 업로드를 위한 Presigned URL 발급
@@ -165,7 +169,9 @@ public class UploadController {
         log.info("Presigned URL 발급 요청: resourceType={}, resourceId={}, signerRole={}, fileExtension={}",
                 request.getResourceType(), request.getResourceId(), request.getSignerRole(), request.getFileExtension());
 
-        PresignedUrlResponse response = s3Service.generatePresignedUrl(request);
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+        PresignedUrlResponse response = service.generatePresignedUrl(request);
 
         log.info("Presigned URL 발급 완료: s3Key={}, expiresAt={}",
                 response.getS3Key(), response.getExpiresAt());
@@ -306,7 +312,9 @@ public class UploadController {
         log.info("Simple Presigned URL 발급 요청: userId={}, resourceType={}, fileExtension={}, siteId={}, employeeId={}",
                 userId, request.getResourceType(), request.getFileExtension(), request.getSiteId(), request.getEmployeeId());
 
-        PresignedUrlResponse response = s3Service.generateSimplePresignedUrl(
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+        PresignedUrlResponse response = service.generateSimplePresignedUrl(
                 userId,
                 request.getResourceType(),
                 request.getFileExtension(),

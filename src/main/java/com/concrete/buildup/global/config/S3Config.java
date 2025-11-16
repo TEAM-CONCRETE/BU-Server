@@ -1,6 +1,7 @@
 package com.concrete.buildup.global.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -20,8 +21,12 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  *   <li>명시적 키 제공 시: StaticCredentialsProvider 사용</li>
  *   <li>키 미제공 시: DefaultCredentialsProvider 사용 (IAM Role 등 자동 탐색)</li>
  * </ul>
+ * 
+ * <p>조건부 활성화:</p>
+ * spring.cloud.aws.s3.enabled=true 일 때만 빈 생성
  */
 @Configuration
+@ConditionalOnProperty(name = "spring.cloud.aws.s3.enabled", havingValue = "true")
 public class S3Config {
 
     @Value("${spring.cloud.aws.credentials.access-key:}")

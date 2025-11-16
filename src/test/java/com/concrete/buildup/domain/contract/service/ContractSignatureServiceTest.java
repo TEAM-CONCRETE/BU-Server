@@ -75,11 +75,18 @@ class ContractSignatureServiceTest {
     @InjectMocks
     private ContractSignatureService contractSignatureService;
 
+    private Optional<S3Service> optionalS3Service;
+
     private Contract contract;
     private ContractDetail contractDetail;
 
     @BeforeEach
     void setUp() {
+        // Optional<S3Service> 설정
+        optionalS3Service = Optional.of(s3Service);
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                contractSignatureService, "s3Service", optionalS3Service);
+
         // 테스트용 Contract 생성
         contract = Contract.builder()
                 .employeeId(1L)

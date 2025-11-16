@@ -9,6 +9,7 @@ import com.concrete.buildup.global.exception.errorcode.S3ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -33,11 +34,15 @@ import java.time.ZoneId;
  * 주요 기능:
  * - Presigned URL 발급 (클라이언트 직접 업로드용)
  * - 이미지 다운로드 (서명 검증용)
+ *
+ * 조건부 활성화:
+ * spring.cloud.aws.s3.enabled=true 일 때만 빈 생성
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@ConditionalOnProperty(name = "spring.cloud.aws.s3.enabled", havingValue = "true")
 public class S3Service {
 
     private final S3Client s3Client;

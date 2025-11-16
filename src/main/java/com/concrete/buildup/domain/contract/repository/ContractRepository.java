@@ -259,4 +259,46 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
             @Param("to") LocalDate to,
             Pageable pageable
     );
+
+    // ========== 급여 생성용 쿼리 ==========
+
+    /**
+     * 상용직 급여 대상자 조회
+     * 조건: empType = PERMANENT, contractState = FULLY_SIGNED,
+     *      근로 기간이 대상 기간과 겹침
+     *
+     * @param startDate 급여 대상 기간 시작일
+     * @param endDate 급여 대상 기간 종료일
+     * @return 급여 대상 계약 목록
+     */
+    @Query("SELECT c FROM Contract c LEFT JOIN FETCH c.contractDetail " +
+           "WHERE c.empType = 'PERMANENT' " +
+           "AND c.contractState = 'FULLY_SIGNED' " +
+           "AND c.employeeStartDate <= :endDate " +
+           "AND (c.employeeEndDate >= :startDate OR c.employeeEndDate IS NULL)")
+    List<Contract> findPermanentContractsForPayroll(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * 일용직 급여 대상자 조회 (PayPeriod별)
+     * 조건: empType = DAILY, contractState = FULLY_SIGNED,
+     *      근로 기간이 대상 기간과 겹침
+     *
+     * @param startDate 급여 대상 기간 시작일
+     * @param endDate 급여 대상 기간 종료일
+     * @return 급여 대상 계약 목록
+     */
+    @Query("SELECT c FROM Contract c LEFT JOIN FETCH c.contractDetail cd " +
+           "WHERE c.empType = 'DAILY' " +
+           "AND c.contractState = 'FULLY_SIGNED' " +
+           "AND c.employeeStartDate <= :endDate " +
+           "AND (c.employeeEndDate >= :startDate OR c.employeeEndDate IS NULL) " +
+           "AND cd.payPeriod = :payPeriod")
+    List<Contract> findDailyContractsForPayrollByPeriod(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("payPeriod") com.concrete.buildup.domain.contract.enums.PayPeriod payPeriod
+    );
 }

@@ -19,6 +19,7 @@ import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.contract.repository.ContractSignLogRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
 import com.concrete.buildup.global.util.CoordinateConverter;
 import com.concrete.buildup.global.util.SecurityUtil;
@@ -32,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 /**
  * 계약 서명 처리 서비스
@@ -62,7 +64,7 @@ public class ContractSignatureService {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final ManagerRepository managerRepository;
-    private final S3Service s3Service;
+    private final Optional<S3Service> s3Service;
     private final PdfGenerationService pdfGenerationService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -109,9 +111,11 @@ public class ContractSignatureService {
         byte[] pdfBytes = pdfGenerationService.generateContractPdf(contract, contractDetail);
 
         // 3. S3에 v1_draft.pdf 업로드
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
         String s3Key = buildS3Key(contractId, contractDetail, "v1_draft");
-        s3Service.uploadPdf(s3Key, pdfBytes);
-        String pdfUrl = s3Service.getPdfUrl(s3Key);
+        service.uploadPdf(s3Key, pdfBytes);
+        String pdfUrl = service.getPdfUrl(s3Key);
 
         // 4. Contract 상태 → MANAGER_SIGNING_PENDING
         contract.transitionToManagerSigningPending();
@@ -178,7 +182,9 @@ public class ContractSignatureService {
         }
 
         // 3. S3에서 서명 이미지 다운로드
-        byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+        byte[] signatureImageBytes = service.downloadImage(signatureS3Key);
 
         // 3. 서버에서 해시 재계산 및 검증
         String serverHash = SignatureVerificationUtil.calculateSHA256(
@@ -191,7 +197,7 @@ public class ContractSignatureService {
 
         // 4. S3에서 v1 PDF 다운로드
         String v1S3Key = buildS3Key(contractId, contractDetail, "v1_draft");
-        byte[] v1PdfBytes = s3Service.downloadPdf(v1S3Key);
+        byte[] v1PdfBytes = service.downloadPdf(v1S3Key);
 
         // 5. 좌표 변환 (뷰포트 → PDF)
         CoordinateConverter.PdfCoordinates pdfCoords = CoordinateConverter.convertToPdfCoordinates(
@@ -217,8 +223,8 @@ public class ContractSignatureService {
 
         // 8. v2 PDF를 S3에 업로드
         String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
-        s3Service.uploadPdf(v2S3Key, v2PdfBytes);
-        String v2PdfUrl = s3Service.getPdfUrl(v2S3Key);
+        service.uploadPdf(v2S3Key, v2PdfBytes);
+        String v2PdfUrl = service.getPdfUrl(v2S3Key);
 
         // 9. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
@@ -312,7 +318,9 @@ public class ContractSignatureService {
         }
 
         // 3. S3에서 서명 이미지 다운로드
-        byte[] signatureImageBytes = s3Service.downloadImage(signatureS3Key);
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+        byte[] signatureImageBytes = service.downloadImage(signatureS3Key);
 
         // 4. 서버에서 해시 재계산 및 검증
         String serverHash = SignatureVerificationUtil.calculateSHA256(
@@ -325,7 +333,7 @@ public class ContractSignatureService {
 
         // 4. S3에서 v2 PDF 다운로드
         String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
-        byte[] v2PdfBytes = s3Service.downloadPdf(v2S3Key);
+        byte[] v2PdfBytes = service.downloadPdf(v2S3Key);
 
         // 5. 좌표 변환 (뷰포트 → PDF)
         CoordinateConverter.PdfCoordinates pdfCoords = CoordinateConverter.convertToPdfCoordinates(
@@ -356,8 +364,8 @@ public class ContractSignatureService {
 
         // 9. v3 PDF를 S3에 업로드
         String v3S3Key = buildS3Key(contractId, contractDetail, "v3_final");
-        s3Service.uploadPdf(v3S3Key, v3PdfBytes);
-        String v3PdfUrl = s3Service.getPdfUrl(v3S3Key);
+        service.uploadPdf(v3S3Key, v3PdfBytes);
+        String v3PdfUrl = service.getPdfUrl(v3S3Key);
 
         // 10. Contract.finalPdfUrl, finalPdfHash 업데이트 (최종 저장)
         contract.updateFinalPdf(v3PdfUrl, v3PdfHash);
