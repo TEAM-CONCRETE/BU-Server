@@ -329,14 +329,18 @@ public class SalaryGenerationService {
             LocalDate searchDate = targetMonth.atDay(1); // 지급 기준월
             LocalDate payDueDate = calculatePayDueDate(targetMonth, payCycle); // 지급 예정일
 
+            // 센티널 값 적용
+            Integer finalWeek = (week != null) ? week : 0; // 월급/일급인 경우 0
+            LocalDate finalDay = (day != null) ? day : targetMonth.atDay(1); // 월급/주급인 경우 해당 월의 1일
+
             Payroll payroll = Payroll.builder()
                     .employeeId(contract.getEmployeeId())
                     .contractId(contract.getId())
                     .corporationId(contract.getCorporationId())
                     .salaryYear(targetMonth.getYear())
                     .salaryMonth(targetMonth.getMonthValue())
-                    .salaryWeek(week)
-                    .salaryDay(day)
+                    .salaryWeek(finalWeek)
+                    .salaryDay(finalDay)
                     .searchDate(searchDate)
                     .payDueDate(payDueDate)
                     .empType(contract.getEmpType())

@@ -87,16 +87,19 @@ public class Payroll extends BaseEntity {
     private Integer salaryMonth;
 
     /**
-     * 급여 대상 주차 (주급인 경우)
-     * 1~5
+     * 급여 대상 주차
+     * - 주급: 1~5
+     * - 월급/일급: 0 (센티널 값)
      */
-    @Column(name = "salary_week")
+    @Column(name = "salary_week", nullable = false)
     private Integer salaryWeek;
 
     /**
-     * 급여 대상 일자 (일급인 경우)
+     * 급여 대상 일자
+     * - 일급: 실제 날짜
+     * - 월급/주급: 해당 월의 1일 (센티널 값)
      */
-    @Column(name = "salary_day")
+    @Column(name = "salary_day", nullable = false)
     private LocalDate salaryDay;
 
     // ========== 지급 정보 ==========

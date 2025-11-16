@@ -20,12 +20,16 @@ public interface PayrollRepository extends JpaRepository<Payroll, Long> {
 
     /**
      * 근로자 ID와 급여 기간으로 급여 조회
+     *
+     * 센티널 값 적용:
+     * - salaryWeek: 주급이 아닌 경우 0
+     * - salaryDay: 일급이 아닌 경우 해당 월의 1일
      */
     @Query("SELECT p FROM Payroll p WHERE p.employeeId = :employeeId " +
             "AND p.salaryYear = :year AND p.salaryMonth = :month " +
             "AND p.payCycle = :payCycle " +
-            "AND (:week IS NULL OR p.salaryWeek = :week) " +
-            "AND (:day IS NULL OR p.salaryDay = :day)")
+            "AND p.salaryWeek = :week " +
+            "AND p.salaryDay = :day")
     Optional<Payroll> findByEmployeeAndPeriod(
             @Param("employeeId") Long employeeId,
             @Param("year") Integer year,

@@ -41,7 +41,7 @@ class PayrollPdfGeneratorTest {
 
     @BeforeEach
     void setUp() {
-        // 테스트용 급여 데이터 생성
+        // 테스트용 급여 데이터 생성 (일급 케이스)
         testPayroll = Payroll.builder()
                 .employeeId(1L)
                 .contractId(1L)
@@ -49,8 +49,8 @@ class PayrollPdfGeneratorTest {
                 .empType(EmpType.DAILY)
                 .salaryYear(2025)
                 .salaryMonth(1)
-                .salaryWeek(1)
-                .salaryDay(LocalDate.of(2025, 1, 15))
+                .salaryWeek(0)  // 일급이므로 센티널 값 0
+                .salaryDay(LocalDate.of(2025, 1, 15))  // 일급 실제 날짜
                 .payDueDate(LocalDate.of(2025, 2, 10))
                 .totalWorkHour(new BigDecimal("8.00"))
                 .totalPay(new BigDecimal("96000"))
@@ -135,6 +135,8 @@ class PayrollPdfGeneratorTest {
                 .empType(EmpType.PERMANENT)
                 .salaryYear(2025)
                 .salaryMonth(1)
+                .salaryWeek(0)  // 월급이므로 센티널 값 0
+                .salaryDay(LocalDate.of(2025, 1, 1))  // 월급이므로 해당 월의 1일
                 .payDueDate(LocalDate.of(2025, 2, 10))
                 .totalWorkHour(new BigDecimal("209.00"))
                 .totalPay(new BigDecimal("3135000"))
@@ -197,6 +199,8 @@ class PayrollPdfGeneratorTest {
                 .empType(EmpType.DAILY)
                 .salaryYear(2025)
                 .salaryMonth(1)
+                .salaryWeek(0)  // 센티널 값 필수
+                .salaryDay(LocalDate.of(2025, 1, 15))  // 센티널 값 필수
                 .payDueDate(null) // null
                 .totalWorkHour(null) // null
                 .totalPay(new BigDecimal("96000"))
@@ -234,7 +238,8 @@ class PayrollPdfGeneratorTest {
                 .empType(EmpType.DAILY)
                 .salaryYear(2025)
                 .salaryMonth(1)
-                .salaryWeek(2)
+                .salaryWeek(2)  // 주급 2주차
+                .salaryDay(LocalDate.of(2025, 1, 1))  // 주급이므로 해당 월의 1일
                 .payDueDate(LocalDate.of(2025, 1, 20))
                 .totalWorkHour(new BigDecimal("40.00"))
                 .totalPay(new BigDecimal("480000"))
