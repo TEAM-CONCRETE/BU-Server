@@ -876,5 +876,6 @@ ON work_reports(work_report_status);
 | 2025-11-12 | users 테이블 phone 컬럼 제약조건 변경 (NOT NULL → NULL, 2단계 회원가입 지원) | 김세원 |
 | 2025-11-16 | attendances 테이블 is_late 컬럼 추가 (계약서 기반 지각 판단, 출근 시간 +5분 초과 시 true) | 김세원 |
 | 2025-11-17 | sites 테이블에 client_name, start_date, end_date 컬럼 추가 (현장 등록 API 구현) | 김세원 |
+| 2025-11-17 | sites 테이블 manager_id nullable 명시화 및 데이터베이스 스키마 수정 (현장 등록 시점에는 manager 미할당, 추후 할당 가능) | 김세원 |
 
 ---
