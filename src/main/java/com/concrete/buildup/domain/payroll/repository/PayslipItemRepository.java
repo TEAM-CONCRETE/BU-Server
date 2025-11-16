@@ -3,7 +3,9 @@ package com.concrete.buildup.domain.payroll.repository;
 import com.concrete.buildup.domain.payroll.entity.PayslipItem;
 import com.concrete.buildup.domain.payroll.enums.ItemType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -26,5 +28,7 @@ public interface PayslipItemRepository extends JpaRepository<PayslipItem, Long> 
     /**
      * 급여 ID로 항목 삭제
      */
+    @Modifying
+    @Transactional
     void deleteByPayrollId(Long payrollId);
 }
