@@ -52,7 +52,7 @@ public class AttendanceService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final FaceSimilarityClient faceSimilarityClient;
-    private final S3Service s3Service;
+    private final Optional<S3Service> s3Service;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -672,7 +672,9 @@ public class AttendanceService {
      * @return Presigned GET URL (15분 유효)
      */
     private String buildS3Url(String s3Key) {
-        return s3Service.generatePresignedGetUrl(s3Key);
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+        return service.generatePresignedGetUrl(s3Key);
     }
 
     /**

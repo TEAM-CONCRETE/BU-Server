@@ -79,6 +79,8 @@ class AttendanceServiceTest {
     @Mock
     private com.concrete.buildup.domain.contract.repository.ContractRepository contractRepository;
 
+    private Optional<S3Service> optionalS3Service;
+
     private User mockManagerUser;
     private Manager mockManager;
     private Site mockSite;
@@ -89,6 +91,10 @@ class AttendanceServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Optional<S3Service> 설정
+        optionalS3Service = Optional.of(s3Service);
+        ReflectionTestUtils.setField(attendanceService, "s3Service", optionalS3Service);
+
         // SecurityContext 모킹
         SecurityContext securityContext = mock(SecurityContext.class);
         Authentication authentication = new UsernamePasswordAuthenticationToken(
