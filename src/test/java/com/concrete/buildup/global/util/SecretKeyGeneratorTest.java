@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * SecretKeyGenerator 단위 테스트
@@ -100,5 +101,31 @@ class SecretKeyGeneratorTest {
         // then
         assertThat(pattern.matcher(managerKey).matches()).isTrue();
         assertThat(pattern.matcher(employeeKey).matches()).isTrue();
+    }
+
+    @Test
+    @DisplayName("관리자 시크릿키 생성 - siteId가 null이면 IllegalArgumentException 발생")
+    void generateManagerSecretKey_WithNullSiteId_ShouldThrowException() {
+        // given
+        String corpName = "CONCRETE";
+        Long siteId = null;
+
+        // when & then
+        assertThatThrownBy(() -> SecretKeyGenerator.generateManagerSecretKey(corpName, siteId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("siteId must not be null");
+    }
+
+    @Test
+    @DisplayName("근로자 시크릿키 생성 - siteId가 null이면 IllegalArgumentException 발생")
+    void generateEmployeeSecretKey_WithNullSiteId_ShouldThrowException() {
+        // given
+        String corpName = "CONCRETE";
+        Long siteId = null;
+
+        // when & then
+        assertThatThrownBy(() -> SecretKeyGenerator.generateEmployeeSecretKey(corpName, siteId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("siteId must not be null");
     }
 }

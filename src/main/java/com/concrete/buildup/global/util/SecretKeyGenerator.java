@@ -51,8 +51,13 @@ public class SecretKeyGenerator {
      * @param corpName 기업명
      * @param siteId 현장 ID
      * @return 생성된 시크릿키
+     * @throws IllegalArgumentException siteId가 null인 경우
      */
     private static String generateSecretKey(String corpName, Long siteId) {
+        if (siteId == null) {
+            throw new IllegalArgumentException("siteId must not be null");
+        }
+
         String prefix = extractPrefix(corpName);
         String randomString = generateRandomString();
         String randomNumber = generateRandomNumber();
