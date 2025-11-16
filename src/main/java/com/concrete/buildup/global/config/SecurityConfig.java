@@ -127,27 +127,25 @@ public class SecurityConfig {
     /**
      * CORS 설정
      * 프론트엔드 애플리케이션과의 통신을 위한 설정
+     *
+     * 개발 환경: 모든 Origin 허용 (addAllowedOriginPattern)
+     * 운영 환경: 특정 도메인만 허용하도록 수정 필요
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 허용할 Origin (개발/운영 환경에 따라 수정 필요)
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:3000",      // React 기본 포트
-            "http://localhost:5173",      // Vite 기본 포트
-            "http://localhost:4200"       // Angular 기본 포트
-        ));
+        // 모든 Origin 허용 (개발 환경)
+        // 운영 환경에서는 특정 도메인으로 제한 필요
+        configuration.addAllowedOriginPattern("*");
 
-        // 허용할 HTTP 메서드
-        configuration.setAllowedMethods(List.of(
-            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
+        // 모든 HTTP 메서드 허용
+        configuration.addAllowedMethod("*");
 
-        // 허용할 헤더
-        configuration.setAllowedHeaders(List.of("*"));
+        // 모든 헤더 허용
+        configuration.addAllowedHeader("*");
 
-        // 인증 정보 포함 허용
+        // 인증 정보 포함 허용 (JWT, 쿠키 등)
         configuration.setAllowCredentials(true);
 
         // preflight 요청 캐시 시간 (초)
