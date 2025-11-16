@@ -283,26 +283,43 @@ public class SalaryGenerationService {
             BigDecimal nightHours = BigDecimal.ZERO;
             BigDecimal overtimeHours = BigDecimal.ZERO;
             BigDecimal holidayHours = BigDecimal.ZERO;
-            BigDecimal weeklyWorkHours = BigDecimal.ZERO;
+            BigDecimal weeklyHolidayPay = BigDecimal.ZERO;
 
             // 출퇴근 기록이 있으면 실제 근무시간 집계
             if (!attendances.isEmpty()) {
+                // 주차별 근무시간 집계를 위한 Map (week -> hours)
+                java.util.Map<Integer, BigDecimal> weeklyHoursMap = new java.util.HashMap<>();
+
                 for (Attendance attendance : attendances) {
                     BigDecimal dailyWorkHour = attendance.getTotalWorkHour() != null
                             ? attendance.getTotalWorkHour() : BigDecimal.ZERO;
 
                     workHours = workHours.add(dailyWorkHour);
-                    weeklyWorkHours = weeklyWorkHours.add(dailyWorkHour); // 주휴수당 계산용
                     nightHours = nightHours.add(attendance.getNightWorkHour() != null
                             ? attendance.getNightWorkHour() : BigDecimal.ZERO);
                     overtimeHours = overtimeHours.add(attendance.getAdditionalWorkHour() != null
                             ? attendance.getAdditionalWorkHour() : BigDecimal.ZERO);
                     holidayHours = holidayHours.add(attendance.getHolidayWorkHour() != null
                             ? attendance.getHolidayWorkHour() : BigDecimal.ZERO);
+
+                    // 주차별 근무시간 집계
+                    if (attendance.getSearchDate() != null) {
+                        int weekNum = calculateWeekOfMonth(attendance.getSearchDate());
+                        weeklyHoursMap.merge(weekNum, dailyWorkHour, BigDecimal::add);
+                    }
                 }
 
-                log.info("[급여 생성] 근무시간 집계 - 총: {}h, 주간: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
-                        workHours, weeklyWorkHours, nightHours, overtimeHours, holidayHours);
+                // 주휴수당은 주차별로 계산하여 합산
+                for (BigDecimal weekHours : weeklyHoursMap.values()) {
+                    weeklyHolidayPay = weeklyHolidayPay.add(
+                            payrollCalculator.calculateWeeklyHolidayPay(hourlyRate, weekHours)
+                    );
+                }
+
+                log.info("[급여 생성] 근무시간 집계 - 총: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
+                        workHours, nightHours, overtimeHours, holidayHours);
+                log.info("[급여 생성] 주차별 근무시간: {}, 주휴수당 합계: {}원",
+                        weeklyHoursMap, weeklyHolidayPay);
             } else {
                 // 출퇴근 기록이 없는 경우
                 log.warn("[급여 생성] 근태 기록 없음 - contractId: {}, employeeId: {}, empType: {}, payCycle: {}",
@@ -313,7 +330,10 @@ public class SalaryGenerationService {
                         && payCycle == PayPeriod.MONTHLY) {
                     log.info("[급여 생성] 상용직 월급 기본값 적용 - 209시간");
                     workHours = new BigDecimal("209");
-                    weeklyWorkHours = new BigDecimal("40"); // 주 40시간 기준
+                    // 상용직은 주 40시간 기준으로 4주치 주휴수당 계산
+                    weeklyHolidayPay = payrollCalculator.calculateWeeklyHolidayPay(
+                            hourlyRate, new BigDecimal("40")
+                    ).multiply(new BigDecimal("4"));
                 } else {
                     // 일용직은 근태 기록이 없으면 급여를 생성하지 않음
                     log.error("[급여 생성] 일용직 근태 기록 없음 - 급여 생성 중단 (contractId: {}, employeeId: {})",
@@ -327,7 +347,7 @@ public class SalaryGenerationService {
             BigDecimal nightPay = payrollCalculator.calculateNightWorkPay(hourlyRate, nightHours);
             BigDecimal overtimePay = payrollCalculator.calculateOvertimePay(hourlyRate, overtimeHours);
             BigDecimal holidayPay = payrollCalculator.calculateHolidayPay(hourlyRate, holidayHours);
-            BigDecimal weeklyHolidayPay = payrollCalculator.calculateWeeklyHolidayPay(hourlyRate, weeklyWorkHours);
+            // weeklyHolidayPay는 이미 위에서 계산됨
 
             // 총 지급액 계산
             BigDecimal totalPay = basePay.add(nightPay).add(overtimePay)
@@ -402,7 +422,7 @@ public class SalaryGenerationService {
             savePayslipItems(
                     savedPayroll.getId(),
                     searchDate,
-                    basePay, nightPay, overtimePay,
+                    basePay, nightPay, overtimePay, holidayPay, weeklyHolidayPay,
                     incomeTax, residentTax,
                     nationalPension, healthInsurance, workersCompInsurance, employmentInsurance
             );
@@ -522,7 +542,7 @@ public class SalaryGenerationService {
      * 급여 명세 항목 저장
      *
      * PayslipItem 테이블에 급여 세부 항목들을 저장합니다.
-     * - 지급 항목: 기본급, 연장근로수당, 야간근로수당
+     * - 지급 항목: 기본급, 야간근로수당, 연장근로수당, 휴일근로수당, 주휴수당
      * - 공제 항목: 소득세, 주민세, 4대보험 (국민연금, 건강보험, 산재보험, 고용보험)
      *
      * @param payrollId 급여 ID
@@ -530,6 +550,8 @@ public class SalaryGenerationService {
      * @param basePay 기본급
      * @param nightPay 야간근로수당
      * @param overtimePay 연장근로수당
+     * @param holidayPay 휴일근로수당
+     * @param weeklyHolidayPay 주휴수당
      * @param incomeTax 소득세
      * @param residentTax 주민세
      * @param nationalPension 국민연금
@@ -539,6 +561,7 @@ public class SalaryGenerationService {
      */
     private void savePayslipItems(Long payrollId, LocalDate effectiveDate,
                                    BigDecimal basePay, BigDecimal nightPay, BigDecimal overtimePay,
+                                   BigDecimal holidayPay, BigDecimal weeklyHolidayPay,
                                    BigDecimal incomeTax, BigDecimal residentTax,
                                    BigDecimal nationalPension, BigDecimal healthInsurance,
                                    BigDecimal workersCompInsurance, BigDecimal employmentInsurance) {
@@ -574,6 +597,28 @@ public class SalaryGenerationService {
                     .itemName("연장근로수당")
                     .itemType(ItemType.EARNING)
                     .amount(overtimePay)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 휴일근로수당 (0보다 크면 저장)
+        if (holidayPay.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("휴일근로수당")
+                    .itemType(ItemType.EARNING)
+                    .amount(holidayPay)
+                    .effectiveDate(effectiveDate)
+                    .build());
+        }
+
+        // 주휴수당 (0보다 크면 저장)
+        if (weeklyHolidayPay.compareTo(BigDecimal.ZERO) > 0) {
+            items.add(PayslipItem.builder()
+                    .payrollId(payrollId)
+                    .itemName("주휴수당")
+                    .itemType(ItemType.EARNING)
+                    .amount(weeklyHolidayPay)
                     .effectiveDate(effectiveDate)
                     .build());
         }
