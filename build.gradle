@@ -32,6 +32,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux' // FastAPI 연동용 WebClient
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf' // PDF 템플릿 렌더링용
+	implementation 'org.springframework.retry:spring-retry' // Face API 재시도 로직용
+	implementation 'org.springframework:spring-aspects' // AOP for @Retryable
 
 	// Swagger/OpenAPI (Spring Boot 3 호환)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.0'
@@ -72,6 +74,7 @@ dependencies {
 	// Test Dependencies
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0' // Face API Mock 테스트용
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

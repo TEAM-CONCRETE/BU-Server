@@ -1,139 +1,94 @@
 package com.concrete.buildup.domain.attendance.repository;
 
 import com.concrete.buildup.domain.attendance.entity.Attendance;
-import com.concrete.buildup.domain.attendance.enums.AttendanceStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * 근태 기록 Repository
+ * 근태 Repository
  *
- * TODO: 담당자가 추가 쿼리 메서드 구현 필요
- * - 현장별 근태 조회
- * - 통계성 쿼리
- * - 복잡한 조건 검색
+ * 근로자의 일일 근태 정보 조회 및 관리
  */
 @Repository
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 
     /**
-     * 근로자 ID와 날짜로 근태 조회
+     * 현장의 특정 기간 근태 기록 조회 (상용직/일용직 구분, 페이징)
      *
-     * @param employeeId 근로자 ID
-     * @param searchDate 근무일자
-     * @return 근태 기록
-     */
-    Optional<Attendance> findByEmployeeIdAndSearchDate(Long employeeId, LocalDate searchDate);
-
-    /**
-     * 근로자 ID와 기간으로 근태 목록 조회
-     *
-     * @param employeeId 근로자 ID
+     * @param siteId 현장 ID
+     * @param empType 근로자 유형 (PERMANENT/DAILY)
      * @param startDate 시작일
      * @param endDate 종료일
-     * @return 근태 목록
+     * @param pageable 페이징 정보
+     * @return 근태 기록 페이지
+     */
+    Page<Attendance> findBySiteIdAndEmpTypeAndSearchDateBetween(
+        Long siteId,
+        String empType,
+        LocalDate startDate,
+        LocalDate endDate,
+        Pageable pageable
+    );
+
+    /**
+     * 현장의 특정 날짜 근태 기록 조회 (상용직/일용직 구분, 페이징)
+     *
+     * @param siteId 현장 ID
+     * @param empType 근로자 유형
+     * @param searchDate 조회 날짜
+     * @param pageable 페이징 정보
+     * @return 근태 기록 페이지
+     */
+    Page<Attendance> findBySiteIdAndEmpTypeAndSearchDate(
+        Long siteId,
+        String empType,
+        LocalDate searchDate,
+        Pageable pageable
+    );
+
+    /**
+     * 현장의 특정 기간 근태 상태별 개수 조회
+     *
+     * @param siteId 현장 ID
+     * @param empType 근로자 유형
+     * @param startDate 시작일
+     * @param endDate 종료일
+     * @param attendanceStatus 근태 상태
+     * @return 해당 상태의 근태 기록 수
+     */
+    Long countBySiteIdAndEmpTypeAndSearchDateBetweenAndAttendanceStatus(
+        Long siteId,
+        String empType,
+        LocalDate startDate,
+        LocalDate endDate,
+        String attendanceStatus
+    );
+
+    /**
+     * 특정 사원의 기간별 근태 기록 조회
+     *
+     * @param employeeId 사원 ID
+     * @param startDate 시작일
+     * @param endDate 종료일
+     * @return 근태 기록 리스트
      */
     List<Attendance> findByEmployeeIdAndSearchDateBetween(
-            Long employeeId,
-            LocalDate startDate,
-            LocalDate endDate
+        Long employeeId,
+        LocalDate startDate,
+        LocalDate endDate
     );
 
     /**
-     * 계약 ID와 기간으로 근태 목록 조회
+     * 특정 사원의 특정 날짜 근태 기록 조회
      *
-     * @param contractId 계약 ID
-     * @param startDate 시작일
-     * @param endDate 종료일
-     * @return 근태 목록
+     * @param employeeId 사원 ID
+     * @param searchDate 조회 날짜
+     * @return 근태 기록 리스트
      */
-    List<Attendance> findByContractIdAndSearchDateBetween(
-            Long contractId,
-            LocalDate startDate,
-            LocalDate endDate
-    );
-
-    /**
-     * 현장 ID와 날짜로 근태 목록 조회
-     *
-     * @param siteId 현장 ID
-     * @param searchDate 근무일자
-     * @return 근태 목록
-     */
-    List<Attendance> findBySiteIdAndSearchDate(Long siteId, LocalDate searchDate);
-
-    /**
-     * 현장 ID와 기간으로 근태 목록 조회
-     *
-     * @param siteId 현장 ID
-     * @param startDate 시작일
-     * @param endDate 종료일
-     * @return 근태 목록
-     */
-    List<Attendance> findBySiteIdAndSearchDateBetween(
-            Long siteId,
-            LocalDate startDate,
-            LocalDate endDate
-    );
-
-    /**
-     * 근로자 ID, 기간, 출근 상태로 근태 목록 조회
-     *
-     * @param employeeId 근로자 ID
-     * @param startDate 시작일
-     * @param endDate 종료일
-     * @param status 출근 상태
-     * @return 근태 목록
-     */
-    List<Attendance> findByEmployeeIdAndSearchDateBetweenAndAttendanceStatus(
-            Long employeeId,
-            LocalDate startDate,
-            LocalDate endDate,
-            AttendanceStatus status
-    );
-
-    /**
-     * 급여 계산용: 근로자의 기간별 총 근무시간 합계
-     * 정상 출근(NORMAL) 기록만 집계
-     *
-     * @param employeeId 근로자 ID
-     * @param startDate 시작일
-     * @param endDate 종료일
-     * @return 근태 목록 (정상 출근만)
-     */
-    @Query("SELECT a FROM Attendance a WHERE a.employeeId = :employeeId " +
-           "AND a.searchDate BETWEEN :startDate AND :endDate " +
-           "AND a.attendanceStatus = 'NORMAL' " +
-           "AND a.checkOutTime IS NOT NULL " +
-           "ORDER BY a.searchDate ASC")
-    List<Attendance> findNormalAttendancesForPayroll(
-            @Param("employeeId") Long employeeId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate
-    );
-
-    /**
-     * 계약별 기간 내 정상 출근 기록 조회
-     *
-     * @param contractId 계약 ID
-     * @param startDate 시작일
-     * @param endDate 종료일
-     * @return 근태 목록
-     */
-    @Query("SELECT a FROM Attendance a WHERE a.contractId = :contractId " +
-           "AND a.searchDate BETWEEN :startDate AND :endDate " +
-           "AND a.attendanceStatus = 'NORMAL' " +
-           "AND a.checkOutTime IS NOT NULL " +
-           "ORDER BY a.searchDate ASC")
-    List<Attendance> findNormalAttendancesByContract(
-            @Param("contractId") Long contractId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate
-    );
+    List<Attendance> findByEmployeeIdAndSearchDate(Long employeeId, LocalDate searchDate);
 }

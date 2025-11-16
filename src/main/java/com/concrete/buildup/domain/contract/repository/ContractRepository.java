@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.contract.repository;
 
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.enums.ContractState;
+import com.concrete.buildup.domain.contract.enums.EmpType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -87,6 +88,24 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
            "AND (c.employeeEndDate >= :date OR c.employeeEndDate IS NULL)")
     List<Contract> findActiveContractsByEmployeeIdAndDate(@Param("employeeId") Long employeeId,
                                                             @Param("date") LocalDate date);
+
+    /**
+     * 관리자 ID, 근로자 유형, 특정 날짜로 활성 계약 조회
+     * (근로 시작일 <= 특정날짜 AND (근로 종료일 >= 특정날짜 OR 근로 종료일 IS NULL))
+     *
+     * @param managerId 관리자 ID
+     * @param empType 근로자 유형
+     * @param date 확인할 날짜
+     * @return 활성 계약 목록
+     */
+    @Query("SELECT c FROM Contract c WHERE c.managerId = :managerId " +
+           "AND c.empType = :empType " +
+           "AND c.employeeStartDate <= :date " +
+           "AND (c.employeeEndDate >= :date OR c.employeeEndDate IS NULL)")
+    List<Contract> findActiveContractsByManagerIdAndEmpTypeAndDate(
+            @Param("managerId") Long managerId,
+            @Param("empType") EmpType empType,
+            @Param("date") LocalDate date);
 
     // ========== Fetch Join 쿼리 (N+1 문제 방지) ==========
 

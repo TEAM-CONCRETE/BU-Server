@@ -79,7 +79,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `id` | BIGINT | PK, AUTO_INCREMENT | 사용자 ID |
 | `user_id` | VARCHAR(50) | NOT NULL, UNIQUE | 로그인용 ID |
 | `password` | VARCHAR(255) | NOT NULL | 비밀번호 (해시) |
-| `phone` | VARCHAR(20) | NOT NULL | 전화번호 |
+| `phone` | VARCHAR(20) | NULL | 전화번호 |
 | `email` | VARCHAR(100) | NULL | 이메일 |
 | `secret_key` | VARCHAR(100) | NULL | 인증용 시크릿키 |
 | `role_id` | BIGINT | FK, NULLABLE | 역할 (계약 시 할당) |
@@ -407,6 +407,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `night_work_hour` | DECIMAL(6,2) | NULL | 야간 근로시간 |
 | `additional_work_hour` | DECIMAL(6,2) | NULL | 연장 근로시간 |
 | `holiday_work_hour` | DECIMAL(6,2) | NULL | 휴일 근로시간 |
+| `is_late` | BOOLEAN | NULL | 지각 여부 (계약서 출근 시간 +5분 초과 시 true) |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
 
@@ -869,5 +870,7 @@ ON work_reports(work_report_status);
 | 2025-11-12 | employees 테이블 profile_image_url 컬럼 추가 (얼굴 인식 출퇴근 시스템) | 김세원 |
 | 2025-11-12 | attendance_records 테이블 생성 (얼굴 인식 기반 출퇴근 기록) | 김세원 |
 | 2025-11-15 | payrolls 테이블 컬럼 추가 (salary_year, salary_month, salary_week, salary_day, s3_key, generated_at) 및 중복 방지 UNIQUE INDEX 추가 (급여명세서 자동 생성 기능) | 문현민 |
+| 2025-11-12 | users 테이블 phone 컬럼 제약조건 변경 (NOT NULL → NULL, 2단계 회원가입 지원) | 김세원 |
+| 2025-11-16 | attendances 테이블 is_late 컬럼 추가 (계약서 기반 지각 판단, 출근 시간 +5분 초과 시 true) | 김세원 |
 
 ---
