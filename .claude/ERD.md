@@ -361,6 +361,9 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `id` | BIGINT | PK, AUTO_INCREMENT | 현장 ID |
 | `site_name` | VARCHAR(100) | NOT NULL | 현장명 |
 | `site_address` | VARCHAR(255) | NULL | 현장 주소 |
+| `client_name` | VARCHAR(100) | NULL | 발주처 (클라이언트) |
+| `start_date` | DATE | NULL | 공사 시작일 |
+| `end_date` | DATE | NULL | 공사 종료일 |
 | `corporation_id` | BIGINT | FK, NULL | 소속 기업 ID |
 | `manager_id` | BIGINT | FK, NULL | 현장 관리자 ID |
 | `manager_secret_key` | VARCHAR(100) | UNIQUE, NULL | 현장 관리자용 시크릿키 (회원가입용) |
@@ -872,5 +875,6 @@ ON work_reports(work_report_status);
 | 2025-11-15 | payrolls 테이블 컬럼 추가 (salary_year, salary_month, salary_week, salary_day, s3_key, generated_at) 및 중복 방지 UNIQUE INDEX 추가 (급여명세서 자동 생성 기능) | 문현민 |
 | 2025-11-12 | users 테이블 phone 컬럼 제약조건 변경 (NOT NULL → NULL, 2단계 회원가입 지원) | 김세원 |
 | 2025-11-16 | attendances 테이블 is_late 컬럼 추가 (계약서 기반 지각 판단, 출근 시간 +5분 초과 시 true) | 김세원 |
+| 2025-11-17 | sites 테이블에 client_name, start_date, end_date 컬럼 추가 (현장 등록 API 구현) | 김세원 |
 
 ---
