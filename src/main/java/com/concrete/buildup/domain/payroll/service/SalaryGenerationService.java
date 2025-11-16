@@ -280,14 +280,21 @@ public class SalaryGenerationService {
                 log.info("[급여 생성] 근무시간 집계 - 총: {}h, 주간: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
                         workHours, weeklyWorkHours, nightHours, overtimeHours, holidayHours);
             } else {
-                // 출퇴근 기록이 없는 경우 (임시 처리)
-                log.warn("[급여 생성] 근태 기록 없음 - 임시 계산 적용");
+                // 출퇴근 기록이 없는 경우
+                log.warn("[급여 생성] 근태 기록 없음 - contractId: {}, employeeId: {}, empType: {}, payCycle: {}",
+                        contract.getId(), contract.getEmployeeId(), contract.getEmpType(), payCycle);
 
                 // 상용직 월급은 월 209시간 기준 (주 40시간 * 4.345주)
                 if (contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.PERMANENT
                         && payCycle == PayPeriod.MONTHLY) {
+                    log.info("[급여 생성] 상용직 월급 기본값 적용 - 209시간");
                     workHours = new BigDecimal("209");
                     weeklyWorkHours = new BigDecimal("40"); // 주 40시간 기준
+                } else {
+                    // 일용직은 근태 기록이 없으면 급여를 생성하지 않음
+                    log.error("[급여 생성] 일용직 근태 기록 없음 - 급여 생성 중단 (contractId: {}, employeeId: {})",
+                            contract.getId(), contract.getEmployeeId());
+                    return;
                 }
             }
 
