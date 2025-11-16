@@ -455,8 +455,7 @@ public class SalaryGenerationService {
         );
 
         // 3. S3 업로드
-        s3Service.orElseThrow(() -> new IllegalStateException("S3 서비스가 활성화되지 않았습니다"))
-                .uploadPdf(s3Key, pdfBytes);
+        s3Service.ifPresent(service -> service.uploadPdf(s3Key, pdfBytes));
 
         return s3Key;
     }
