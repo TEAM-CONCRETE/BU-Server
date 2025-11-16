@@ -14,7 +14,9 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * 급여명세서 PDF 생성 유틸리티
@@ -89,12 +91,14 @@ public class PayrollPdfGenerator {
             context.setVariable("employmentInsurance", formatCurrency(employmentInsurance));
 
             // 총 공제액
-            BigDecimal totalDeduction = payroll.getIncomeTax()
-                    .add(payroll.getResidentTax())
-                    .add(nationalPension)
-                    .add(healthInsurance)
-                    .add(workersCompInsurance)
-                    .add(employmentInsurance);
+            BigDecimal totalDeduction = safeAdd(
+                    payroll.getIncomeTax(),
+                    payroll.getResidentTax(),
+                    nationalPension,
+                    healthInsurance,
+                    workersCompInsurance,
+                    employmentInsurance
+            );
             context.setVariable("totalDeduction", formatCurrency(totalDeduction));
 
             // 실수령액
@@ -177,5 +181,18 @@ public class PayrollPdfGenerator {
     private String formatDecimal(BigDecimal value) {
         if (value == null) return "0";
         return value.stripTrailingZeros().toPlainString();
+    }
+
+    /**
+     * null-safe BigDecimal 합산
+     * null 값은 0으로 처리하여 NullPointerException 방지
+     *
+     * @param values 합산할 BigDecimal 값들
+     * @return 합산 결과 (null이 없는 값들의 합)
+     */
+    private BigDecimal safeAdd(BigDecimal... values) {
+        return Arrays.stream(values)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
