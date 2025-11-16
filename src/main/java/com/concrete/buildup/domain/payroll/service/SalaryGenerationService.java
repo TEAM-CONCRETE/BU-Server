@@ -264,8 +264,11 @@ public class SalaryGenerationService {
             // 출퇴근 기록이 있으면 실제 근무시간 집계
             if (!attendances.isEmpty()) {
                 for (Attendance attendance : attendances) {
-                    workHours = workHours.add(attendance.getTotalWorkHour() != null
-                            ? attendance.getTotalWorkHour() : BigDecimal.ZERO);
+                    BigDecimal dailyWorkHour = attendance.getTotalWorkHour() != null
+                            ? attendance.getTotalWorkHour() : BigDecimal.ZERO;
+
+                    workHours = workHours.add(dailyWorkHour);
+                    weeklyWorkHours = weeklyWorkHours.add(dailyWorkHour); // 주휴수당 계산용
                     nightHours = nightHours.add(attendance.getNightWorkHour() != null
                             ? attendance.getNightWorkHour() : BigDecimal.ZERO);
                     overtimeHours = overtimeHours.add(attendance.getAdditionalWorkHour() != null
@@ -274,8 +277,8 @@ public class SalaryGenerationService {
                             ? attendance.getHolidayWorkHour() : BigDecimal.ZERO);
                 }
 
-                log.info("[급여 생성] 근무시간 집계 - 총: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
-                        workHours, nightHours, overtimeHours, holidayHours);
+                log.info("[급여 생성] 근무시간 집계 - 총: {}h, 주간: {}h, 야간: {}h, 연장: {}h, 휴일: {}h",
+                        workHours, weeklyWorkHours, nightHours, overtimeHours, holidayHours);
             } else {
                 // 출퇴근 기록이 없는 경우 (임시 처리)
                 log.warn("[급여 생성] 근태 기록 없음 - 임시 계산 적용");
@@ -284,6 +287,7 @@ public class SalaryGenerationService {
                 if (contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.PERMANENT
                         && payCycle == PayPeriod.MONTHLY) {
                     workHours = new BigDecimal("209");
+                    weeklyWorkHours = new BigDecimal("40"); // 주 40시간 기준
                 }
             }
 
