@@ -63,9 +63,10 @@ public class Site extends BaseEntity {
 
     /**
      * 현장 관리자
+     * (현장 등록 시점에는 null, 추후 할당 가능)
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id")
+    @JoinColumn(name = "manager_id", nullable = true)
     private Manager manager;
 
     /**
