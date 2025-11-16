@@ -247,8 +247,26 @@ public class SalaryGenerationService {
             }
 
             // 3. 근무 기록 조회 및 집계
-            LocalDate startDate = targetMonth.atDay(1);
-            LocalDate endDate = targetMonth.atEndOfMonth();
+            LocalDate startDate;
+            LocalDate endDate;
+
+            if (payCycle == PayPeriod.DAILY && day != null) {
+                // 일급: 해당 일자만 조회
+                startDate = day;
+                endDate = day;
+            } else if (payCycle == PayPeriod.WEEKLY && week != null) {
+                // 주급: 해당 주차의 월요일~일요일 조회
+                LocalDate firstDay = targetMonth.atDay(1);
+                int firstDayOfWeek = firstDay.getDayOfWeek().getValue();
+                int daysToFirstMonday = (8 - firstDayOfWeek) % 7;
+                LocalDate firstMonday = firstDay.plusDays(daysToFirstMonday);
+                startDate = firstMonday.plusWeeks(week - 1);
+                endDate = startDate.plusDays(6);
+            } else {
+                // 월급: 해당 월 전체 조회
+                startDate = targetMonth.atDay(1);
+                endDate = targetMonth.atEndOfMonth();
+            }
 
             List<Attendance> attendances = attendanceRepository.findNormalAttendancesForPayroll(
                     contract.getEmployeeId(),
@@ -256,8 +274,8 @@ public class SalaryGenerationService {
                     endDate
             );
 
-            log.info("[급여 생성] 근태 기록 조회 - employeeId: {}, 정상 출근 일수: {}일",
-                    contract.getEmployeeId(), attendances.size());
+            log.info("[급여 생성] 근태 기록 조회 - employeeId: {}, 조회 기간: {} ~ {}, 정상 출근 일수: {}일",
+                    contract.getEmployeeId(), startDate, endDate, attendances.size());
 
             // 4. 급여 계산
             BigDecimal hourlyRate = contractDetail.getWorkPay(); // 시급
