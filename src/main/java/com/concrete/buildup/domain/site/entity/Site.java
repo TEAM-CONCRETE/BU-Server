@@ -6,6 +6,7 @@ import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -34,6 +35,24 @@ public class Site extends BaseEntity {
      */
     @Column(name = "site_address", length = 255)
     private String siteAddress;
+
+    /**
+     * 발주처 (클라이언트)
+     */
+    @Column(name = "client_name", length = 100)
+    private String clientName;
+
+    /**
+     * 공사 시작일
+     */
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    /**
+     * 공사 종료일
+     */
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     /**
      * 소속 기업
@@ -82,12 +101,22 @@ public class Site extends BaseEntity {
     /**
      * 현장 정보 수정
      */
-    public void updateSiteInfo(String siteName, String siteAddress) {
+    public void updateSiteInfo(String siteName, String siteAddress, String clientName,
+                               LocalDate startDate, LocalDate endDate) {
         if (siteName != null) {
             this.siteName = siteName;
         }
         if (siteAddress != null) {
             this.siteAddress = siteAddress;
+        }
+        if (clientName != null) {
+            this.clientName = clientName;
+        }
+        if (startDate != null) {
+            this.startDate = startDate;
+        }
+        if (endDate != null) {
+            this.endDate = endDate;
         }
     }
 
@@ -96,5 +125,23 @@ public class Site extends BaseEntity {
      */
     public void assignManager(Manager manager) {
         this.manager = manager;
+    }
+
+    /**
+     * Secret Key 설정
+     */
+    public void setSecretKeys(String managerSecretKey, String employeeSecretKey) {
+        this.managerSecretKey = managerSecretKey;
+        this.employeeSecretKey = employeeSecretKey;
+    }
+
+    /**
+     * 공사 기간 유효성 검증
+     */
+    public boolean isDateRangeValid() {
+        if (startDate == null || endDate == null) {
+            return true; // NULL은 허용
+        }
+        return !startDate.isAfter(endDate);
     }
 }
