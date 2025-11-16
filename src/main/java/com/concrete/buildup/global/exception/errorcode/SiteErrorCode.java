@@ -23,7 +23,11 @@ public enum SiteErrorCode implements BaseErrorCode {
     SECRET_KEY_ALREADY_USED(HttpStatus.CONFLICT, 3002, "이미 사용 중인 시크릿키입니다."),
 
     // 404 Not Found
-    SITE_NOT_FOUND(HttpStatus.NOT_FOUND, 3003, "현장을 찾을 수 없습니다.");
+    SITE_NOT_FOUND(HttpStatus.NOT_FOUND, 3003, "현장을 찾을 수 없습니다."),
+    CORPORATION_NOT_FOUND(HttpStatus.NOT_FOUND, 3004, "기업 정보를 찾을 수 없습니다."),
+
+    // 400 Bad Request
+    INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, 3005, "공사 종료일은 시작일보다 이후여야 합니다.");
 
     private final HttpStatus httpStatus;
     private final int codeNumber;
