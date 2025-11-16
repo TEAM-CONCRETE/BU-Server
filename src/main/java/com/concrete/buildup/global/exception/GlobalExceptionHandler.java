@@ -330,6 +330,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * IllegalStateException 처리
+     * 시크릿키 생성 실패 등 시스템 상태 오류 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException e) {
+        log.error("[IllegalStateException] System state error: {}", e.getMessage(), e);
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(
+                        "시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                        "COMMON_500"));
+    }
+
+    /**
      * 예상치 못한 예외 처리
      * 모든 예외의 최종 처리자입니다.
      */
