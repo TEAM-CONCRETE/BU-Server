@@ -130,6 +130,14 @@ public class PayrollPdfGenerator {
     private byte[] convertHtmlToPdf(String htmlContent) throws IOException, DocumentException {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             ITextRenderer renderer = new ITextRenderer();
+
+            // 한글 폰트 등록 (나눔고딕)
+            renderer.getFontResolver().addFont(
+                    "/fonts/NanumGothic.ttf",
+                    com.lowagie.text.pdf.BaseFont.IDENTITY_H,
+                    com.lowagie.text.pdf.BaseFont.EMBEDDED
+            );
+
             renderer.setDocumentFromString(htmlContent);
             renderer.layout();
             renderer.createPDF(outputStream);
