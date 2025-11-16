@@ -38,4 +38,20 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      */
     @Query("SELECT s FROM Site s JOIN s.manager m WHERE m.user.id = :userId")
     Optional<Site> findByManagerUserId(@Param("userId") Long userId);
+
+    /**
+     * 현장 관리자용 시크릿키 중복 확인
+     *
+     * @param managerSecretKey 현장 관리자용 시크릿키
+     * @return 존재 여부
+     */
+    boolean existsByManagerSecretKey(String managerSecretKey);
+
+    /**
+     * 근로자용 시크릿키 중복 확인
+     *
+     * @param employeeSecretKey 근로자용 시크릿키
+     * @return 존재 여부
+     */
+    boolean existsByEmployeeSecretKey(String employeeSecretKey);
 }
