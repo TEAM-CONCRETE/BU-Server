@@ -330,8 +330,23 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * SecretKeyGenerationException 처리
+     * 시크릿키 생성 실패 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(SecretKeyGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSecretKeyGenerationException(SecretKeyGenerationException e) {
+        log.error("[SecretKeyGenerationException] Secret key generation failed: {}", e.getMessage(), e);
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(
+                        "시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                        "COMMON_500"));
+    }
+
+    /**
      * IllegalStateException 처리
-     * 시크릿키 생성 실패 등 시스템 상태 오류 시 발생하는 예외를 처리합니다.
+     * 시스템 상태 오류 시 발생하는 예외를 처리합니다.
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException e) {
