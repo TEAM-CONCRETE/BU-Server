@@ -166,26 +166,32 @@ public class SalaryGenerationService {
     }
 
     /**
-     * 일용직 일급 생성
+     * 일용직 일급 생성 (스케줄러용)
      * 매일 자정 실행되며, 전일 근무 데이터를 기반으로 급여명세서를 생성합니다.
      */
     public void generateDailyPayrollForDaily() {
+        generateDailyPayrollForDaily(LocalDate.now().minusDays(1));
+    }
+
+    /**
+     * 일용직 일급 생성 (특정 날짜 지정)
+     * 테스트 및 수동 실행용
+     *
+     * @param targetDate 급여 생성 대상 일자
+     */
+    public void generateDailyPayrollForDaily(LocalDate targetDate) {
         log.info("[급여 생성] 일용직 일급 생성 시작");
-
-        // 1. 어제 날짜
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-
-        log.info("[급여 생성] 대상 일자: {}", yesterday);
+        log.info("[급여 생성] 대상 일자: {}", targetDate);
 
         // 2. 일용직 일급 대상자 조회 (empType = DAILY, payPeriod = DAILY)
         List<Contract> contracts = contractRepository.findDailyContractsForPayrollByPeriod(
-                yesterday, yesterday, PayPeriod.DAILY
+                targetDate, targetDate, PayPeriod.DAILY
         );
 
         log.info("[급여 생성] 일용직 일급 대상자: {}명", contracts.size());
 
         // 3. 대상 월 계산
-        YearMonth targetMonth = YearMonth.from(yesterday);
+        YearMonth targetMonth = YearMonth.from(targetDate);
 
         // 4. 각 대상자별 급여 생성
         int successCount = 0;
@@ -193,7 +199,7 @@ public class SalaryGenerationService {
 
         for (Contract contract : contracts) {
             try {
-                generatePayrollForContract(contract, targetMonth, PayPeriod.DAILY, null, yesterday);
+                generatePayrollForContract(contract, targetMonth, PayPeriod.DAILY, null, targetDate);
                 successCount++;
             } catch (Exception e) {
                 log.error("[급여 생성] 급여 생성 실패 - contractId: {}, employeeId: {}",

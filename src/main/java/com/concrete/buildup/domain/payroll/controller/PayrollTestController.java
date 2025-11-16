@@ -44,7 +44,7 @@ public class PayrollTestController {
                     : LocalDate.now().minusDays(1);
 
             log.info("[테스트] 일용직 일급 생성 시작 - 대상 날짜: {}", targetDate);
-            salaryGenerationService.generateDailyPayrollForDaily();
+            salaryGenerationService.generateDailyPayrollForDaily(targetDate);
 
             return ResponseEntity.ok(ApiResponse.success(
                     "일용직 일급 생성이 완료되었습니다. S3를 확인해주세요.",
