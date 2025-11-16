@@ -116,4 +116,39 @@ public final class MaskingUtil {
         // 중간 부분 마스킹
         return parts[0] + "-" + MASK_CHARACTER.repeat(parts[1].length()) + "-" + parts[2];
     }
+
+    /**
+     * 시크릿키 마스킹
+     *
+     * <p>시크릿키의 앞부분을 마스킹 처리하고 마지막 4자리만 표시합니다.</p>
+     * <p>보안상 중요한 정보를 로그에 남길 때 사용됩니다.</p>
+     *
+     * <p>예시:</p>
+     * <ul>
+     *   <li>"abc123def456ghi789" → "**************i789"</li>
+     *   <li>"short" → "*hort"</li>
+     *   <li>null → null</li>
+     *   <li>"" → ""</li>
+     * </ul>
+     *
+     * @param secretKey 시크릿키
+     * @return 마스킹된 시크릿키 (마지막 4자리만 표시)
+     */
+    public static String maskSecretKey(String secretKey) {
+        if (secretKey == null || secretKey.isEmpty()) {
+            return secretKey;
+        }
+
+        int length = secretKey.length();
+
+        // 4자 이하인 경우: 첫 글자만 마스킹
+        if (length <= 4) {
+            return MASK_CHARACTER + secretKey.substring(1);
+        }
+
+        // 5자 이상인 경우: 마지막 4자리만 표시
+        int visibleLength = 4;
+        int maskLength = length - visibleLength;
+        return MASK_CHARACTER.repeat(maskLength) + secretKey.substring(maskLength);
+    }
 }

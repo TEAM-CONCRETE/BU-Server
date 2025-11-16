@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.service.SiteService;
 import com.concrete.buildup.global.common.ApiResponse;
+import com.concrete.buildup.global.util.MaskingUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -56,7 +57,9 @@ public class SiteController {
         SiteCreateResponse response = siteService.createSite(request);
 
         log.info("현장 등록 완료: siteId={}, managerSecretKey={}, employeeSecretKey={}",
-                response.getSiteId(), response.getManagerSecretKey(), response.getEmployeeSecretKey());
+                response.getSiteId(),
+                MaskingUtil.maskSecretKey(response.getManagerSecretKey()),
+                MaskingUtil.maskSecretKey(response.getEmployeeSecretKey()));
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
