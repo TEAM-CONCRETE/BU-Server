@@ -30,7 +30,9 @@ public class CustomUserDetailsService implements UserDetailsService {
         // Role이 없는 경우 기본 권한 부여
         String authority = "ROLE_USER";
         if (user.getRole() != null && user.getRole().getRoleName() != null) {
-            authority = "ROLE_" + user.getRole().getRoleName();
+            String roleName = user.getRole().getRoleName();
+            // DB에 이미 ROLE_ prefix가 있는 경우 그대로 사용, 없으면 추가
+            authority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
         }
 
         return org.springframework.security.core.userdetails.User.builder()
