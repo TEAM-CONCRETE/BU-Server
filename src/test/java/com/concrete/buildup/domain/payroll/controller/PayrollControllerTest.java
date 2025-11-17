@@ -194,6 +194,152 @@ class PayrollControllerTest {
                 .andExpect(jsonPath("$.data").isEmpty());
     }
 
+    @Test
+    @DisplayName("일용직 월급 급여 내역 조회 - 성공")
+    void getDailyMonthlySalaryHistory_Success() throws Exception {
+        // given
+        Long siteId = 1L;
+        Integer year = 2025;
+        Integer month = 11;
+        Integer page = 1;
+        Integer size = 20;
+
+        SalaryHistorySummaryResponse mockResponse = createMockResponse();
+
+        given(payrollService.getSalaryHistory(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.MONTHLY), eq(PageRequest.of(0, 20))
+        )).willReturn(mockResponse);
+
+        // when & then
+        mockMvc.perform(get("/v1/payrolls/period/daily/monthly")
+                        .param("siteId", siteId.toString())
+                        .param("year", year.toString())
+                        .param("month", month.toString())
+                        .param("page", page.toString())
+                        .param("size", size.toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.unpaidCount").value(1))
+                .andExpect(jsonPath("$.totalPaidAmount").value(5000000));
+
+        verify(payrollService).getSalaryHistory(
+                siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY, PageRequest.of(0, 20)
+        );
+    }
+
+    @Test
+    @DisplayName("일용직 주급 급여 내역 조회 - 성공")
+    void getDailyWeeklySalaryHistory_Success() throws Exception {
+        // given
+        Long siteId = 1L;
+        Integer year = 2025;
+        Integer month = 11;
+        Integer page = 1;
+        Integer size = 20;
+
+        SalaryHistorySummaryResponse mockResponse = createMockResponse();
+
+        given(payrollService.getSalaryHistory(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.WEEKLY), eq(PageRequest.of(0, 20))
+        )).willReturn(mockResponse);
+
+        // when & then
+        mockMvc.perform(get("/v1/payrolls/period/daily/weekly")
+                        .param("siteId", siteId.toString())
+                        .param("year", year.toString())
+                        .param("month", month.toString())
+                        .param("page", page.toString())
+                        .param("size", size.toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.unpaidCount").value(1))
+                .andExpect(jsonPath("$.totalPaidAmount").value(5000000));
+
+        verify(payrollService).getSalaryHistory(
+                siteId, year, month, EmpType.DAILY, PayPeriod.WEEKLY, PageRequest.of(0, 20)
+        );
+    }
+
+    @Test
+    @DisplayName("일용직 일급 급여 내역 조회 - 성공")
+    void getDailyDailySalaryHistory_Success() throws Exception {
+        // given
+        Long siteId = 1L;
+        Integer year = 2025;
+        Integer month = 11;
+        Integer page = 1;
+        Integer size = 20;
+
+        SalaryHistorySummaryResponse mockResponse = createMockResponse();
+
+        given(payrollService.getSalaryHistory(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.DAILY), eq(PageRequest.of(0, 20))
+        )).willReturn(mockResponse);
+
+        // when & then
+        mockMvc.perform(get("/v1/payrolls/period/daily/daily")
+                        .param("siteId", siteId.toString())
+                        .param("year", year.toString())
+                        .param("month", month.toString())
+                        .param("page", page.toString())
+                        .param("size", size.toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.unpaidCount").value(1))
+                .andExpect(jsonPath("$.totalPaidAmount").value(5000000));
+
+        verify(payrollService).getSalaryHistory(
+                siteId, year, month, EmpType.DAILY, PayPeriod.DAILY, PageRequest.of(0, 20)
+        );
+    }
+
+    @Test
+    @DisplayName("일용직 월급 급여 내역 조회 - 기본 페이징 값")
+    void getDailyMonthlySalaryHistory_DefaultPagination() throws Exception {
+        // given
+        Long siteId = 1L;
+        Integer year = 2025;
+        Integer month = 11;
+
+        SalaryHistorySummaryResponse mockResponse = createMockResponse();
+
+        given(payrollService.getSalaryHistory(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.MONTHLY), eq(PageRequest.of(0, 20))
+        )).willReturn(mockResponse);
+
+        // when & then
+        mockMvc.perform(get("/v1/payrolls/period/daily/monthly")
+                        .param("siteId", siteId.toString())
+                        .param("year", year.toString())
+                        .param("month", month.toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(3));
+
+        verify(payrollService).getSalaryHistory(
+                siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY, PageRequest.of(0, 20)
+        );
+    }
+
+    @Test
+    @DisplayName("일용직 급여 내역 조회 - 필수 파라미터 누락 시 400 에러")
+    void getDailySalaryHistory_MissingRequiredParam() throws Exception {
+        // when & then
+        mockMvc.perform(get("/v1/payrolls/period/daily/monthly")
+                        .param("year", "2025")
+                        .param("month", "11")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isBadRequest());
+    }
+
     // ========== 테스트 데이터 생성 헬퍼 메서드 ==========
 
     private SalaryHistorySummaryResponse createMockResponse() {
