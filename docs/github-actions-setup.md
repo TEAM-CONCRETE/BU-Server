@@ -153,7 +153,14 @@ cat ~/.aws/credentials
 
 ## CD 파이프라인 설정
 
-CD 파이프라인(`.github/workflows/cd-deploy.yml`)은 `main` 브랜치에 푸시될 때 자동으로 실행됩니다.
+CD 파이프라인(`.github/workflows/cd.yml`)은 브랜치에 푸시될 때 자동으로 실행됩니다.
+
+### 자동 배포 브랜치
+
+| 브랜치 | 환경 | Docker 태그 | Spring 프로파일 |
+|--------|------|-------------|-----------------|
+| `main` | Production | `latest` | `prod` |
+| `develop` | Staging | `develop` | `dev` |
 
 ### 배포 흐름
 

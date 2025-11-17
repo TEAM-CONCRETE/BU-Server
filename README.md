@@ -297,7 +297,9 @@ API 엔드포인트는 다음과 같은 형식으로 문서화될 예정입니�
 - **필수 설정**: 없음 (즉시 사용 가능)
 
 ### CD (Continuous Deployment)
-- **자동 배포**: `main` 브랜치 푸시 시 운영 서버로 자동 배포
+- **자동 배포**: 
+  - `main` 브랜치 → 운영 환경 (Production) 배포
+  - `develop` 브랜치 → 개발 환경 (Staging) 배포
 - **필수 설정**: GitHub Secrets 등록 필요
 
 **📘 상세 가이드**: [GitHub Actions 설정 가이드](docs/github-actions-setup.md)

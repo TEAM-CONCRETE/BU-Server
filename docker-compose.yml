@@ -3,6 +3,8 @@ version: '3.8'
 services:
   # Spring Boot 애플리케이션
   app:
+    # 로컬 개발: build 사용, 운영 배포: image 사용
+    image: ${DOCKERHUB_USERNAME:-local}/buildup:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
