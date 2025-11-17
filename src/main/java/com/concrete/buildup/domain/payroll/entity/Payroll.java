@@ -36,9 +36,11 @@ import java.time.LocalDateTime;
         @Index(name = "idx_employee_id", columnList = "employee_id"),
         @Index(name = "idx_contract_id", columnList = "contract_id"),
         @Index(name = "idx_corporation_id", columnList = "corporation_id"),
+        @Index(name = "idx_site_id", columnList = "site_id"),
         @Index(name = "idx_search_date", columnList = "search_date"),
         @Index(name = "idx_pay_status", columnList = "pay_status"),
-        @Index(name = "idx_s3_key", columnList = "s3_key")
+        @Index(name = "idx_s3_key", columnList = "s3_key"),
+        @Index(name = "idx_period_search", columnList = "site_id, salary_year, salary_month, emp_type, pay_cycle")
 }, uniqueConstraints = {
         @UniqueConstraint(
                 name = "idx_payroll_unique",
@@ -69,6 +71,13 @@ public class Payroll extends BaseEntity {
      */
     @Column(name = "corporation_id", nullable = false)
     private Long corporationId;
+
+    /**
+     * 현장 ID
+     * TODO: Site 엔티티 구현 후 @ManyToOne 연관관계로 변경
+     */
+    @Column(name = "site_id", nullable = false)
+    private Long siteId;
 
     // ========== 급여 대상 기간 ==========
 
@@ -211,7 +220,7 @@ public class Payroll extends BaseEntity {
     // ========== 빌더 ==========
 
     @Builder
-    public Payroll(Long employeeId, Long contractId, Long corporationId,
+    public Payroll(Long employeeId, Long contractId, Long corporationId, Long siteId,
                    Integer salaryYear, Integer salaryMonth, Integer salaryWeek, LocalDate salaryDay,
                    LocalDate searchDate, LocalDate payDueDate,
                    EmpType empType, String empName, String residentNum,
@@ -222,6 +231,7 @@ public class Payroll extends BaseEntity {
         this.employeeId = employeeId;
         this.contractId = contractId;
         this.corporationId = corporationId;
+        this.siteId = siteId;
         this.salaryYear = salaryYear;
         this.salaryMonth = salaryMonth;
         this.salaryWeek = salaryWeek;
