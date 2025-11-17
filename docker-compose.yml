@@ -3,6 +3,8 @@ version: '3.8'
 services:
   # Spring Boot 애플리케이션
   app:
+    # 로컬 개발: build 사용, 운영 배포: image 사용
+    image: ${DOCKERHUB_USERNAME:-local}/buildup:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,12 +12,37 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8080"
+    env_file:
+      - .env
     environment:
+      # Spring 설정
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      
+      # 데이터베이스 설정
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useSSL=false
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      
+      # JWT 및 암호화
       JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      
+      # 관리자 계정
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      
+      # AWS S3 설정
+      AWS_S3_ENABLED: ${AWS_S3_ENABLED:-true}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      
+      # AI Face API 설정 (선택사항)
+      AI_FACE_SIMILARITY_BASE_URL: ${AI_FACE_SIMILARITY_BASE_URL:-http://localhost:8000}
+      AI_FACE_SIMILARITY_API_KEY: ${AI_FACE_SIMILARITY_API_KEY}
+    volumes:
+      - app_logs:/var/log/buildup
     depends_on:
       mysql:
         condition: service_healthy
@@ -26,7 +53,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # MySQL 데이터베이스
   mysql:
@@ -56,6 +88,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Nginx (리버스 프록시)
   nginx:
@@ -72,9 +109,16 @@ services:
       - app
     networks:
       - buildup-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql_data_prod:
+    driver: local
+  app_logs:
     driver: local
 
 networks:
