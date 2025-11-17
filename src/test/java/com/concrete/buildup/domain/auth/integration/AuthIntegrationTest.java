@@ -102,21 +102,21 @@ class AuthIntegrationTest {
     @BeforeEach
     void setUp() {
         // 역할 데이터 준비
-        employeeRole = roleRepository.findByRoleName("EMPLOYEE")
+        employeeRole = roleRepository.findByRoleName("ROLE_EMPLOYEE")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("EMPLOYEE")
+                        .roleName("ROLE_EMPLOYEE")
                         .description("근로자 역할")
                         .build()));
 
-        managerRole = roleRepository.findByRoleName("MANAGER")
+        managerRole = roleRepository.findByRoleName("ROLE_MANAGER")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("MANAGER")
+                        .roleName("ROLE_MANAGER")
                         .description("현장 관리자 역할")
                         .build()));
 
-        corporationRole = roleRepository.findByRoleName("CORPORATION")
+        corporationRole = roleRepository.findByRoleName("ROLE_CORPORATION")
                 .orElseGet(() -> roleRepository.save(Role.builder()
-                        .roleName("CORPORATION")
+                        .roleName("ROLE_CORPORATION")
                         .description("기업 역할")
                         .build()));
 

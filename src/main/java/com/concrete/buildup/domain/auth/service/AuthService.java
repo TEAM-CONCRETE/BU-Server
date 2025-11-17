@@ -106,9 +106,9 @@ public class AuthService {
         }
 
         // 3. 역할 조회 (EMPLOYEE)
-        Role employeeRole = roleRepository.findByRoleName("EMPLOYEE")
+        Role employeeRole = roleRepository.findByRoleName("ROLE_EMPLOYEE")
                 .orElseThrow(() -> {
-                    log.error("EMPLOYEE 역할을 찾을 수 없습니다");
+                    log.error("ROLE_EMPLOYEE 역할을 찾을 수 없습니다");
                     return new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
                 });
 
@@ -192,9 +192,9 @@ public class AuthService {
         }
 
         // 4. 역할 조회 (EMPLOYEE)
-        Role employeeRole = roleRepository.findByRoleName("EMPLOYEE")
+        Role employeeRole = roleRepository.findByRoleName("ROLE_EMPLOYEE")
                 .orElseThrow(() -> {
-                    log.error("EMPLOYEE 역할을 찾을 수 없습니다");
+                    log.error("ROLE_EMPLOYEE 역할을 찾을 수 없습니다");
                     return new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
                 });
 
@@ -359,9 +359,9 @@ public class AuthService {
         }
 
         // 6. 역할 조회 (MANAGER)
-        Role managerRole = roleRepository.findByRoleName("MANAGER")
+        Role managerRole = roleRepository.findByRoleName("ROLE_MANAGER")
                 .orElseThrow(() -> {
-                    log.error("MANAGER 역할을 찾을 수 없습니다");
+                    log.error("ROLE_MANAGER 역할을 찾을 수 없습니다");
                     return new BusinessException(AuthErrorCode.ROLE_NOT_FOUND);
                 });
 
@@ -593,7 +593,7 @@ public class AuthService {
         String name = null;
 
         switch (roleName) {
-            case "EMPLOYEE":
+            case "ROLE_EMPLOYEE":
                 // 근로자 정보 조회
                 Employee employee = employeeRepository.findByUser(user)
                         .orElseThrow(() -> {
@@ -629,7 +629,7 @@ public class AuthService {
                         .build();
                 break;
 
-            case "MANAGER":
+            case "ROLE_MANAGER":
                 // 현장 관리자 정보 조회
                 Manager manager = managerRepository.findByUser(user)
                         .orElseThrow(() -> {
@@ -658,7 +658,7 @@ public class AuthService {
                         .build();
                 break;
 
-            case "CORPORATION":
+            case "ROLE_CORPORATION":
                 // 기업 정보 조회
                 Corporation corporation = corporationRepository.findByUserId(user.getId())
                         .orElseThrow(() -> {

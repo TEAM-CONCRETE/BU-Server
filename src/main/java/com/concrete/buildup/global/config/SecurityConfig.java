@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -21,6 +22,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -84,6 +86,9 @@ public class SecurityConfig {
                 .accessDeniedHandler(jwtAccessDeniedHandler)
             )
             .authorizeHttpRequests(auth -> auth
+                // CORS Preflight 요청 (OPTIONS) 허용 - 가장 먼저 처리
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // 인증 필요한 Auth API
                 .requestMatchers("/v1/auth/me").authenticated()
 
@@ -139,11 +144,18 @@ public class SecurityConfig {
         // 운영 환경에서는 특정 도메인으로 제한 필요
         configuration.addAllowedOriginPattern("*");
 
-        // 모든 HTTP 메서드 허용
-        configuration.addAllowedMethod("*");
+        // 허용할 HTTP 메서드 명시 (OPTIONS 포함)
+        configuration.setAllowedMethods(Arrays.asList(
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
+        ));
 
         // 모든 헤더 허용
         configuration.addAllowedHeader("*");
+
+        // 클라이언트에 노출할 헤더 명시
+        configuration.setExposedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "X-Requested-With"
+        ));
 
         // 인증 정보 포함 허용 (JWT, 쿠키 등)
         configuration.setAllowCredentials(true);
