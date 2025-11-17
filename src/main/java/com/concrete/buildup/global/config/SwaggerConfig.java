@@ -101,7 +101,13 @@ public class SwaggerConfig {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("JWT 토큰을 입력하세요 (Bearer 제외)"));
+                                .description("JWT 토큰을 입력하세요 (Bearer 제외)"))
+                .addSecuritySchemes("Cookie Authentication",
+                        new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.COOKIE)
+                                .name("accessToken")
+                                .description("로그인 시 자동으로 설정되는 쿠키 인증"));
     }
 
     /**
@@ -109,6 +115,7 @@ public class SwaggerConfig {
      */
     private SecurityRequirement securityRequirement() {
         return new SecurityRequirement()
-                .addList("Bearer Authentication");
+                .addList("Bearer Authentication")
+                .addList("Cookie Authentication");
     }
 }
