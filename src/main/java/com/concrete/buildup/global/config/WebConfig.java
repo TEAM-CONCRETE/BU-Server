@@ -3,6 +3,7 @@ package com.concrete.buildup.global.config;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -14,12 +15,28 @@ import java.util.List;
 
 /**
  * Web MVC 설정
+ * - CORS 설정
  * - HTTP Message Converter 설정
  * - Interceptor 설정
  * - 기타 웹 관련 설정
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    /**
+     * CORS 매핑 설정 (글로벌)
+     * SecurityConfig의 CORS 설정과 함께 작동하여 이중 보장
+     */
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOriginPatterns("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD")
+                .allowedHeaders("*")
+                .exposedHeaders("Authorization", "Content-Type", "X-Requested-With")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
 
     /**
      * Interceptor 등록
