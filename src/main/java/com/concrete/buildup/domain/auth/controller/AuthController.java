@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final Environment environment;
 
     /**
      * 아이디 중복 확인 API
@@ -191,10 +193,13 @@ public class AuthController {
         // 로그인 처리
         LoginResult loginResult = authService.login(request);
 
+        // 개발 환경 확인
+        boolean isProduction = !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "local"));
+
         // Access Token을 HttpOnly 쿠키로 설정 (XSS 방어)
         org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // HTTPS에서만 전송
+                .secure(isProduction)    // 운영: HTTPS만, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getLoginResponse().getExpiresIn())  // Access Token 만료 시간
                 .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
@@ -204,7 +209,7 @@ public class AuthController {
         // Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
         org.springframework.http.ResponseCookie refreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // HTTPS에서만 전송
+                .secure(isProduction)    // 운영: HTTPS만, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
                 .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
