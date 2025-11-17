@@ -27,24 +27,49 @@ Build-Up Platform의 백엔드 서비스입니다.
 프로젝트 루트에 `.env` 파일을 생성하여 환경 변수를 관리합니다:
 
 ```bash
-# .env.example을 .env로 복사
-cp .env.example .env
+# env.example을 .env로 복사
+cp env.example .env
 ```
 
 `.env` 파일 예시:
 ```bash
+# Spring 프로파일
+SPRING_PROFILES_ACTIVE=prod
+
+# JWT 및 암호화
+JWT_SECRET=your-secret-key-min-256-bits-long-for-hs256-algorithm
+ENCRYPTION_KEY=your_32_byte_secure_encryption_key
+
+# 관리자 계정
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_admin_password
+
 # 데이터베이스
-DB_USERNAME=buildup
-DB_PASSWORD=buildup123
+MYSQL_ROOT_PASSWORD=your_root_password
+MYSQL_DATABASE=buildup
+MYSQL_USER=buildup_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_PORT=3306
 
-# JWT
-JWT_SECRET=your-jwt-secret-key
+# AWS S3
+AWS_S3_ENABLED=true
+AWS_S3_BUCKET=your-s3-bucket-name
+AWS_REGION=ap-northeast-2
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 
-# AWS S3 (선택사항)
-AWS_S3_ENABLED=false
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_S3_BUCKET=build-up-contracts
+# AI Face Similarity API (선택사항)
+AI_FACE_SIMILARITY_BASE_URL=http://localhost:8000
+AI_FACE_SIMILARITY_API_KEY=your_face_api_key
+```
+
+**환경 변수 생성 도구:**
+```bash
+# JWT Secret 생성 (32바이트 이상)
+openssl rand -hex 32
+
+# 암호화 키 생성 (32바이트)
+openssl rand -hex 32
 ```
 
 #### 2. AWS S3 설정 (선택사항)
@@ -70,9 +95,37 @@ cd buildup
 
 #### 2. 실행 방법
 
-프로젝트 실행 방법은 두 가지가 있습니다:
+프로젝트 실행 방법은 세 가지가 있습니다:
 
-##### 방법 1: 개발 스크립트 사용 (권장)
+##### 방법 1: Docker Compose 사용 (운영 환경 권장)
+
+Docker Compose를 사용하여 모든 서비스(애플리케이션, MySQL, Nginx)를 한 번에 실행합니다.
+
+**Prerequisites:**
+- Docker Desktop 실행 중이어야 함
+- `.env` 파일 설정 완료
+
+```bash
+# 모든 서비스 시작
+docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f app
+
+# 서비스 중지
+docker-compose down
+
+# 볼륨까지 삭제 (데이터베이스 초기화)
+docker-compose down -v
+```
+
+**서비스 접속:**
+- 애플리케이션: http://localhost:8080/api
+- Swagger UI: http://localhost:8080/api/swagger-ui/index.html (dev 프로파일에서만)
+- MySQL: localhost:3306
+- Nginx: http://localhost (80), https://localhost (443)
+
+##### 방법 2: 개발 스크립트 사용 (로컬 개발 권장)
 
 Docker를 사용하여 MySQL과 phpMyAdmin을 자동으로 설정하고 애플리케이션을 실행합니다.
 
@@ -99,7 +152,7 @@ chmod +x ./start-dev.sh
 - Swagger UI: http://localhost:8080/api/swagger-ui/index.html
 - phpMyAdmin: http://localhost:8081
 
-##### 방법 2: Gradle 직접 실행
+##### 방법 3: Gradle 직접 실행
 
 로컬 MySQL을 사용하거나 Docker 없이 실행하는 경우:
 
