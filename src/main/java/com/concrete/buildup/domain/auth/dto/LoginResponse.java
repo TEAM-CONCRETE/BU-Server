@@ -30,7 +30,10 @@ public class LoginResponse {
     @Schema(description = "사용자 ID", example = "testuser001")
     private String userId;
 
-    @Schema(description = "사용자 역할 (EMPLOYEE, MANAGER, ADMIN)", example = "EMPLOYEE")
+    @Schema(description = "사용자 이름 (근로자명, 관리자명, 기업명)", example = "홍길동")
+    private String userName;
+
+    @Schema(description = "사용자 역할", example = "ROLE_EMPLOYEE")
     private String role;
 
     @Schema(description = "Access Token 만료 시간 (초)", example = "3600")

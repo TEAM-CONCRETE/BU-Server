@@ -543,10 +543,15 @@ public class AuthService {
         user.updateRefreshToken(hashedRefreshToken, refreshTokenExpiresAt);
         log.debug("Refresh Token 해시 후 DB 저장 완료: userId={}", user.getUserId());
 
-        // 7. Response 생성
+        // 7. 역할별 사용자 이름 조회
+        String userName = getUserNameByRole(user);
+        log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
+
+        // 8. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(accessToken)
                 .userId(user.getUserId())
+                .userName(userName)
                 .role(user.getRole().getRoleName())
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .build();
@@ -784,10 +789,15 @@ public class AuthService {
         log.debug("새로운 Refresh Token 생성 및 DB 저장 완료: userId={}, rememberMe={}",
                 user.getUserId(), isRememberMe);
 
-        // 10. Response 생성
+        // 10. 역할별 사용자 이름 조회
+        String userName = getUserNameByRole(user);
+        log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
+
+        // 11. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .userId(user.getUserId())
+                .userName(userName)
                 .role(user.getRole().getRoleName())
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .build();
@@ -802,6 +812,48 @@ public class AuthService {
         log.info("토큰 재발급 성공: userId={}, rememberMe={}", user.getUserId(), isRememberMe);
 
         return result;
+    }
+
+    /**
+     * 역할별 사용자 이름 조회
+     *
+     * <p>사용자의 역할에 따라 근로자명, 관리자명, 기업명을 조회합니다.</p>
+     *
+     * @param user 사용자 엔티티
+     * @return 사용자 이름 (근로자명, 관리자명, 기업명)
+     */
+    private String getUserNameByRole(User user) {
+        String roleName = user.getRole().getRoleName();
+
+        switch (roleName) {
+            case "ROLE_EMPLOYEE":
+                return employeeRepository.findByUser(user)
+                        .map(Employee::getEmpName)
+                        .orElseThrow(() -> {
+                            log.error("Employee를 찾을 수 없습니다: userId={}", user.getUserId());
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+            case "ROLE_MANAGER":
+                return managerRepository.findByUser(user)
+                        .map(Manager::getManagerName)
+                        .orElseThrow(() -> {
+                            log.error("Manager를 찾을 수 없습니다: userId={}", user.getUserId());
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+            case "ROLE_CORPORATION":
+                return corporationRepository.findByUserId(user.getId())
+                        .map(Corporation::getCorpName)
+                        .orElseThrow(() -> {
+                            log.error("Corporation을 찾을 수 없습니다: userId={}", user.getUserId());
+                            return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                        });
+
+            default:
+                log.warn("알 수 없는 역할: role={}", roleName);
+                return user.getUserId();  // 기본값으로 userId 반환
+        }
     }
 
     /**
