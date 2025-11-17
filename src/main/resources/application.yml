@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: buildup
+
+  # 프로파일 설정
+  profiles:
+    active: dev  # 기본 활성 프로파일 (dev, prod)
+
+  # JPA 설정 (공통)
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+    open-in-view: false  # OSIV 비활성화 권장
+
+# 서버 설정 (공통)
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# 로깅 설정 (공통)
+logging:
+  level:
+    root: INFO
+    com.concrete.buildup: INFO
+
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-min-256-bits-long-for-hs256-algorithm}
+  access-token-expiration: 3600000  # 1시간 (ms)
+  refresh-token-expiration: 604800000  # 7일 (ms)
+  refresh-token-remember-me-expiration: 2592000000  # 30일 (ms)
+
+# 보안 설정
+security:
+  encryption:
+    # AES-256 암호화 키 (32바이트, 환경변수 필수)
+    # 반드시 ENCRYPTION_KEY 환경변수를 설정해야 합니다
+    # 키 생성: openssl rand -hex 32
+    # 설정 예: export ENCRYPTION_KEY="your_32_byte_secure_key_here!!"
+    key: ${ENCRYPTION_KEY}
+
+# SpringDoc(Swagger) 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json

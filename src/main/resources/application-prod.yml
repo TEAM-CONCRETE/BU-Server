@@ -1,0 +1,124 @@
+spring:
+  application:
+    name: buildup-backend
+
+  # 데이터베이스 설정 (운영 환경)
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+  # JPA 설정 (운영 환경)
+  jpa:
+    hibernate:
+      ddl-auto: validate  # 운영 환경에서는 절대 create, update 사용 금지!
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_batch_fetch_size: 100
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+
+  # Spring Security 설정
+  security:
+    user:
+      name: ${ADMIN_USERNAME:admin}
+      password: ${ADMIN_PASSWORD}
+
+  # AWS S3 설정 (운영 환경)
+  cloud:
+    aws:
+      s3:
+        enabled: ${AWS_S3_ENABLED:true}  # 기본값: true (운영 환경에서는 S3 활성화)
+        bucket: ${AWS_S3_BUCKET}
+      region:
+        static: ${AWS_REGION:ap-northeast-2}  # 서울 리전
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+      stack:
+        auto: false
+
+# 서버 설정
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+  shutdown: graceful
+
+# 로깅 설정 (운영 환경 - 최소화)
+logging:
+  level:
+    root: WARN
+    com.concrete.buildup: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: /var/log/buildup/application.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+
+# SpringDoc (Swagger) 설정 - 운영 환경에서는 비활성화
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# Actuator 설정 (운영 환경)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+
+# 운영 환경 보안 설정
+security:
+  require-ssl: true
