@@ -6,6 +6,8 @@ import com.concrete.buildup.domain.payroll.service.PayrollService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -53,19 +55,19 @@ public class PayrollController {
     @GetMapping("/period/permanent")
     public ResponseEntity<SalaryHistorySummaryResponse> getPermanentSalaryHistory(
             @Parameter(description = "현장 ID", required = true, example = "1")
-            @RequestParam Long siteId,
+            @RequestParam @Min(1) Long siteId,
 
             @Parameter(description = "급여 대상 연도", required = true, example = "2025")
-            @RequestParam Integer year,
+            @RequestParam @Min(2000) @Max(2100) Integer year,
 
             @Parameter(description = "급여 대상 월 (1~12)", required = true, example = "11")
-            @RequestParam Integer month,
+            @RequestParam @Min(1) @Max(12) Integer month,
 
             @Parameter(description = "페이지 번호 (1부터 시작)", example = "1")
-            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
 
             @Parameter(description = "페이지 크기", example = "20")
-            @RequestParam(defaultValue = "20") Integer size
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) Integer size
     ) {
         log.info("상용직 급여 내역 조회 - siteId: {}, year: {}, month: {}, page: {}, size: {}",
                 siteId, year, month, page, size);
