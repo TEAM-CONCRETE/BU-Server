@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -113,5 +114,59 @@ public interface PayrollRepository extends JpaRepository<Payroll, Long> {
             @Param("empType") EmpType empType,
             @Param("payCycle") @Nullable PayPeriod payCycle,
             Pageable pageable
+    );
+
+    /**
+     * 현장별 기간별 미지급 건수 조회 (전체 기준)
+     *
+     * <p>페이징과 무관하게 전체 데이터셋에서 미지급 건수를 계산합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param year 급여 대상 연도
+     * @param month 급여 대상 월
+     * @param empType 근로자 유형
+     * @param payCycle 급여 주기 (nullable)
+     * @return 미지급 건수
+     */
+    @Query("SELECT COUNT(p) FROM Payroll p " +
+            "WHERE p.siteId = :siteId " +
+            "AND p.salaryYear = :year " +
+            "AND p.salaryMonth = :month " +
+            "AND p.empType = :empType " +
+            "AND (:payCycle IS NULL OR p.payCycle = :payCycle) " +
+            "AND p.payStatus != com.concrete.buildup.domain.payroll.enums.PayStatus.PAID")
+    long countUnpaidBySiteAndPeriodAndType(
+            @Param("siteId") Long siteId,
+            @Param("year") Integer year,
+            @Param("month") Integer month,
+            @Param("empType") EmpType empType,
+            @Param("payCycle") @Nullable PayPeriod payCycle
+    );
+
+    /**
+     * 현장별 기간별 총 지급액 조회 (전체 기준)
+     *
+     * <p>페이징과 무관하게 전체 데이터셋에서 지급 완료된 급여의 총액을 계산합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param year 급여 대상 연도
+     * @param month 급여 대상 월
+     * @param empType 근로자 유형
+     * @param payCycle 급여 주기 (nullable)
+     * @return 총 지급액 (지급 완료 건만 합산)
+     */
+    @Query("SELECT COALESCE(SUM(p.totalPay), 0) FROM Payroll p " +
+            "WHERE p.siteId = :siteId " +
+            "AND p.salaryYear = :year " +
+            "AND p.salaryMonth = :month " +
+            "AND p.empType = :empType " +
+            "AND (:payCycle IS NULL OR p.payCycle = :payCycle) " +
+            "AND p.payStatus = com.concrete.buildup.domain.payroll.enums.PayStatus.PAID")
+    BigDecimal sumTotalPaidAmountBySiteAndPeriodAndType(
+            @Param("siteId") Long siteId,
+            @Param("year") Integer year,
+            @Param("month") Integer month,
+            @Param("empType") EmpType empType,
+            @Param("payCycle") @Nullable PayPeriod payCycle
     );
 }

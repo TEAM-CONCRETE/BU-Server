@@ -56,6 +56,14 @@ class PayrollServiceTest {
                 eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull(), eq(pageable)
         )).willReturn(payrollPage);
 
+        given(payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(1L);
+
+        given(payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(new BigDecimal("5000000"));
+
         // when
         SalaryHistorySummaryResponse response = payrollService.getSalaryHistory(
                 siteId, year, month, EmpType.PERMANENT, null, pageable
@@ -64,12 +72,18 @@ class PayrollServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getTotalCount()).isEqualTo(3);
-        assertThat(response.getUnpaidCount()).isEqualTo(1); // 1개는 PENDING
-        assertThat(response.getTotalPaidAmount()).isEqualByComparingTo(new BigDecimal("5000000")); // 2개 PAID의 합계
+        assertThat(response.getUnpaidCount()).isEqualTo(1); // 전체 기준 미지급 건수
+        assertThat(response.getTotalPaidAmount()).isEqualByComparingTo(new BigDecimal("5000000")); // 전체 기준 지급액
         assertThat(response.getData()).hasSize(3);
 
         verify(payrollRepository).findBySiteAndPeriodAndType(
                 siteId, year, month, EmpType.PERMANENT, null, pageable
+        );
+        verify(payrollRepository).countUnpaidBySiteAndPeriodAndType(
+                siteId, year, month, EmpType.PERMANENT, null
+        );
+        verify(payrollRepository).sumTotalPaidAmountBySiteAndPeriodAndType(
+                siteId, year, month, EmpType.PERMANENT, null
         );
     }
 
@@ -87,6 +101,14 @@ class PayrollServiceTest {
         given(payrollRepository.findBySiteAndPeriodAndType(
                 eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull(), eq(pageable)
         )).willReturn(emptyPage);
+
+        given(payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(0L);
+
+        given(payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(BigDecimal.ZERO);
 
         // when
         SalaryHistorySummaryResponse response = payrollService.getSalaryHistory(
@@ -120,6 +142,14 @@ class PayrollServiceTest {
                 eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull(), eq(pageable)
         )).willReturn(payrollPage);
 
+        given(payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(2L);
+
+        given(payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(BigDecimal.ZERO);
+
         // when
         SalaryHistorySummaryResponse response = payrollService.getSalaryHistory(
                 siteId, year, month, EmpType.PERMANENT, null, pageable
@@ -147,6 +177,14 @@ class PayrollServiceTest {
                 eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.MONTHLY), eq(pageable)
         )).willReturn(payrollPage);
 
+        given(payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.MONTHLY)
+        )).willReturn(1L);
+
+        given(payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.DAILY), eq(PayPeriod.MONTHLY)
+        )).willReturn(new BigDecimal("5000000"));
+
         // when
         SalaryHistorySummaryResponse response = payrollService.getSalaryHistory(
                 siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY, pageable
@@ -157,6 +195,12 @@ class PayrollServiceTest {
         assertThat(response.getTotalCount()).isEqualTo(3);
         verify(payrollRepository).findBySiteAndPeriodAndType(
                 siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY, pageable
+        );
+        verify(payrollRepository).countUnpaidBySiteAndPeriodAndType(
+                siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY
+        );
+        verify(payrollRepository).sumTotalPaidAmountBySiteAndPeriodAndType(
+                siteId, year, month, EmpType.DAILY, PayPeriod.MONTHLY
         );
     }
 
@@ -175,6 +219,14 @@ class PayrollServiceTest {
         given(payrollRepository.findBySiteAndPeriodAndType(
                 eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull(), eq(pageable)
         )).willReturn(payrollPage);
+
+        given(payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(0L);
+
+        given(payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                eq(siteId), eq(year), eq(month), eq(EmpType.PERMANENT), isNull()
+        )).willReturn(new BigDecimal("2500000"));
 
         // when
         SalaryHistorySummaryResponse response = payrollService.getSalaryHistory(

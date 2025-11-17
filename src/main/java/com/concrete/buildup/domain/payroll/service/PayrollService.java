@@ -73,10 +73,14 @@ public class PayrollService {
                 .map(this::toItemResponse)
                 .collect(Collectors.toList());
 
-        // 3. 통계 계산
+        // 3. 전체 데이터셋 기준 통계 조회
         int totalCount = (int) payrollPage.getTotalElements();
-        int unpaidCount = calculateUnpaidCount(payrollPage.getContent());
-        BigDecimal totalPaidAmount = calculateTotalPaidAmount(payrollPage.getContent());
+        int unpaidCount = (int) payrollRepository.countUnpaidBySiteAndPeriodAndType(
+                siteId, year, month, empType, payCycle
+        );
+        BigDecimal totalPaidAmount = payrollRepository.sumTotalPaidAmountBySiteAndPeriodAndType(
+                siteId, year, month, empType, payCycle
+        );
 
         log.debug("급여 내역 조회 완료 - totalCount: {}, unpaidCount: {}, totalPaidAmount: {}",
                 totalCount, unpaidCount, totalPaidAmount);
@@ -122,31 +126,5 @@ public class PayrollService {
             return null;
         }
         return payDueDate.format(DATE_FORMATTER);
-    }
-
-    /**
-     * 미지급 건수 계산
-     *
-     * @param payrolls 급여 목록
-     * @return 미지급 건수
-     */
-    private int calculateUnpaidCount(List<Payroll> payrolls) {
-        return (int) payrolls.stream()
-                .filter(p -> p.getPayStatus() != PayStatus.PAID)
-                .count();
-    }
-
-    /**
-     * 총 지급액 계산 (지급 완료된 금액의 합계)
-     *
-     * @param payrolls 급여 목록
-     * @return 총 지급액
-     */
-    private BigDecimal calculateTotalPaidAmount(List<Payroll> payrolls) {
-        return payrolls.stream()
-                .filter(p -> p.getPayStatus() == PayStatus.PAID)
-                .map(Payroll::getTotalPay)
-                .filter(amount -> amount != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
