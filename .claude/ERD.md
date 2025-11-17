@@ -480,6 +480,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
 | `contract_id` | BIGINT | FK, NOT NULL | 계약 ID |
 | `corporation_id` | BIGINT | FK, NOT NULL | 기업 ID |
+| `site_id` | BIGINT | FK, NOT NULL | 현장 ID |
 | `salary_year` | INT | NOT NULL | 급여 대상 연도 (예: 2025) |
 | `salary_month` | INT | NOT NULL | 급여 대상 월 (1~12) |
 | `salary_week` | INT | NULL | 급여 대상 주차 (주급인 경우, 1~5) |
@@ -504,19 +505,22 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 **인덱스:**
 - PRIMARY KEY: `id`
-- INDEX: `employee_id`, `contract_id`, `corporation_id`
+- INDEX: `employee_id`, `contract_id`, `corporation_id`, `site_id`
 - INDEX: `search_date`
 - INDEX: `pay_status`
 - INDEX: `s3_key`
+- INDEX: `idx_period_search (site_id, salary_year, salary_month, emp_type, pay_cycle)` - 기간별 조회 최적화
 - UNIQUE INDEX: `(employee_id, salary_year, salary_month, pay_cycle, salary_week, salary_day)` - 중복 방지
 - FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
 - FOREIGN KEY: `contract_id` REFERENCES `contracts(id)`
 - FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
+- FOREIGN KEY: `site_id` REFERENCES `sites(id)`
 
 **관계:**
 - N:1 → employees
 - N:1 → contracts
 - N:1 → corporations
+- N:1 → sites
 - 1:N ← payslip_items
 
 ---
@@ -872,5 +876,6 @@ ON work_reports(work_report_status);
 | 2025-11-15 | payrolls 테이블 컬럼 추가 (salary_year, salary_month, salary_week, salary_day, s3_key, generated_at) 및 중복 방지 UNIQUE INDEX 추가 (급여명세서 자동 생성 기능) | 문현민 |
 | 2025-11-12 | users 테이블 phone 컬럼 제약조건 변경 (NOT NULL → NULL, 2단계 회원가입 지원) | 김세원 |
 | 2025-11-16 | attendances 테이블 is_late 컬럼 추가 (계약서 기반 지각 판단, 출근 시간 +5분 초과 시 true) | 김세원 |
+| 2025-11-17 | payrolls 테이블 site_id 컬럼 추가 및 기간별 조회 복합 인덱스 추가 (급여 내역 조회 API) | Claude |
 
 ---
