@@ -3,123 +3,269 @@ name: Build-Up CI Pipeline
 on:
   pull_request:
     branches: [ 'main', 'develop' ]
+  push:
+    branches: [ 'main', 'develop' ]
+
+# 동일한 브랜치에 대해 중복 실행 방지
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
       # ---------------------------------
       # 1. Repo Checkout
       # ---------------------------------
-      - name: Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
       # ---------------------------------
-      # 2. Set up Java (Java 21 for Build-Up)
+      # 2. Set up Java 21
       # ---------------------------------
-      - name: Set up JDK 21
+      - name: ☕ Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
 
       # ---------------------------------
-      # 3. 환경설정 YML 복원
-      # Base64 -> application.yml 생성
+      # 3. Gradle Wrapper 실행 권한 부여
       # ---------------------------------
-      - name: Restore application.yml
-        run: |
-          mkdir -p ./src/main/resources
-          echo "${{ secrets.APPLICATION_YML }}" | base64 --decode > ./src/main/resources/application.yml
-          echo "${{ secrets.APPLICATION_YML_PROD }}" | base64 --decode > ./src/main/resources/application-prod.yml
-
-      # ---------------------------------
-      # 4. Gradle 캐싱
-      # ---------------------------------
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      # ---------------------------------
-      # 5. Gradle Wrapper 실행 권한 부여
-      # ---------------------------------
-      - name: Grant execute permission for Gradle Wrapper
+      - name: 🔧 Grant execute permission for Gradle Wrapper
         run: chmod +x ./gradlew
 
       # ---------------------------------
-      # 6. Build + Test
+      # 4. 테스트 실행
       # ---------------------------------
-      - name: Build and Test
-        run: ./gradlew clean build test --no-daemon
+      - name: 🧪 Run Tests
+        run: ./gradlew test --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          # 테스트는 H2 DB를 사용하므로 MySQL 설정 불필요
 
       # ---------------------------------
-      # 7. Docker Buildx 구성
+      # 5. 테스트 결과 업로드
       # ---------------------------------
-      - name: Set up Docker Buildx
+      - name: 📊 Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 7
+
+      # ---------------------------------
+      # 6. 테스트 커버리지 리포트 (선택사항)
+      # ---------------------------------
+      - name: 📈 Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/test/html/
+          retention-days: 7
+
+      # ---------------------------------
+      # 7. 애플리케이션 빌드
+      # ---------------------------------
+      - name: 🏗️ Build Application
+        run: ./gradlew clean build -x test --no-daemon
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+
+      # ---------------------------------
+      # 8. JAR 파일 업로드
+      # ---------------------------------
+      - name: 📦 Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildup-jar
+          path: build/libs/*.jar
+          retention-days: 7
+
+  docker-build:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      # ---------------------------------
+      # 1. Repo Checkout
+      # ---------------------------------
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------
+      # 2. Docker Buildx 설정
+      # ---------------------------------
+      - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # ---------------------------------
-      # 8. Docker Image Build (PR 미배포)
+      # 3. Docker Image Build (Push 없이)
       # ---------------------------------
-      - name: Build Docker image (without push)
+      - name: 🏗️ Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/buildup:pr-${{ github.event.pull_request.number }}
+          tags: buildup:pr-${{ github.event.pull_request.number }}
           load: true
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/buildup:buildcache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # ---------------------------------
-      # 9. Docker 컨테이너 실행 테스트
+      # 4. Docker 컨테이너 실행 테스트
       # ---------------------------------
-      - name: Test Docker container runs
+      - name: 🧪 Test Docker container
         run: |
+          # MySQL 컨테이너 시작 (테스트용)
+          docker run -d --name mysql-test \
+            -e MYSQL_ROOT_PASSWORD=test_root_pass \
+            -e MYSQL_DATABASE=buildup_test \
+            -e MYSQL_USER=buildup_user \
+            -e MYSQL_PASSWORD=test_pass \
+            -p 3306:3306 \
+            mysql:8.0
+
+          echo "⏳ MySQL 시작 대기 중..."
+          sleep 20
+
+          # 애플리케이션 컨테이너 시작
           docker run --rm -d --name buildup-test \
+            --link mysql-test:mysql \
             -e SPRING_PROFILES_ACTIVE=prod \
-            ${{ secrets.DOCKERHUB_USERNAME }}/buildup:pr-${{ github.event.pull_request.number }}
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            -e ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }} \
+            -e SPRING_DATASOURCE_URL="jdbc:mysql://mysql:3306/buildup_test?useSSL=false&allowPublicKeyRetrieval=true" \
+            -e SPRING_DATASOURCE_USERNAME=buildup_user \
+            -e SPRING_DATASOURCE_PASSWORD=test_pass \
+            -e ADMIN_USERNAME=admin \
+            -e ADMIN_PASSWORD=test_admin_pass \
+            -e AWS_S3_ENABLED=false \
+            -e AWS_S3_BUCKET=test-bucket \
+            -e AWS_REGION=ap-northeast-2 \
+            -e AWS_ACCESS_KEY_ID=test-key \
+            -e AWS_SECRET_ACCESS_KEY=test-secret \
+            buildup:pr-${{ github.event.pull_request.number }}
 
-          echo "컨테이너 실행 대기..."
-          sleep 25
+          echo "⏳ 애플리케이션 시작 대기 중..."
+          sleep 40
 
+          # 헬스체크
           if docker ps | grep buildup-test; then
-            echo "✅ Docker 컨테이너 정상 실행됨"
+            echo "✅ Docker 컨테이너 정상 실행 중"
+            
+            # 로그 확인
+            echo "📋 컨테이너 로그 (마지막 50줄):"
             docker logs buildup-test --tail 50
+            
+            # 헬스체크 엔드포인트 확인
+            CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' buildup-test)
+            echo "🔍 헬스체크 테스트: http://${CONTAINER_IP}:8080/api/actuator/health"
+            
+            # 정리
             docker stop buildup-test
+            docker stop mysql-test
+            docker rm mysql-test
+            
+            echo "✅ Docker 컨테이너 테스트 완료"
           else
             echo "❌ Docker 컨테이너 실행 실패"
             docker logs buildup-test
+            docker stop mysql-test
+            docker rm mysql-test
             exit 1
           fi
 
-      # ---------------------------------
-      # 10. Slack 알림
-      # ---------------------------------
-      - name: Notify Discord CI Result
-        if: always()
+  # ---------------------------------
+  # 알림 작업
+  # ---------------------------------
+  notify:
+    needs: [build-and-test, docker-build]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 📢 Notify Discord
         run: |
-          STATUS="${{ job.status }}"
+          BUILD_STATUS="${{ needs.build-and-test.result }}"
+          DOCKER_STATUS="${{ needs.docker-build.result }}"
           BRANCH="${{ github.ref_name }}"
           AUTHOR="${{ github.actor }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_INFO="PR #${{ github.event.pull_request.number }}"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+          else
+            PR_INFO="Push to ${BRANCH}"
+            PR_TITLE="Direct Push"
+          fi
 
-          if [ "${STATUS}" = "success" ]; then
+          # 전체 상태 판단
+          if [ "${BUILD_STATUS}" = "success" ] && ([ "${DOCKER_STATUS}" = "success" ] || [ "${DOCKER_STATUS}" = "skipped" ]); then
             ICON="✅"
-            MESSAGE="Build-Up CI 성공 (PR #${PR_NUMBER})"
+            COLOR=3066993
+            MESSAGE="Build-Up CI 성공"
           else
             ICON="❌"
-            MESSAGE="Build-Up CI 실패 (PR #${PR_NUMBER})"
+            COLOR=15158332
+            MESSAGE="Build-Up CI 실패"
           fi
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "${ICON} ${MESSAGE}",
+              "description": "${PR_TITLE}",
+              "color": ${COLOR},
+              "fields": [
+                {
+                  "name": "이벤트",
+                  "value": "${PR_INFO}",
+                  "inline": true
+                },
+                {
+                  "name": "브랜치",
+                  "value": "\`${BRANCH}\`",
+                  "inline": true
+                },
+                {
+                  "name": "작성자",
+                  "value": "${AUTHOR}",
+                  "inline": true
+                },
+                {
+                  "name": "빌드 상태",
+                  "value": "${BUILD_STATUS}",
+                  "inline": true
+                },
+                {
+                  "name": "Docker 빌드",
+                  "value": "${DOCKER_STATUS}",
+                  "inline": true
+                },
+                {
+                  "name": "로그",
+                  "value": "[보기](${RUN_URL})",
+                  "inline": true
+                }
+              ],
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+            }]
+          }
+          EOF
+          )
 
           curl -X POST \
             -H 'Content-Type: application/json' \
-            --data "{\"text\": \"${ICON} ${MESSAGE}\\n브랜치: ${BRANCH}\\n작성자: ${AUTHOR}\\n로그: ${RUN_URL}\"}" \
+            --data "${PAYLOAD}" \
             ${{ secrets.DISCORD_WEBHOOK }}
