@@ -287,6 +287,23 @@ API 엔드포인트는 다음과 같은 형식으로 문서화될 예정입니�
 }
 ```
 
+## CI/CD
+
+프로젝트는 GitHub Actions를 사용한 자동화된 CI/CD 파이프라인을 제공합니다.
+
+### CI (Continuous Integration)
+- **자동 실행**: PR 생성 시, `main`/`develop` 브랜치 푸시 시
+- **작업 내용**: 자동 테스트, 빌드, Docker 이미지 빌드
+- **필수 설정**: 없음 (즉시 사용 가능)
+
+### CD (Continuous Deployment)
+- **자동 배포**: `main` 브랜치 푸시 시 운영 서버로 자동 배포
+- **필수 설정**: GitHub Secrets 등록 필요
+
+**📘 상세 가이드**: [GitHub Actions 설정 가이드](docs/github-actions-setup.md)
+
+---
+
 ## 개발 가이드
 
 ### 코딩 컨벤션

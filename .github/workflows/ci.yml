@@ -45,8 +45,9 @@ jobs:
         run: ./gradlew test --no-daemon --stacktrace
         env:
           SPRING_PROFILES_ACTIVE: test
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          # 테스트용 더미 값 (application-test.yml의 기본값 사용)
+          JWT_SECRET: test-secret-key-min-256-bits-long-for-hs256-algorithm-test
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
           # 테스트는 H2 DB를 사용하므로 MySQL 설정 불필요
 
       # ---------------------------------
@@ -77,8 +78,9 @@ jobs:
       - name: 🏗️ Build Application
         run: ./gradlew clean build -x test --no-daemon
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          # 빌드용 더미 값 (실제 런타임에서는 사용되지 않음)
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'test-secret-key-min-256-bits-long-for-hs256-algorithm-test' }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef' }}
 
       # ---------------------------------
       # 8. JAR 파일 업로드
@@ -142,8 +144,8 @@ jobs:
           docker run --rm -d --name buildup-test \
             --link mysql-test:mysql \
             -e SPRING_PROFILES_ACTIVE=prod \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-            -e ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }} \
+            -e JWT_SECRET=test-secret-key-min-256-bits-long-for-hs256-algorithm-test \
+            -e ENCRYPTION_KEY=0123456789abcdef0123456789abcdef \
             -e SPRING_DATASOURCE_URL="jdbc:mysql://mysql:3306/buildup_test?useSSL=false&allowPublicKeyRetrieval=true" \
             -e SPRING_DATASOURCE_USERNAME=buildup_user \
             -e SPRING_DATASOURCE_PASSWORD=test_pass \
@@ -186,7 +188,7 @@ jobs:
           fi
 
   # ---------------------------------
-  # 알림 작업
+  # 알림 작업 (선택사항 - DISCORD_WEBHOOK 설정 시 작동)
   # ---------------------------------
   notify:
     needs: [build-and-test, docker-build]
@@ -195,6 +197,8 @@ jobs:
 
     steps:
       - name: 📢 Notify Discord
+        if: ${{ secrets.DISCORD_WEBHOOK }}
+        continue-on-error: true
         run: |
           BUILD_STATUS="${{ needs.build-and-test.result }}"
           DOCKER_STATUS="${{ needs.docker-build.result }}"
