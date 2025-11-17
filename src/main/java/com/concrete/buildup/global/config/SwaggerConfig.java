@@ -76,15 +76,19 @@ public class SwaggerConfig {
      * 서버 정보
      */
     private List<Server> servers() {
-        Server devServer = new Server()
+        Server localServer = new Server()
                 .url("http://localhost:8080/api")
                 .description("로컬 개발 서버");
+
+        Server awsDevServer = new Server()
+                .url("http://3.37.234.173:8080/api")
+                .description("AWS 개발 서버");
 
         Server prodServer = new Server()
                 .url("https://api.build-up.kr")
                 .description("운영 서버");
 
-        return List.of(devServer, prodServer);
+        return List.of(localServer, awsDevServer, prodServer);
     }
 
     /**
