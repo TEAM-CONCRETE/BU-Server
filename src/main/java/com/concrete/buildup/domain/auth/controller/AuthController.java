@@ -191,6 +191,16 @@ public class AuthController {
         // 로그인 처리
         LoginResult loginResult = authService.login(request);
 
+        // Access Token을 HttpOnly 쿠키로 설정 (XSS 방어)
+        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
+                .httpOnly(true)          // XSS 공격 방어
+                .secure(true)            // HTTPS에서만 전송
+                .path("/")               // 모든 경로에서 접근 가능
+                .maxAge(loginResult.getLoginResponse().getExpiresIn())  // Access Token 만료 시간
+                .sameSite("Strict")      // CSRF 방어: 동일 사이트에서만 전송
+                .build();
+        response.addHeader("Set-Cookie", accessTokenCookie.toString());
+
         // Refresh Token을 HttpOnly 쿠키로 설정 (SameSite=Strict 포함)
         org.springframework.http.ResponseCookie refreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
                 .httpOnly(true)          // XSS 공격 방어
@@ -201,7 +211,7 @@ public class AuthController {
                 .build();
         response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
-        log.debug("Refresh Token 쿠키 설정 완료: maxAge={}초", loginResult.getRefreshTokenMaxAge());
+        log.debug("Access Token 및 Refresh Token 쿠키 설정 완료");
 
         return ResponseEntity.ok(
                 ApiResponse.success(loginResult.getLoginResponse(), "로그인 성공")
