@@ -378,25 +378,38 @@ public class AttendanceService {
         Long siteId = getCurrentManagerSiteId();
         log.info("현장 ID 조회 완료 - siteId: {}", siteId);
 
-        // 5. S3에 이미지 업로드 (백엔드에서 직접 처리)
+        // === 비즈니스 검증 (외부 호출 전에 모두 수행) ===
+
+        // 5. 얼굴 이미지 등록 여부 확인
+        if (employee.getProfileImageUrl() == null || employee.getProfileImageUrl().isBlank()) {
+            log.error("프로필 이미지 미등록 - employeeId: {}", employeeId);
+            throw new FaceImageNotRegisteredException(employeeId);
+        }
+        log.info("프로필 이미지 등록 확인 완료 - employeeId: {}", employeeId);
+
+        // 6. 출퇴근 유형 자동 판단
+        AttendanceType attendanceType = determineAttendanceType(employeeId);
+        log.info("자동 판단된 출퇴근 유형: {}", attendanceType);
+
+        // 7. 중복 기록 검증
+        validateDuplicateAttendance(employeeId, attendanceType);
+        log.info("중복 기록 검증 통과 - employeeId: {}, type: {}", employeeId, attendanceType);
+
+        // === 외부 호출 (비즈니스 검증 통과 후) ===
+
+        // 8. S3에 이미지 업로드 (백엔드에서 직접 처리)
         S3Service service = s3Service.orElseThrow(() ->
                 new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
 
         String uploadedS3Key = service.uploadAttendanceImage(request.getFaceImage(), siteId, employeeId);
         log.info("S3 업로드 완료 - s3Key: {}", uploadedS3Key);
 
-        // 6. 얼굴 이미지 등록 여부 확인
-        if (employee.getProfileImageUrl() == null || employee.getProfileImageUrl().isBlank()) {
-            log.error("프로필 이미지 미등록 - employeeId: {}", employeeId);
-            throw new FaceImageNotRegisteredException(employeeId);
-        }
-
-        // 7. Presigned GET URL 생성 또는 공개 URL 사용
+        // 9. Presigned GET URL 생성 또는 공개 URL 사용
         String profileImageUrl = employee.getProfileImageUrl();
         String profileImagePresignedUrl;
 
-        // S3 URL인지 확인 (bucket-name.s3.amazonaws.com 또는 bucket-name.s3.region.amazonaws.com)
-        if (profileImageUrl.contains(".s3.amazonaws.com/") || profileImageUrl.contains(".s3-")) {
+        // S3 URL인지 확인 (다양한 S3 URL 패턴 지원)
+        if (isS3Url(profileImageUrl)) {
             // S3 URL에서 키 추출 후 Presigned URL 생성
             String s3Key = extractS3KeyFromUrl(profileImageUrl);
             profileImagePresignedUrl = service.generatePresignedGetUrl(s3Key);
@@ -415,7 +428,7 @@ public class AttendanceService {
         String attendanceImagePresignedUrl = service.generatePresignedGetUrl(uploadedS3Key);
         log.info("Presigned URL 생성 완료 (출퇴근 이미지): {}", maskUrl(attendanceImagePresignedUrl));
 
-        // 8. AI API 호출 (얼굴 비교)
+        // 10. AI API 호출 (얼굴 비교)
         boolean faceVerified = faceRecognitionService.compareFaces(
                 profileImagePresignedUrl,
                 attendanceImagePresignedUrl
@@ -423,17 +436,14 @@ public class AttendanceService {
 
         if (!faceVerified) {
             log.warn("얼굴 인식 실패 - employeeId: {}", employeeId);
-            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE, "얼굴 인식에 실패했습니다.");
+            // AttendanceErrorCode 사용으로 변경
+            throw new BusinessException(
+                com.concrete.buildup.global.exception.errorcode.AttendanceErrorCode.FACE_VERIFICATION_FAILED,
+                "얼굴 인식에 실패했습니다."
+            );
         }
 
         log.info("얼굴 인식 성공 - employeeId: {}", employeeId);
-
-        // 9. 출퇴근 유형 자동 판단
-        AttendanceType attendanceType = determineAttendanceType(employeeId);
-        log.info("자동 판단된 출퇴근 유형: {}", attendanceType);
-
-        // 10. 중복 기록 검증
-        validateDuplicateAttendance(employeeId, attendanceType);
 
         // 11. 출퇴근 기록 저장
         Attendance attendance = saveAttendanceRecord(employee, siteId, attendanceType, uploadedS3Key);
@@ -854,26 +864,79 @@ public class AttendanceService {
     }
 
     /**
-     * S3 URL에서 S3 키 추출
+     * S3 URL 여부 확인
      *
-     * @param s3Url S3 URL (예: https://bucket-name.s3.amazonaws.com/key/path/file.jpg)
-     * @return S3 키 (예: key/path/file.jpg)
-     * @throws BusinessException S3 URL 형식이 올바르지 않은 경우
+     * <p>다양한 S3 URL 패턴을 감지합니다:</p>
+     * <ul>
+     *   <li>https://bucket-name.s3.amazonaws.com/key</li>
+     *   <li>https://bucket-name.s3.region.amazonaws.com/key</li>
+     *   <li>https://bucket-name.s3-region.amazonaws.com/key</li>
+     *   <li>https://s3.region.amazonaws.com/bucket-name/key</li>
+     * </ul>
+     *
+     * @param url 확인할 URL
+     * @return S3 URL이면 true, 아니면 false
      */
-    private String extractS3KeyFromUrl(String s3Url) {
-        // S3 URL 형식:
-        // - https://bucket-name.s3.amazonaws.com/key/path/file.jpg
-        // - https://bucket-name.s3.region.amazonaws.com/key/path/file.jpg
-
-        int keyStartIndex = s3Url.indexOf(".amazonaws.com/");
-        if (keyStartIndex != -1) {
-            String s3Key = s3Url.substring(keyStartIndex + ".amazonaws.com/".length());
-            log.debug("S3 URL에서 키 추출 성공 - url: {}, s3Key: {}", maskUrl(s3Url), s3Key);
-            return s3Key;
+    private boolean isS3Url(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
         }
 
-        log.error("S3 URL 형식이 올바르지 않음 - url: {}", s3Url);
-        throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
-            "S3 URL 형식이 올바르지 않습니다. amazonaws.com을 포함해야 합니다.");
+        // S3 URL 패턴 감지
+        // - bucket-name.s3.amazonaws.com (레거시)
+        // - bucket-name.s3.region.amazonaws.com (현대적)
+        // - bucket-name.s3-region.amazonaws.com (하이픈 형식)
+        // - s3.region.amazonaws.com/bucket-name (경로 스타일)
+        return (url.contains(".s3.amazonaws.com") ||
+                url.contains(".s3-") && url.contains(".amazonaws.com") ||
+                url.contains("s3.") && url.contains(".amazonaws.com"));
+    }
+
+    /**
+     * S3 URL에서 S3 키 추출 (URI 파싱 방식)
+     *
+     * <p>URI 파싱을 사용하여 경로 컴포넌트만 추출하고 쿼리 스트링과 프래그먼트를 제거합니다.</p>
+     *
+     * <p>지원하는 S3 URL 형식:</p>
+     * <ul>
+     *   <li>https://bucket-name.s3.amazonaws.com/key/path/file.jpg → key/path/file.jpg</li>
+     *   <li>https://bucket-name.s3.region.amazonaws.com/key/path/file.jpg?param=value → key/path/file.jpg</li>
+     *   <li>https://s3.region.amazonaws.com/bucket-name/key/path/file.jpg → bucket-name/key/path/file.jpg</li>
+     * </ul>
+     *
+     * @param s3Url S3 URL
+     * @return S3 키 (쿼리 스트링 및 프래그먼트 제거)
+     * @throws BusinessException S3 URL 파싱 실패 또는 유효하지 않은 경로인 경우
+     */
+    private String extractS3KeyFromUrl(String s3Url) {
+        try {
+            java.net.URI uri = new java.net.URI(s3Url);
+            String path = uri.getPath();
+
+            // 경로가 없거나 비어있는 경우
+            if (path == null || path.isBlank()) {
+                log.error("S3 URL에 경로가 없음 - url: {}", maskUrl(s3Url));
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                    "S3 URL에 객체 키(경로)가 없습니다.");
+            }
+
+            // 앞의 '/' 제거
+            String s3Key = path.startsWith("/") ? path.substring(1) : path;
+
+            // 빈 키 체크
+            if (s3Key.isBlank()) {
+                log.error("S3 URL에서 추출한 키가 비어있음 - url: {}", maskUrl(s3Url));
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                    "S3 URL에서 유효한 객체 키를 추출할 수 없습니다.");
+            }
+
+            log.debug("S3 URL에서 키 추출 성공 - url: {}, s3Key: {}", maskUrl(s3Url), s3Key);
+            return s3Key;
+
+        } catch (java.net.URISyntaxException e) {
+            log.error("S3 URL 파싱 실패 - url: {}", maskUrl(s3Url), e);
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                "S3 URL 형식이 올바르지 않습니다: " + e.getMessage());
+        }
     }
 }
