@@ -78,7 +78,15 @@ public class FaceRecognitionService {
             if (responseBody != null) {
                 JsonNode jsonResponse = objectMapper.readTree(responseBody);
 
-                // API 응답 필드: verified, cosine_distance, similarity_0_1
+                // API 응답 필수 필드: verified
+                if (!jsonResponse.has("verified")) {
+                    log.error("Face recognition API 응답에 verified 필드가 없습니다. body={}", responseBody);
+                    throw new BusinessException(
+                            AttendanceErrorCode.FACE_API_ERROR,
+                            "얼굴 인식 API 응답 형식이 올바르지 않습니다. (verified 필드 누락)"
+                    );
+                }
+
                 boolean verified = jsonResponse.get("verified").asBoolean();
                 double cosineDistance = jsonResponse.has("cosine_distance")
                         ? jsonResponse.get("cosine_distance").asDouble()
