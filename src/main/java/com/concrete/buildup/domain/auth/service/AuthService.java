@@ -548,18 +548,20 @@ public class AuthService {
         log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
 
         // 8. 역할별 추가 ID 조회 (employeeId, siteId)
+        // N+1 문제 방지를 위해 최적화된 쿼리 사용
         Long employeeId = null;
         Long siteId = null;
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
-            employeeId = employeeRepository.findByUser(user)
+            // User ID로 직접 조회 (이미 User 로드됨)
+            employeeId = employeeRepository.findByUserId(user.getId())
                     .map(Employee::getId)
                     .orElse(null);
             log.debug("근로자 ID 조회 완료: userId={}, employeeId={}", user.getUserId(), employeeId);
         } else if ("ROLE_MANAGER".equals(roleName)) {
-            siteId = managerRepository.findByUser(user)
-                    .flatMap(manager -> siteRepository.findByManager(manager))
+            // User ID로 Site를 한 번에 조회 (JOIN 사용, N+1 방지)
+            siteId = siteRepository.findByManagerUserId(user.getId())
                     .map(Site::getId)
                     .orElse(null);
             log.debug("현장 ID 조회 완료: userId={}, siteId={}", user.getUserId(), siteId);
