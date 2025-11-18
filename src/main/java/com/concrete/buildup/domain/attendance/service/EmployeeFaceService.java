@@ -34,6 +34,7 @@ public class EmployeeFaceService {
 
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
+    private final com.concrete.buildup.domain.upload.service.S3Service s3Service;
 
     @Value("${spring.cloud.aws.s3.bucket}")
     private String bucketName;
@@ -63,18 +64,25 @@ public class EmployeeFaceService {
                 return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
             });
 
-        // 3. uploadId로 S3 URL 구성
-        String s3Url = buildS3Url(uploadId);
-        log.info("S3 URL 구성 완료: {}", maskUrl(s3Url));
+        // 3. S3에 파일이 실제로 존재하는지 검증
+        if (!s3Service.doesObjectExist(uploadId)) {
+            log.error("S3에 파일이 존재하지 않음 - uploadId: {}", uploadId);
+            throw new BusinessException(AuthErrorCode.USER_NOT_FOUND,
+                    "업로드된 이미지 파일이 S3에 존재하지 않습니다. 파일을 먼저 업로드해주세요.");
+        }
 
-        // 4. 기존 이미지가 있으면 로그 남기기 (S3 삭제는 선택사항)
+        // 4. uploadId로 S3 URL 구성
+        String s3Url = buildS3Url(uploadId);
+        log.info("S3 파일 존재 확인 및 URL 구성 완료: {}", maskUrl(s3Url));
+
+        // 5. 기존 이미지가 있으면 로그 남기기 (S3 삭제는 선택사항)
         if (employee.getProfileImageUrl() != null && !employee.getProfileImageUrl().isEmpty()) {
             log.info("기존 얼굴 이미지 존재 - userId: {}, oldUrl: {}",
                      userId, maskUrl(employee.getProfileImageUrl()));
             // 필요 시 S3 삭제 로직 추가 가능
         }
 
-        // 5. Employee 엔티티 업데이트
+        // 6. Employee 엔티티 업데이트
         employee.updateProfileImageUrl(s3Url);
         employeeRepository.save(employee);
 

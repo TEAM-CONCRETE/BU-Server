@@ -40,6 +40,14 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
     Optional<Site> findByManagerUserId(@Param("userId") Long userId);
 
     /**
+     * 현장 관리자로 현장 조회
+     *
+     * @param manager 현장 관리자 엔티티
+     * @return 현장 정보
+     */
+    Optional<Site> findByManager(com.concrete.buildup.domain.auth.entity.Manager manager);
+
+    /**
      * 현장 관리자용 시크릿키 중복 확인
      *
      * @param managerSecretKey 현장 관리자용 시크릿키

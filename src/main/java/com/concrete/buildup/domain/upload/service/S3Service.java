@@ -16,6 +16,8 @@ import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -368,6 +370,73 @@ public class S3Service {
     }
 
     /**
+     * 출퇴근 이미지 파일 직접 업로드 (백엔드 처리 방식)
+     *
+     * <p>클라이언트가 전송한 MultipartFile을 백엔드에서 직접 S3에 업로드합니다.
+     * Presigned URL을 사용하지 않고 백엔드가 직접 업로드하므로 보안성이 향상됩니다.</p>
+     *
+     * @param file 업로드할 이미지 파일 (MultipartFile)
+     * @param siteId 현장 ID
+     * @param employeeId 근로자 ID
+     * @return S3 객체 키 (attendance/{siteId}/{employeeId}/{timestamp}.jpg)
+     * @throws BusinessException 파일 업로드 실패 시
+     */
+    public String uploadAttendanceImage(org.springframework.web.multipart.MultipartFile file, Long siteId, Long employeeId) {
+        try {
+            // 파일 확장자 추출
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = getFileExtension(originalFilename);
+
+            // S3 키 생성: attendance/{siteId}/{employeeId}/{timestamp}.{ext}
+            long timestamp = System.currentTimeMillis();
+            String s3Key = String.format("attendance/%d/%d/%d.%s",
+                    siteId,
+                    employeeId,
+                    timestamp,
+                    fileExtension);
+
+            log.info("Uploading attendance image to S3: s3Key={}, size={} bytes, contentType={}",
+                    s3Key, file.getSize(), file.getContentType());
+
+            // PutObjectRequest 생성
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .build();
+
+            // S3에 업로드
+            s3Client.putObject(putObjectRequest,
+                    software.amazon.awssdk.core.sync.RequestBody.fromInputStream(
+                            file.getInputStream(),
+                            file.getSize()
+                    ));
+
+            log.info("Attendance image uploaded successfully: {}", s3Key);
+
+            return s3Key;
+
+        } catch (Exception e) {
+            log.error("Failed to upload attendance image to S3 for siteId={}, employeeId={}",
+                    siteId, employeeId, e);
+            throw new BusinessException(S3ErrorCode.FILE_UPLOAD_FAILED, e);
+        }
+    }
+
+    /**
+     * 파일명에서 확장자 추출
+     *
+     * @param filename 파일명
+     * @return 확장자 (예: "jpg", "png")
+     */
+    private String getFileExtension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return "jpg";  // 기본값
+        }
+        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+    }
+
+    /**
      * 파일 확장자에 따른 Content-Type 반환
      *
      * @param fileExtension 파일 확장자
@@ -380,5 +449,32 @@ public class S3Service {
             case "pdf" -> "application/pdf";
             default -> "application/octet-stream";
         };
+    }
+
+    /**
+     * S3에 파일이 존재하는지 확인
+     *
+     * @param s3Key S3 객체 키
+     * @return 파일이 존재하면 true, 아니면 false
+     */
+    public boolean doesObjectExist(String s3Key) {
+        try {
+            HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .build();
+
+            s3Client.headObject(headObjectRequest);
+            log.debug("S3 파일 존재 확인 성공: {}", s3Key);
+            return true;
+
+        } catch (NoSuchKeyException e) {
+            log.debug("S3 파일이 존재하지 않음: {}", s3Key);
+            return false;
+
+        } catch (Exception e) {
+            log.warn("S3 파일 존재 확인 중 예외 발생: {}", s3Key, e);
+            return false;
+        }
     }
 }

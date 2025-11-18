@@ -21,6 +21,7 @@ import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
+import com.concrete.buildup.global.util.FileValidationUtil;
 import com.concrete.buildup.global.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +53,7 @@ public class AttendanceService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final FaceSimilarityClient faceSimilarityClient;
+    private final FaceRecognitionService faceRecognitionService;
     private final Optional<S3Service> s3Service;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -353,11 +355,13 @@ public class AttendanceService {
      */
     @Transactional
     public AttendanceVerificationResponseDto verifyAndRecordAttendance(AttendanceVerificationRequestDto request) {
-        // 1. 로그인한 현장 관리자의 현장 ID 조회
-        Long siteId = getCurrentManagerSiteId();
+        log.info("출퇴근 검증 시작 (백엔드 직접 처리) - phoneNumber: {}",
+                MaskingUtil.maskPhoneNumber(request.getPhoneNumber()));
 
-        log.info("출퇴근 검증 시작 - siteId: {}, uploadId: {}",
-                 siteId, maskUrl(request.getUploadId()));
+        // 1. 파일 검증 (크기, 타입, 매직 넘버)
+        FileValidationUtil.validateImageFile(request.getFaceImage());
+        log.info("파일 검증 완료 - size: {} bytes, contentType: {}",
+                request.getFaceImage().getSize(), request.getFaceImage().getContentType());
 
         // 2. 전화번호 정규화 (하이픈 제거)
         String normalizedPhone = normalizePhoneNumber(request.getPhoneNumber());
@@ -365,43 +369,87 @@ public class AttendanceService {
         // 3. 전화번호로 근로자 정보 조회
         Employee employee = employeeRepository.findByPhoneWithUser(normalizedPhone)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
-                "등록된 근로자를 찾을 수 없습니다."));
+                "등록된 근로자를 찾을 수 없습니다. 전화번호: " + MaskingUtil.maskPhoneNumber(request.getPhoneNumber())));
 
         Long employeeId = employee.getId();
-        log.info("근로자 조회 성공 - employeeId: {}", employeeId);
+        log.info("근로자 조회 성공 - employeeId: {}, name: {}", employeeId, employee.getEmpName());
 
-        // 3. 얼굴 이미지 등록 여부 확인
+        // 4. 로그인한 현장 관리자의 현장 ID 조회
+        Long siteId = getCurrentManagerSiteId();
+        log.info("현장 ID 조회 완료 - siteId: {}", siteId);
+
+        // === 비즈니스 검증 (외부 호출 전에 모두 수행) ===
+
+        // 5. 얼굴 이미지 등록 여부 확인
         if (employee.getProfileImageUrl() == null || employee.getProfileImageUrl().isBlank()) {
+            log.error("프로필 이미지 미등록 - employeeId: {}", employeeId);
             throw new FaceImageNotRegisteredException(employeeId);
         }
+        log.info("프로필 이미지 등록 확인 완료 - employeeId: {}", employeeId);
 
-        // 4. 출퇴근 유형 자동 판단
+        // 6. 출퇴근 유형 자동 판단
         AttendanceType attendanceType = determineAttendanceType(employeeId);
         log.info("자동 판단된 출퇴근 유형: {}", attendanceType);
 
-        // 5. 중복 기록 검증
+        // 7. 중복 기록 검증
         validateDuplicateAttendance(employeeId, attendanceType);
+        log.info("중복 기록 검증 통과 - employeeId: {}, type: {}", employeeId, attendanceType);
 
-        // 6. S3 URL 생성 (등록된 얼굴 이미지, 촬영된 이미지)
-        String registeredImageUrl = buildS3Url(employee.getProfileImageUrl());
-        String capturedImageUrl = buildS3Url(request.getUploadId());
+        // === 외부 호출 (비즈니스 검증 통과 후) ===
 
-        log.info("Face API 호출 - registered: {}, captured: {}",
-                 maskUrl(registeredImageUrl), maskUrl(capturedImageUrl));
+        // 8. S3에 이미지 업로드 (백엔드에서 직접 처리)
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
 
-        // 7. Face API 호출
-        FaceSimilarityResponseDto faceApiResponse = faceSimilarityClient.compareFaces(
-            registeredImageUrl,
-            capturedImageUrl
+        String uploadedS3Key = service.uploadAttendanceImage(request.getFaceImage(), siteId, employeeId);
+        log.info("S3 업로드 완료 - s3Key: {}", uploadedS3Key);
+
+        // 9. Presigned GET URL 생성 또는 공개 URL 사용
+        String profileImageUrl = employee.getProfileImageUrl();
+        String profileImagePresignedUrl;
+
+        // S3 URL인지 확인 (다양한 S3 URL 패턴 지원)
+        if (isS3Url(profileImageUrl)) {
+            // S3 URL에서 키 추출 후 Presigned URL 생성
+            String s3Key = extractS3KeyFromUrl(profileImageUrl);
+            profileImagePresignedUrl = service.generatePresignedGetUrl(s3Key);
+            log.info("S3 URL에서 키 추출 후 Presigned URL 생성 (프로필 이미지) - s3Key: {}", s3Key);
+        } else if (profileImageUrl.startsWith("http://") || profileImageUrl.startsWith("https://")) {
+            // 외부 공개 URL (예: Wikipedia, 테스트용 공개 이미지)
+            profileImagePresignedUrl = profileImageUrl;
+            log.info("공개 URL 사용 (프로필 이미지): {}", maskUrl(profileImagePresignedUrl));
+        } else {
+            // S3 키인 경우 Presigned URL 생성
+            profileImagePresignedUrl = service.generatePresignedGetUrl(profileImageUrl);
+            log.info("Presigned URL 생성 완료 (프로필 이미지): {}", maskUrl(profileImagePresignedUrl));
+        }
+
+        // 출퇴근 이미지는 항상 S3 키이므로 Presigned URL 생성
+        String attendanceImagePresignedUrl = service.generatePresignedGetUrl(uploadedS3Key);
+        log.info("Presigned URL 생성 완료 (출퇴근 이미지): {}", maskUrl(attendanceImagePresignedUrl));
+
+        // 10. AI API 호출 (얼굴 비교)
+        boolean faceVerified = faceRecognitionService.compareFaces(
+                profileImagePresignedUrl,
+                attendanceImagePresignedUrl
         );
 
-        // 8. 검증 결과 처리
-        return processVerificationResult(
-            employee,
-            siteId,
-            attendanceType,
-            faceApiResponse
-        );
+        if (!faceVerified) {
+            log.warn("얼굴 인식 실패 - employeeId: {}", employeeId);
+            // AttendanceErrorCode 사용으로 변경
+            throw new BusinessException(
+                com.concrete.buildup.global.exception.errorcode.AttendanceErrorCode.FACE_VERIFICATION_FAILED,
+                "얼굴 인식에 실패했습니다."
+            );
+        }
+
+        log.info("얼굴 인식 성공 - employeeId: {}", employeeId);
+
+        // 11. 출퇴근 기록 저장
+        Attendance attendance = saveAttendanceRecord(employee, siteId, attendanceType, uploadedS3Key);
+
+        // 12. 응답 생성
+        return buildVerificationResponse(attendance, attendanceType);
     }
 
     /**
@@ -737,6 +785,72 @@ public class AttendanceService {
     }
 
     /**
+     * 출퇴근 기록 저장 (백엔드 직접 처리 방식용)
+     *
+     * @param employee 근로자 엔티티
+     * @param siteId 현장 ID
+     * @param attendanceType 출퇴근 유형
+     * @param s3Key 업로드된 S3 키
+     * @return 저장된 Attendance 엔티티
+     */
+    private Attendance saveAttendanceRecord(Employee employee, Long siteId, AttendanceType attendanceType, String s3Key) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        if (attendanceType == AttendanceType.CHECK_OUT) {
+            // 퇴근: 기존 레코드 UPDATE
+            LocalDate today = LocalDate.now();
+            List<Attendance> todayRecords = attendanceRepository
+                    .findByEmployeeIdAndSearchDate(employee.getId(), today);
+
+            Attendance existingRecord = todayRecords.stream()
+                    .filter(record -> record.getCheckInTime() != null && record.getCheckOutTime() == null)
+                    .max(Comparator.comparing(a -> Optional.ofNullable(a.getCheckInTime()).orElse(a.getCreatedAt())))
+                    .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                            "출근 기록을 찾을 수 없습니다."));
+
+            existingRecord.setCheckOutTime(now);
+            Attendance saved = attendanceRepository.save(existingRecord);
+
+            log.info("퇴근 기록 업데이트 완료 - recordId: {}, employeeId: {}", saved.getId(), employee.getId());
+            return saved;
+
+        } else {
+            // 출근: 새 레코드 INSERT
+            Attendance attendance = createAttendanceRecord(employee, siteId, attendanceType, now);
+            Attendance saved = attendanceRepository.save(attendance);
+
+            log.info("출근 기록 저장 완료 - recordId: {}, employeeId: {}", saved.getId(), employee.getId());
+            return saved;
+        }
+    }
+
+    /**
+     * 출퇴근 검증 응답 생성 (백엔드 직접 처리 방식용)
+     *
+     * @param attendance 저장된 Attendance 엔티티
+     * @param attendanceType 출퇴근 유형
+     * @return 출퇴근 검증 응답
+     */
+    private AttendanceVerificationResponseDto buildVerificationResponse(Attendance attendance, AttendanceType attendanceType) {
+        java.time.LocalDateTime timestamp = attendanceType == AttendanceType.CHECK_IN
+                ? attendance.getCheckInTime()
+                : attendance.getCheckOutTime();
+
+        return AttendanceVerificationResponseDto.builder()
+                .success(true)
+                .verified(true)
+                .recordId(attendance.getId())
+                .employeeId(attendance.getEmployeeId())
+                .employeeName(attendance.getEmpName())
+                .attendanceType(attendanceType)
+                .timestamp(timestamp != null ? timestamp : attendance.getCreatedAt())
+                .similarityScore(null)  // 새 방식에서는 similarity를 응답에 포함하지 않음
+                .message(String.format("%s이 정상적으로 기록되었습니다.", attendanceType.getDescription()))
+                .isLate(attendance.getIsLate())
+                .build();
+    }
+
+    /**
      * URL 마스킹 (로그용)
      *
      * @param url S3 URL
@@ -747,5 +861,82 @@ public class AttendanceService {
             return url;
         }
         return url.substring(0, 30) + "***";
+    }
+
+    /**
+     * S3 URL 여부 확인
+     *
+     * <p>다양한 S3 URL 패턴을 감지합니다:</p>
+     * <ul>
+     *   <li>https://bucket-name.s3.amazonaws.com/key</li>
+     *   <li>https://bucket-name.s3.region.amazonaws.com/key</li>
+     *   <li>https://bucket-name.s3-region.amazonaws.com/key</li>
+     *   <li>https://s3.region.amazonaws.com/bucket-name/key</li>
+     * </ul>
+     *
+     * @param url 확인할 URL
+     * @return S3 URL이면 true, 아니면 false
+     */
+    private boolean isS3Url(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+
+        // S3 URL 패턴 감지
+        // - bucket-name.s3.amazonaws.com (레거시)
+        // - bucket-name.s3.region.amazonaws.com (현대적)
+        // - bucket-name.s3-region.amazonaws.com (하이픈 형식)
+        // - s3.region.amazonaws.com/bucket-name (경로 스타일)
+        return (url.contains(".s3.amazonaws.com") ||
+                url.contains(".s3-") && url.contains(".amazonaws.com") ||
+                url.contains("s3.") && url.contains(".amazonaws.com"));
+    }
+
+    /**
+     * S3 URL에서 S3 키 추출 (URI 파싱 방식)
+     *
+     * <p>URI 파싱을 사용하여 경로 컴포넌트만 추출하고 쿼리 스트링과 프래그먼트를 제거합니다.</p>
+     *
+     * <p>지원하는 S3 URL 형식:</p>
+     * <ul>
+     *   <li>https://bucket-name.s3.amazonaws.com/key/path/file.jpg → key/path/file.jpg</li>
+     *   <li>https://bucket-name.s3.region.amazonaws.com/key/path/file.jpg?param=value → key/path/file.jpg</li>
+     *   <li>https://s3.region.amazonaws.com/bucket-name/key/path/file.jpg → bucket-name/key/path/file.jpg</li>
+     * </ul>
+     *
+     * @param s3Url S3 URL
+     * @return S3 키 (쿼리 스트링 및 프래그먼트 제거)
+     * @throws BusinessException S3 URL 파싱 실패 또는 유효하지 않은 경로인 경우
+     */
+    private String extractS3KeyFromUrl(String s3Url) {
+        try {
+            java.net.URI uri = new java.net.URI(s3Url);
+            String path = uri.getPath();
+
+            // 경로가 없거나 비어있는 경우
+            if (path == null || path.isBlank()) {
+                log.error("S3 URL에 경로가 없음 - url: {}", maskUrl(s3Url));
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                    "S3 URL에 객체 키(경로)가 없습니다.");
+            }
+
+            // 앞의 '/' 제거
+            String s3Key = path.startsWith("/") ? path.substring(1) : path;
+
+            // 빈 키 체크
+            if (s3Key.isBlank()) {
+                log.error("S3 URL에서 추출한 키가 비어있음 - url: {}", maskUrl(s3Url));
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                    "S3 URL에서 유효한 객체 키를 추출할 수 없습니다.");
+            }
+
+            log.debug("S3 URL에서 키 추출 성공 - url: {}, s3Key: {}", maskUrl(s3Url), s3Key);
+            return s3Key;
+
+        } catch (java.net.URISyntaxException e) {
+            log.error("S3 URL 파싱 실패 - url: {}", maskUrl(s3Url), e);
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
+                "S3 URL 형식이 올바르지 않습니다: " + e.getMessage());
+        }
     }
 }
