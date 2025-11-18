@@ -38,4 +38,10 @@ public class LoginResponse {
 
     @Schema(description = "Access Token 만료 시간 (초)", example = "3600")
     private Long expiresIn;
+
+    @Schema(description = "근로자 ID (ROLE_EMPLOYEE인 경우만)", example = "1")
+    private Long employeeId;
+
+    @Schema(description = "현장 ID (ROLE_MANAGER인 경우만)", example = "1")
+    private Long siteId;
 }

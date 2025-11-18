@@ -547,13 +547,33 @@ public class AuthService {
         String userName = getUserNameByRole(user);
         log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
 
-        // 8. Response 생성
+        // 8. 역할별 추가 ID 조회 (employeeId, siteId)
+        Long employeeId = null;
+        Long siteId = null;
+
+        String roleName = user.getRole().getRoleName();
+        if ("ROLE_EMPLOYEE".equals(roleName)) {
+            employeeId = employeeRepository.findByUser(user)
+                    .map(Employee::getId)
+                    .orElse(null);
+            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}", user.getUserId(), employeeId);
+        } else if ("ROLE_MANAGER".equals(roleName)) {
+            siteId = managerRepository.findByUser(user)
+                    .flatMap(manager -> siteRepository.findByManager(manager))
+                    .map(Site::getId)
+                    .orElse(null);
+            log.debug("현장 ID 조회 완료: userId={}, siteId={}", user.getUserId(), siteId);
+        }
+
+        // 9. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(accessToken)
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
+                .employeeId(employeeId)  // 근로자인 경우만 값이 있음
+                .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
                 .build();
 
         // 8. LoginResult 생성 (refreshToken 포함, 평문)
@@ -793,13 +813,33 @@ public class AuthService {
         String userName = getUserNameByRole(user);
         log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
 
-        // 11. Response 생성
+        // 11. 역할별 추가 ID 조회 (employeeId, siteId)
+        Long employeeId = null;
+        Long siteId = null;
+
+        String roleName = user.getRole().getRoleName();
+        if ("ROLE_EMPLOYEE".equals(roleName)) {
+            employeeId = employeeRepository.findByUser(user)
+                    .map(Employee::getId)
+                    .orElse(null);
+            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}", user.getUserId(), employeeId);
+        } else if ("ROLE_MANAGER".equals(roleName)) {
+            siteId = managerRepository.findByUser(user)
+                    .flatMap(manager -> siteRepository.findByManager(manager))
+                    .map(Site::getId)
+                    .orElse(null);
+            log.debug("현장 ID 조회 완료: userId={}, siteId={}", user.getUserId(), siteId);
+        }
+
+        // 12. Response 생성
         LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
+                .employeeId(employeeId)  // 근로자인 경우만 값이 있음
+                .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
                 .build();
 
         // 11. LoginResult 생성 (새로운 refreshToken 포함, 평문)
