@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>작업일보</title>
+    <style>
+        /* PDF 스타일링 */
+        body {
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            margin: 40px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section h2 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .info-table th {
+            width: 25%;
+        }
+        .info-table td {
+            width: 75%;
+        }
+        .two-col th {
+            width: 25%;
+        }
+        .two-col td {
+            width: 25%;
+        }
+        .content-box {
+            border: 1px solid #000;
+            padding: 15px;
+            min-height: 120px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .material-table th {
+            width: 33%;
+            text-align: center;
+        }
+        .material-table td {
+            text-align: center;
+        }
+        .footer {
+            text-align: right;
+            margin-top: 30px;
+            font-size: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <!-- 작업일보 헤더 -->
+    <div class="header">
+        <h1>작 업 일 보</h1>
+    </div>
+
+    <!-- 1. 현장 기본 정보 -->
+    <div class="section">
+        <h2>1. 현장 정보</h2>
+        <table class="info-table">
+            <tr>
+                <th>현장명</th>
+                <td th:text="${site != null and site.siteName != null ? site.siteName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>현장 주소</th>
+                <td th:text="${site != null and site.siteAddress != null ? site.siteAddress : '-'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2. 작업 정보 -->
+    <div class="section">
+        <h2>2. 작업 정보</h2>
+        <table class="two-col">
+            <tr>
+                <th>작업일자</th>
+                <td th:text="${workReport != null and workReport.workDate != null ? #temporals.format(workReport.workDate, 'yyyy년 MM월 dd일') : '-'}"></td>
+                <th>작성자</th>
+                <td th:text="${managerName != null ? managerName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>공정명</th>
+                <td th:text="${workReport != null and workReport.workSection != null ? workReport.workSection : '-'}"></td>
+                <th>투입 인력</th>
+                <td>
+                    <span th:if="${workReport != null and workReport.workSectionEmployeeNum != null}">
+                        <span th:text="${workReport.workSectionEmployeeNum}"></span>명
+                    </span>
+                    <span th:if="${workReport == null or workReport.workSectionEmployeeNum == null}">-</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 3. 작업 내용 -->
+    <div class="section">
+        <h2>3. 작업 내용</h2>
+        <div class="content-box" th:text="${workReport != null and workReport.workReportContext != null ? workReport.workReportContext : ''}"></div>
+    </div>
+
+    <!-- 4. 자재 투입 현황 -->
+    <div class="section">
+        <h2>4. 자재 투입 현황</h2>
+        <table class="material-table">
+            <thead>
+                <tr>
+                    <th>품명</th>
+                    <th>규격</th>
+                    <th>단위</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 자재 목록이 있는 경우 -->
+                <tr th:if="${materials != null and !materials.empty}" th:each="material : ${materials}">
+                    <td th:text="${material.materialName != null ? material.materialName : '-'}"></td>
+                    <td th:text="${material.materialStandard != null ? material.materialStandard : '-'}"></td>
+                    <td th:text="${material.materialUnit != null ? material.materialUnit : '-'}"></td>
+                </tr>
+                <!-- 자재 목록이 없는 경우 -->
+                <tr th:if="${materials == null or materials.empty}">
+                    <td colspan="3" style="text-align: center; color: #999;">투입된 자재가 없습니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 푸터 -->
+    <div class="footer">
+        <p>작성일: <span th:text="${workReport != null and workReport.createdAt != null ? #temporals.format(workReport.createdAt, 'yyyy년 MM월 dd일') : '-'}"></span></p>
+    </div>
+</body>
+</html>
