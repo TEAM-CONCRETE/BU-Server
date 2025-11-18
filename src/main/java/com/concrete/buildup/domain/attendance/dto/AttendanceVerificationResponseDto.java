@@ -53,6 +53,12 @@ public class AttendanceVerificationResponseDto {
     private Long recordId;
 
     /**
+     * 근로자 ID
+     */
+    @Schema(description = "근로자 ID", example = "42")
+    private Long employeeId;
+
+    /**
      * 근로자 이름
      */
     @Schema(description = "근로자 이름", example = "홍길동")

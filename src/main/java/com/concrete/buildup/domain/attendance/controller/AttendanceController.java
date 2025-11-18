@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 근태 관리 Controller
@@ -93,14 +94,17 @@ public class AttendanceController {
     }
 
     /**
-     * 출퇴근 검증 및 기록 (얼굴 인식)
+     * 출퇴근 검증 및 기록 (얼굴 인식 - 백엔드 직접 처리)
      *
      * <p>현장 관리자가 로그인한 공용 태블릿에서 근로자가 사용합니다.
-     * 근로자가 주민번호를 입력하고 얼굴 이미지를 촬영하면, Presigned URL을 통해
-     * S3에 업로드한 후 이 API를 호출하여 얼굴 인식 검증 및 출퇴근 기록을 수행합니다.</p>
+     * 근로자가 전화번호를 입력하고 얼굴 이미지를 촬영하면, 이미지를 직접 전송하여
+     * 백엔드에서 얼굴 인식 검증 및 출퇴근 기록을 수행합니다.</p>
      *
      * <p>처리 흐름:</p>
      * <ol>
+     *   <li>전화번호로 근로자 조회 (Employee 엔티티)</li>
+     *   <li>파일 검증 (크기, 타입, 이미지 포맷)</li>
+     *   <li>S3에 이미지 업로드</li>
      *   <li>로그인한 현장 관리자의 현장 ID를 SecurityContext에서 자동 조회</li>
      *   <li>근로자의 얼굴 이미지 등록 여부 확인</li>
      *   <li>출퇴근 유형 자동 판단 (당일 마지막 기록 기준)</li>
@@ -109,21 +113,56 @@ public class AttendanceController {
      *   <li>검증 성공 시 출퇴근 기록 저장</li>
      * </ol>
      *
-     * @param request 출퇴근 검증 요청 (employeeId, uploadId)
+     * @param phoneNumber 근로자 전화번호
+     * @param faceImage 얼굴 이미지 파일 (MultipartFile)
      * @return AttendanceVerificationResponseDto - 검증 결과 및 출퇴근 기록 정보
      */
     @Operation(
-            summary = "출퇴근 검증 및 기록 (얼굴 인식)",
-            description = "현장 공용 태블릿에서 얼굴 인식을 통한 출퇴근 검증 및 기록을 수행합니다. " +
-                    "Presigned URL을 통해 업로드한 얼굴 이미지를 기반으로 검증하며, " +
-                    "출퇴근 유형(CHECK_IN/CHECK_OUT)은 당일 마지막 기록을 기반으로 자동 판단됩니다. " +
-                    "현장 ID는 로그인한 관리자 정보에서 자동으로 조회됩니다. " +
-                    "예: POST /v1/attendance/verify"
+            summary = "출퇴근 검증 및 기록 (얼굴 인식 - 백엔드 직접 처리)",
+            description = """
+                    현장 공용 태블릿에서 얼굴 인식을 통한 출퇴근 검증 및 기록을 수행합니다.
+
+                    **처리 흐름:**
+                    1. 클라이언트가 전화번호와 얼굴 이미지를 multipart/form-data로 전송
+                    2. 백엔드에서 파일 검증 (크기, MIME 타입, Magic Number)
+                    3. S3에 이미지 직접 업로드
+                    4. Face Recognition API로 얼굴 유사도 비교 (임계값 0.35)
+                    5. 출퇴근 유형 자동 판단 (당일 마지막 기록 기준)
+                    6. 출퇴근 기록 저장 및 응답 반환
+
+                    **응답 필드:**
+                    - success: API 호출 성공 여부
+                    - verified: 얼굴 인식 검증 통과 여부
+                    - recordId: 출퇴근 기록 ID
+                    - employeeId: 근로자 ID
+                    - employeeName: 근로자 이름
+                    - attendanceType: 출퇴근 유형 (CHECK_IN/CHECK_OUT)
+                    - timestamp: 출퇴근 기록 시각
+                    - message: 결과 메시지
+                    - isLate: 지각 여부 (출근 시에만)
+
+                    **요청 형식:** Content-Type: multipart/form-data
+
+                    **예시:** POST /v1/attendance/verify
+                    - phoneNumber: "010-1234-5678"
+                    - faceImage: [이미지 파일]
+                    """
     )
-    @PostMapping("/attendance/verify")
+    @PostMapping(value = "/attendance/verify", consumes = "multipart/form-data")
     public ResponseEntity<ApiResponse<AttendanceVerificationResponseDto>> verifyAttendance(
-        @Valid @RequestBody AttendanceVerificationRequestDto request
+        @Parameter(description = "근로자 전화번호 (하이픈 포함 또는 제외)", required = true, example = "010-1234-5678")
+        @RequestPart("phoneNumber") String phoneNumber,
+
+        @Parameter(description = "얼굴 이미지 파일 (JPG, PNG)", required = true)
+        @RequestPart("faceImage") MultipartFile faceImage
     ) {
+        // DTO 생성
+        AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
+                .phoneNumber(phoneNumber)
+                .faceImage(faceImage)
+                .build();
+
+        // 서비스 호출
         AttendanceVerificationResponseDto response = attendanceService.verifyAndRecordAttendance(request);
 
         return ResponseEntity.ok(

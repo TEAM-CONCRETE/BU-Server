@@ -2,7 +2,6 @@ package com.concrete.buildup.domain.attendance.service;
 
 import com.concrete.buildup.domain.attendance.dto.AttendanceVerificationRequestDto;
 import com.concrete.buildup.domain.attendance.dto.AttendanceVerificationResponseDto;
-import com.concrete.buildup.domain.attendance.dto.FaceSimilarityResponseDto;
 import com.concrete.buildup.domain.attendance.entity.Attendance;
 import com.concrete.buildup.domain.attendance.enums.AttendanceType;
 import com.concrete.buildup.domain.attendance.exception.DuplicateAttendanceException;
@@ -26,12 +25,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -71,7 +72,7 @@ class AttendanceServiceTest {
     private SiteRepository siteRepository;
 
     @Mock
-    private FaceSimilarityClient faceSimilarityClient;
+    private FaceRecognitionService faceRecognitionService;
 
     @Mock
     private S3Service s3Service;
@@ -150,13 +151,36 @@ class AttendanceServiceTest {
         ReflectionTestUtils.setField(mockContract, "id", 1L);
     }
 
+    /**
+     * Create a mock JPEG file with valid magic numbers for testing
+     */
+    private MultipartFile createMockJpegFile() {
+        // JPEG 파일의 유효한 magic number: FF D8 FF E0
+        byte[] jpegMagicNumber = new byte[]{
+            (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0,
+            0x00, 0x10, 0x4A, 0x46, 0x49, 0x46  // JFIF header
+        };
+        // Add some dummy bytes to make it larger
+        byte[] fullContent = new byte[1024];
+        System.arraycopy(jpegMagicNumber, 0, fullContent, 0, jpegMagicNumber.length);
+
+        return new MockMultipartFile(
+            "faceImage",
+            "test.jpg",
+            "image/jpeg",
+            fullContent
+        );
+    }
+
     @Test
     @DisplayName("출근 기록 성공 - 얼굴 인식 성공")
     void verifyAndRecordAttendance_CheckIn_Success() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("attendance/1/20/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         // Mock 설정
@@ -174,20 +198,21 @@ class AttendanceServiceTest {
             .thenReturn(List.of(mockContract));
         when(contractRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(mockContract));
 
-        // S3Service 모킹 - Presigned URL 생성
+        // S3Service 모킹 - 업로드 및 Presigned URL 생성
+        when(s3Service.uploadAttendanceImage(any(MultipartFile.class), eq(1L), eq(20L)))
+            .thenReturn("attendance/1/20/1234567890.jpg");
         when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+        when(s3Service.generatePresignedGetUrl("attendance/1/20/1234567890.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
-        FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
-        faceApiResponse.setVerified(true);
-        faceApiResponse.setSimilarity(0.95);
-        when(faceSimilarityClient.compareFaces(anyString(), anyString())).thenReturn(faceApiResponse);
+        // FaceRecognitionService 모킹 - 얼굴 인식 성공
+        when(faceRecognitionService.compareFaces(anyString(), anyString())).thenReturn(true);
 
         Attendance savedAttendance = Attendance.builder()
             .employeeId(20L)
             .siteId(1L)
+            .empName("테스트 근로자")
             .checkInTime(LocalDateTime.now())
             .build();
         ReflectionTestUtils.setField(savedAttendance, "id", 1L);
@@ -201,25 +226,27 @@ class AttendanceServiceTest {
         assertThat(response.getVerified()).isTrue();
         assertThat(response.getAttendanceType()).isEqualTo(AttendanceType.CHECK_IN);
         assertThat(response.getEmployeeName()).isEqualTo("테스트 근로자");
-        assertThat(response.getSimilarityScore()).isEqualTo(0.95);
 
         verify(attendanceRepository, times(1)).save(any(Attendance.class));
-        verify(faceSimilarityClient, times(1)).compareFaces(anyString(), anyString());
+        verify(faceRecognitionService, times(1)).compareFaces(anyString(), anyString());
     }
 
     @Test
     @DisplayName("퇴근 기록 성공 - 출근 기록 존재")
     void verifyAndRecordAttendance_CheckOut_Success() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("attendance/1/20/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         // 오늘 출근 기록 존재
         Attendance existingCheckIn = Attendance.builder()
             .employeeId(20L)
             .siteId(1L)
+            .empName("테스트 근로자")
             .checkInTime(LocalDateTime.now().minusHours(8))
             .build();
 
@@ -230,19 +257,20 @@ class AttendanceServiceTest {
             .thenReturn(List.of(existingCheckIn)); // 출근 기록 있음 → CHECK_OUT
 
         // S3Service 모킹
+        when(s3Service.uploadAttendanceImage(any(MultipartFile.class), eq(1L), eq(20L)))
+            .thenReturn("attendance/1/20/1234567890.jpg");
         when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+        when(s3Service.generatePresignedGetUrl("attendance/1/20/1234567890.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
-        FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
-        faceApiResponse.setVerified(true);
-        faceApiResponse.setSimilarity(0.92);
-        when(faceSimilarityClient.compareFaces(anyString(), anyString())).thenReturn(faceApiResponse);
+        // FaceRecognitionService 모킹
+        when(faceRecognitionService.compareFaces(anyString(), anyString())).thenReturn(true);
 
         Attendance updatedAttendance = Attendance.builder()
             .employeeId(20L)
             .siteId(1L)
+            .empName("테스트 근로자")
             .checkInTime(existingCheckIn.getCheckInTime())
             .checkOutTime(LocalDateTime.now())
             .build();
@@ -255,7 +283,6 @@ class AttendanceServiceTest {
         assertThat(response.getSuccess()).isTrue();
         assertThat(response.getVerified()).isTrue();
         assertThat(response.getAttendanceType()).isEqualTo(AttendanceType.CHECK_OUT);
-        assertThat(response.getSimilarityScore()).isEqualTo(0.92);
 
         verify(attendanceRepository, times(1)).save(any(Attendance.class));
     }
@@ -264,9 +291,11 @@ class AttendanceServiceTest {
     @DisplayName("얼굴 인식 실패 - 유사도 낮음")
     void verifyAndRecordAttendance_FaceVerificationFailed() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("attendance/1/20/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
@@ -276,26 +305,19 @@ class AttendanceServiceTest {
             .thenReturn(Collections.emptyList());
 
         // S3Service 모킹
+        when(s3Service.uploadAttendanceImage(any(MultipartFile.class), eq(1L), eq(20L)))
+            .thenReturn("attendance/1/20/1234567890.jpg");
         when(s3Service.generatePresignedGetUrl("profile/200/face.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/profile/200/face.jpg");
-        when(s3Service.generatePresignedGetUrl(startsWith("attendance/1/20/")))
+        when(s3Service.generatePresignedGetUrl("attendance/1/20/1234567890.jpg"))
             .thenReturn("https://test-bucket.s3.amazonaws.com/attendance/1/20/1234567890.jpg");
 
-        // 얼굴 인식 실패 (유사도 낮음)
-        FaceSimilarityResponseDto faceApiResponse = new FaceSimilarityResponseDto();
-        faceApiResponse.setVerified(false);
-        faceApiResponse.setSimilarity(0.45);
-        when(faceSimilarityClient.compareFaces(anyString(), anyString())).thenReturn(faceApiResponse);
+        // 얼굴 인식 실패 - 새 구현에서는 false를 반환하면 BusinessException이 throw됨
+        when(faceRecognitionService.compareFaces(anyString(), anyString())).thenReturn(false);
 
-        // When
-        AttendanceVerificationResponseDto response = attendanceService.verifyAndRecordAttendance(request);
-
-        // Then
-        assertThat(response.getSuccess()).isTrue();
-        assertThat(response.getVerified()).isFalse();
-        assertThat(response.getRecordId()).isNull();
-        assertThat(response.getSimilarityScore()).isEqualTo(0.45);
-        assertThat(response.getMessage()).contains("얼굴 인식에 실패했습니다");
+        // When & Then - 새 구현에서는 얼굴 인식 실패 시 예외 발생
+        assertThatThrownBy(() -> attendanceService.verifyAndRecordAttendance(request))
+            .isInstanceOf(BusinessException.class);
 
         verify(attendanceRepository, never()).save(any(Attendance.class));
     }
@@ -304,9 +326,11 @@ class AttendanceServiceTest {
     @DisplayName("얼굴 미등록 사원 - 예외 발생")
     void verifyAndRecordAttendance_FaceImageNotRegistered() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("attendance/1/20/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         // 얼굴 이미지 미등록 근로자
@@ -323,9 +347,9 @@ class AttendanceServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> attendanceService.verifyAndRecordAttendance(request))
-            .isInstanceOf(FaceImageNotRegisteredException.class);
+            .isInstanceOf(BusinessException.class);
 
-        verify(faceSimilarityClient, never()).compareFaces(anyString(), anyString());
+        verify(faceRecognitionService, never()).compareFaces(anyString(), anyString());
         verify(attendanceRepository, never()).save(any(Attendance.class));
     }
 
@@ -333,9 +357,11 @@ class AttendanceServiceTest {
     @DisplayName("중복 퇴근 시도 - 출근 기록에 이미 퇴근 시각 존재")
     void verifyAndRecordAttendance_DuplicateCheckOut_WithExistingCheckOut() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-1234-5678")
-            .uploadId("attendance/1/20/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         // 이미 출근+퇴근 완료된 기록 존재
@@ -356,7 +382,7 @@ class AttendanceServiceTest {
         assertThatThrownBy(() -> attendanceService.verifyAndRecordAttendance(request))
             .isInstanceOf(DuplicateAttendanceException.class);
 
-        verify(faceSimilarityClient, never()).compareFaces(anyString(), anyString());
+        verify(faceRecognitionService, never()).compareFaces(anyString(), anyString());
         verify(attendanceRepository, never()).save(any(Attendance.class));
     }
 
@@ -364,9 +390,11 @@ class AttendanceServiceTest {
     @DisplayName("등록되지 않은 전화번호 - 예외 발생")
     void verifyAndRecordAttendance_EmployeeNotFound() {
         // Given
+        MultipartFile mockFile = createMockJpegFile();
+
         AttendanceVerificationRequestDto request = AttendanceVerificationRequestDto.builder()
             .phoneNumber("010-9999-9999")
-            .uploadId("attendance/1/999/1234567890.jpg")
+            .faceImage(mockFile)
             .build();
 
         when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
@@ -378,7 +406,7 @@ class AttendanceServiceTest {
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("등록된 근로자를 찾을 수 없습니다");
 
-        verify(faceSimilarityClient, never()).compareFaces(anyString(), anyString());
+        verify(faceRecognitionService, never()).compareFaces(anyString(), anyString());
         verify(attendanceRepository, never()).save(any(Attendance.class));
     }
 }
