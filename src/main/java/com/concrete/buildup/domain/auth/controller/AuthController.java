@@ -199,20 +199,20 @@ public class AuthController {
         // Access Token을 HttpOnly 쿠키로 설정 (XSS 방어)
         org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // SameSite=None일 때는 반드시 true
+                .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getLoginResponse().getExpiresIn())  // Access Token 만료 시간
-                .sameSite(isProduction ? "Strict" : "None")  // 개발/테스트: None, 운영: Strict
+                .sameSite(isProduction ? "Strict" : "Lax")  // 개발: Lax, 운영: Strict
                 .build();
         response.addHeader("Set-Cookie", accessTokenCookie.toString());
 
         // Refresh Token을 HttpOnly 쿠키로 설정
         org.springframework.http.ResponseCookie refreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // SameSite=None일 때는 반드시 true
+                .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
-                .sameSite(isProduction ? "Strict" : "None")  // 개발/테스트: None, 운영: Strict
+                .sameSite(isProduction ? "Strict" : "Lax")  // 개발: Lax, 운영: Strict
                 .build();
         response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
@@ -291,20 +291,20 @@ public class AuthController {
         // 새로운 Access Token을 HttpOnly 쿠키로 설정
         org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // SameSite=None일 때는 반드시 true
+                .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getLoginResponse().getExpiresIn())  // Access Token 만료 시간
-                .sameSite(isProduction ? "Strict" : "None")  // 개발/테스트: None, 운영: Strict
+                .sameSite(isProduction ? "Strict" : "Lax")  // 개발: Lax, 운영: Strict
                 .build();
         response.addHeader("Set-Cookie", accessTokenCookie.toString());
 
         // 새로운 Refresh Token을 HttpOnly 쿠키로 설정
         org.springframework.http.ResponseCookie newRefreshTokenCookie = org.springframework.http.ResponseCookie.from("refreshToken", loginResult.getRefreshToken())
                 .httpOnly(true)          // XSS 공격 방어
-                .secure(true)            // SameSite=None일 때는 반드시 true
+                .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
                 .maxAge(loginResult.getRefreshTokenMaxAge())  // 만료 시간 설정
-                .sameSite(isProduction ? "Strict" : "None")  // 개발/테스트: None, 운영: Strict
+                .sameSite(isProduction ? "Strict" : "Lax")  // 개발: Lax, 운영: Strict
                 .build();
         response.addHeader("Set-Cookie", newRefreshTokenCookie.toString());
 
