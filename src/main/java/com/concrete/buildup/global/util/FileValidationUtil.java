@@ -70,11 +70,11 @@ public class FileValidationUtil {
      * @throws BusinessException 검증 실패 시
      */
     public static void validateImageFile(MultipartFile file) {
+        // 1. 파일 존재 여부 검증 (NPE 방지를 위해 가장 먼저 수행)
+        validateFileExists(file);
+
         log.debug("파일 검증 시작: originalFilename={}, size={}, contentType={}",
                 file.getOriginalFilename(), file.getSize(), file.getContentType());
-
-        // 1. 파일 존재 여부 검증
-        validateFileExists(file);
 
         // 2. 파일 크기 검증
         validateFileSize(file);
