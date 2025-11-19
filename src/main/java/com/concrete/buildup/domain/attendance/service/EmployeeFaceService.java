@@ -6,6 +6,7 @@ import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,7 +35,7 @@ public class EmployeeFaceService {
 
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
-    private final com.concrete.buildup.domain.upload.service.S3Service s3Service;
+    private final java.util.Optional<com.concrete.buildup.domain.upload.service.S3Service> s3Service;
 
     @Value("${spring.cloud.aws.s3.bucket}")
     private String bucketName;
@@ -65,7 +66,10 @@ public class EmployeeFaceService {
             });
 
         // 3. S3에 파일이 실제로 존재하는지 검증
-        if (!s3Service.doesObjectExist(uploadId)) {
+        com.concrete.buildup.domain.upload.service.S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+
+        if (!service.doesObjectExist(uploadId)) {
             log.error("S3에 파일이 존재하지 않음 - uploadId: {}", uploadId);
             throw new BusinessException(AuthErrorCode.USER_NOT_FOUND,
                     "업로드된 이미지 파일이 S3에 존재하지 않습니다. 파일을 먼저 업로드해주세요.");
