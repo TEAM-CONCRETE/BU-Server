@@ -11,6 +11,8 @@ env:
   APP_NAME: buildup
   DEPLOY_PATH: /home/ubuntu/buildup
   DOCKER_IMAGE: buildup-app
+  DOCKER_NETWORK: buildup-network
+  MYSQL_CONTAINER: buildup-mysql
 
 jobs:
   deploy:
@@ -112,7 +114,23 @@ jobs:
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/.env
 
       # ---------------------------------
-      # 9. Docker 이미지 빌드 및 실행
+      # 9. Docker 네트워크 설정
+      # ---------------------------------
+      - name: 🌐 Setup Docker Network
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
+            echo "🌐 Creating Docker network if not exists..."
+            docker network create buildup-network 2>/dev/null || true
+
+            echo "🔗 Connecting MySQL container to network..."
+            docker network connect buildup-network buildup-mysql 2>/dev/null || true
+
+            echo "✅ Network setup complete"
+            docker network inspect buildup-network --format '{{range .Containers}}{{.Name}} {{end}}'
+          EOF
+
+      # ---------------------------------
+      # 10. Docker 이미지 빌드 및 실행
       # ---------------------------------
       - name: 🐳 Build and Run Docker Container
         run: |
@@ -120,30 +138,31 @@ jobs:
             cd /home/ubuntu/buildup
 
             echo "🛑 Stopping existing container..."
-            docker stop ${{ env.DOCKER_IMAGE }} 2>/dev/null || true
-            docker rm ${{ env.DOCKER_IMAGE }} 2>/dev/null || true
+            docker stop buildup-app 2>/dev/null || true
+            docker rm buildup-app 2>/dev/null || true
 
             echo "🏗️ Building Docker image..."
-            docker build -t ${{ env.DOCKER_IMAGE }}:latest .
+            docker build -t buildup-app:latest .
 
             echo "🚀 Starting Docker container..."
             docker run -d \
-              --name ${{ env.DOCKER_IMAGE }} \
+              --name buildup-app \
+              --network buildup-network \
               --env-file .env \
               -p 8080:8080 \
               --restart unless-stopped \
-              ${{ env.DOCKER_IMAGE }}:latest
+              buildup-app:latest
 
             echo "🧹 Cleaning up old images..."
             docker image prune -f
 
             sleep 10
-            if docker ps | grep -q ${{ env.DOCKER_IMAGE }}; then
+            if docker ps | grep -q buildup-app; then
               echo "✅ Container started successfully"
-              docker logs --tail 30 ${{ env.DOCKER_IMAGE }}
+              docker logs --tail 30 buildup-app
             else
               echo "❌ Container failed to start"
-              docker logs ${{ env.DOCKER_IMAGE }}
+              docker logs buildup-app
               exit 1
             fi
           EOF
