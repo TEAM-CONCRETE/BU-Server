@@ -6,6 +6,7 @@ import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
 import com.concrete.buildup.domain.employee.repository.EmployeeQueryRepository;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.EmployeeErrorCode;
 import com.concrete.buildup.global.exception.errorcode.SiteErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,14 @@ public class EmployeeService {
     ) {
         log.info("사원 목록 조회: siteId={}, empType={}, name={}, page={}, size={}",
                 siteId, empTypeStr, name, page, size);
+
+        // 페이지 파라미터 검증
+        if (page < 1) {
+            throw new BusinessException(EmployeeErrorCode.INVALID_PAGE_NUMBER);
+        }
+        if (size < 1 || size > 100) {
+            throw new BusinessException(EmployeeErrorCode.INVALID_PAGE_SIZE);
+        }
 
         // 현장 존재 여부 확인
         if (!siteRepository.existsById(siteId)) {
