@@ -16,12 +16,9 @@ spring:
       max-lifetime: 1800000
       leak-detection-threshold: 60000
 
-  # Flyway 설정 (운영 환경)
+  # Flyway 설정 (운영 환경 - 기존 스키마 사용으로 비활성화)
   flyway:
-    enabled: true
-    baseline-on-migrate: true  # 기존 스키마가 있을 경우 baseline 생성
-    baseline-version: 0        # baseline 버전
-    locations: classpath:db/migration
+    enabled: false
 
   # JPA 설정 (운영 환경)
   jpa:

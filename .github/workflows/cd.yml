@@ -88,7 +88,7 @@ jobs:
       - name: 📝 Create environment file
         run: |
           cat > .env.prod << EOF
-          SPRING_PROFILES_ACTIVE=prod
+          SPRING_PROFILES_ACTIVE=dev
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
 
