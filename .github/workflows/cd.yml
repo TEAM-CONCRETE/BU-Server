@@ -10,11 +10,11 @@ env:
   EC2_USER: ubuntu
   APP_NAME: buildup
   DEPLOY_PATH: /home/ubuntu/buildup
+  DOCKER_IMAGE: buildup-app
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # CI 테스트가 통과한 후에만 배포
 
     steps:
       # ---------------------------------
@@ -50,26 +50,7 @@ jobs:
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
 
       # ---------------------------------
-      # 5. 애플리케이션 빌드
-      # ---------------------------------
-      - name: 🏗️ Build Application
-        run: ./gradlew clean build -x test --no-daemon
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-
-      # ---------------------------------
-      # 6. JAR 파일명 확인
-      # ---------------------------------
-      - name: 📦 Get JAR file name
-        id: jar
-        run: |
-          JAR_FILE=$(ls build/libs/*.jar | grep -v plain | head -1)
-          echo "jar_file=$JAR_FILE" >> $GITHUB_OUTPUT
-          echo "jar_name=$(basename $JAR_FILE)" >> $GITHUB_OUTPUT
-
-      # ---------------------------------
-      # 7. SSH Key 설정
+      # 5. SSH Key 설정
       # ---------------------------------
       - name: 🔑 Setup SSH Key
         run: |
@@ -79,24 +60,28 @@ jobs:
           ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
 
       # ---------------------------------
-      # 8. 배포 디렉토리 생성
+      # 6. 배포 디렉토리 생성
       # ---------------------------------
       - name: 📁 Create deploy directory
         run: |
           ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
-            "mkdir -p ${{ env.DEPLOY_PATH }}/logs"
+            "mkdir -p ${{ env.DEPLOY_PATH }}"
 
       # ---------------------------------
-      # 9. JAR 파일 전송
+      # 7. 소스 코드 및 Dockerfile 전송
       # ---------------------------------
-      - name: 🚀 Deploy JAR to EC2
+      - name: 📦 Transfer source to EC2
         run: |
-          scp -o StrictHostKeyChecking=no \
-            ${{ steps.jar.outputs.jar_file }} \
-            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/${{ env.APP_NAME }}.jar
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'build' \
+            --exclude '.gradle' \
+            --exclude 'node_modules' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
 
       # ---------------------------------
-      # 10. 환경 변수 파일 생성 및 전송
+      # 8. 환경 변수 파일 생성 및 전송
       # ---------------------------------
       - name: 📝 Create environment file
         run: |
@@ -127,47 +112,44 @@ jobs:
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/.env
 
       # ---------------------------------
-      # 11. 애플리케이션 재시작
+      # 9. Docker 이미지 빌드 및 실행
       # ---------------------------------
-      - name: 🔄 Restart Application
+      - name: 🐳 Build and Run Docker Container
         run: |
           ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
             cd /home/ubuntu/buildup
 
-            # 기존 프로세스 종료
-            echo "🛑 Stopping existing application..."
-            if pgrep -f "buildup.jar" > /dev/null; then
-              pkill -f "buildup.jar" || true
-              sleep 5
-            fi
+            echo "🛑 Stopping existing container..."
+            docker stop ${{ env.DOCKER_IMAGE }} 2>/dev/null || true
+            docker rm ${{ env.DOCKER_IMAGE }} 2>/dev/null || true
 
-            # 환경 변수 로드
-            set -a
-            source .env
-            set +a
+            echo "🏗️ Building Docker image..."
+            docker build -t ${{ env.DOCKER_IMAGE }}:latest .
 
-            # 애플리케이션 시작
-            echo "🚀 Starting application..."
-            nohup java -jar \
-              -Xms512m -Xmx1024m \
-              -Dspring.profiles.active=prod \
-              buildup.jar > logs/app.log 2>&1 &
+            echo "🚀 Starting Docker container..."
+            docker run -d \
+              --name ${{ env.DOCKER_IMAGE }} \
+              --env-file .env \
+              -p 8080:8080 \
+              --restart unless-stopped \
+              ${{ env.DOCKER_IMAGE }}:latest
 
-            # 시작 확인
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+
             sleep 10
-            if pgrep -f "buildup.jar" > /dev/null; then
-              echo "✅ Application started successfully"
-              echo "📋 Recent logs:"
-              tail -20 logs/app.log
+            if docker ps | grep -q ${{ env.DOCKER_IMAGE }}; then
+              echo "✅ Container started successfully"
+              docker logs --tail 30 ${{ env.DOCKER_IMAGE }}
             else
-              echo "❌ Application failed to start"
-              cat logs/app.log
+              echo "❌ Container failed to start"
+              docker logs ${{ env.DOCKER_IMAGE }}
               exit 1
             fi
           EOF
 
       # ---------------------------------
-      # 12. 헬스체크
+      # 10. 헬스체크
       # ---------------------------------
       - name: 🏥 Health Check
         run: |
