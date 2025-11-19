@@ -13,6 +13,7 @@ import com.concrete.buildup.domain.auth.repository.RoleRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.util.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -91,6 +93,9 @@ class AuthIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private S3Service s3Service;
 
     private Role employeeRole;
     private Role managerRole;
