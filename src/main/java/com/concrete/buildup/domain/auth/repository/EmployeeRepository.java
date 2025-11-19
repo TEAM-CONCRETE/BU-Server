@@ -79,11 +79,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     /**
      * 전화번호로 근로자 조회 (출퇴근 검증용)
-     * User의 phone으로 근로자를 조회합니다.
+     * User의 phone 또는 Employee의 sub_phone으로 근로자를 조회합니다.
+     * 전화번호 비교 시 하이픈, 공백, 괄호를 제거하여 정규화된 형태로 비교합니다.
      *
-     * @param phone 전화번호 (하이픈 포함 또는 제외)
+     * @param phone 전화번호 (정규화된 형태, 숫자만)
      * @return 근로자 + User (Optional)
      */
-    @Query("SELECT e FROM Employee e JOIN FETCH e.user u WHERE u.phone = :phone")
+    @Query(value = "SELECT e.* FROM employees e " +
+                   "JOIN users u ON e.user_id = u.id " +
+                   "WHERE REPLACE(REPLACE(REPLACE(u.phone, '-', ''), ' ', ''), '(', '') = :phone " +
+                   "   OR REPLACE(REPLACE(REPLACE(IFNULL(e.sub_phone, ''), '-', ''), ' ', ''), '(', '') = :phone " +
+                   "LIMIT 1",
+           nativeQuery = true)
     Optional<Employee> findByPhoneWithUser(@Param("phone") String phone);
 }

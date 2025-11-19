@@ -30,6 +30,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux' // FastAPI 연동용 WebClient
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf' // PDF 템플릿 렌더링용
 	implementation 'org.springframework.retry:spring-retry' // Face API 재시도 로직용

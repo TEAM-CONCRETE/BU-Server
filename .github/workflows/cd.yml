@@ -1,0 +1,262 @@
+name: Build-Up CD Pipeline
+
+on:
+  push:
+    branches: [ 'main', 'develop' ]
+  workflow_dispatch:  # 수동 배포 가능
+
+env:
+  EC2_HOST: 3.37.234.173
+  EC2_USER: ubuntu
+  APP_NAME: buildup
+  DEPLOY_PATH: /home/ubuntu/buildup
+  DOCKER_IMAGE: buildup-app
+  DOCKER_NETWORK: buildup-network
+  MYSQL_CONTAINER: buildup-mysql
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------------------------------
+      # 1. Repo Checkout
+      # ---------------------------------
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------
+      # 2. Set up Java 21
+      # ---------------------------------
+      - name: ☕ Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      # ---------------------------------
+      # 3. Gradle Wrapper 실행 권한 부여
+      # ---------------------------------
+      - name: 🔧 Grant execute permission for Gradle Wrapper
+        run: chmod +x ./gradlew
+
+      # ---------------------------------
+      # 4. 테스트 실행
+      # ---------------------------------
+      - name: 🧪 Run Tests
+        run: ./gradlew test --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          JWT_SECRET: test-secret-key-min-256-bits-long-for-hs256-algorithm-test
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+
+      # ---------------------------------
+      # 5. SSH Key 설정
+      # ---------------------------------
+      - name: 🔑 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_EC2_SSH_KEY }}" | base64 -d > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # ---------------------------------
+      # 6. 배포 디렉토리 생성
+      # ---------------------------------
+      - name: 📁 Create deploy directory
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+            "mkdir -p ${{ env.DEPLOY_PATH }}"
+
+      # ---------------------------------
+      # 7. 소스 코드 및 Dockerfile 전송
+      # ---------------------------------
+      - name: 📦 Transfer source to EC2
+        run: |
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'build' \
+            --exclude '.gradle' \
+            --exclude 'node_modules' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      # ---------------------------------
+      # 8. 환경 변수 파일 생성 및 전송
+      # ---------------------------------
+      - name: 📝 Create environment file
+        run: |
+          cat > .env.prod << EOF
+          SPRING_PROFILES_ACTIVE=dev
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+
+          # Database
+          SPRING_DATASOURCE_URL=${{ secrets.DB_URL }}
+          SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # Admin
+          ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+
+          # AWS S3
+          AWS_S3_ENABLED=${{ secrets.AWS_S3_ENABLED || 'false' }}
+          AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
+          AWS_REGION=${{ secrets.AWS_REGION || 'ap-northeast-2' }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EOF
+
+          scp -o StrictHostKeyChecking=no \
+            .env.prod \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/.env
+
+      # ---------------------------------
+      # 9. Docker 네트워크 설정
+      # ---------------------------------
+      - name: 🌐 Setup Docker Network
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
+            echo "🌐 Creating Docker network if not exists..."
+            docker network create buildup-network 2>/dev/null || true
+
+            echo "🔗 Connecting MySQL container to network..."
+            docker network connect buildup-network buildup-mysql 2>/dev/null || true
+
+            echo "✅ Network setup complete"
+            docker network inspect buildup-network --format '{{range .Containers}}{{.Name}} {{end}}'
+          EOF
+
+      # ---------------------------------
+      # 10. Docker 이미지 빌드 및 실행
+      # ---------------------------------
+      - name: 🐳 Build and Run Docker Container
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
+            cd /home/ubuntu/buildup
+
+            echo "🛑 Stopping existing container..."
+            docker stop buildup-app 2>/dev/null || true
+            docker rm buildup-app 2>/dev/null || true
+
+            echo "🏗️ Building Docker image..."
+            docker build -t buildup-app:latest .
+
+            echo "🚀 Starting Docker container..."
+            docker run -d \
+              --name buildup-app \
+              --network buildup-network \
+              --env-file .env \
+              -p 8080:8080 \
+              --restart unless-stopped \
+              buildup-app:latest
+
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+
+            sleep 10
+            if docker ps | grep -q buildup-app; then
+              echo "✅ Container started successfully"
+              docker logs --tail 30 buildup-app
+            else
+              echo "❌ Container failed to start"
+              docker logs buildup-app
+              exit 1
+            fi
+          EOF
+
+      # ---------------------------------
+      # 10. 헬스체크
+      # ---------------------------------
+      - name: 🏥 Health Check
+        run: |
+          echo "⏳ Waiting for application to be ready..."
+          sleep 30
+
+          for i in {1..5}; do
+            if curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:8080/api/actuator/health | grep -q "200"; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/5 failed, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+  # ---------------------------------
+  # Discord 알림
+  # ---------------------------------
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 📢 Notify Discord
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "⚠️ Discord Webhook이 설정되지 않아 알림을 건너뜁니다."
+            exit 0
+          fi
+
+          DEPLOY_STATUS="${{ needs.deploy.result }}"
+          BRANCH="${{ github.ref_name }}"
+          AUTHOR="${{ github.actor }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          if [ "${DEPLOY_STATUS}" = "success" ]; then
+            ICON="🚀"
+            COLOR=3066993
+            MESSAGE="Build-Up 배포 성공"
+          else
+            ICON="❌"
+            COLOR=15158332
+            MESSAGE="Build-Up 배포 실패"
+          fi
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "${ICON} ${MESSAGE}",
+              "description": "${COMMIT_MSG}",
+              "color": ${COLOR},
+              "fields": [
+                {
+                  "name": "브랜치",
+                  "value": "\`${BRANCH}\`",
+                  "inline": true
+                },
+                {
+                  "name": "작성자",
+                  "value": "${AUTHOR}",
+                  "inline": true
+                },
+                {
+                  "name": "서버",
+                  "value": "3.37.234.173",
+                  "inline": true
+                },
+                {
+                  "name": "로그",
+                  "value": "[보기](${RUN_URL})",
+                  "inline": true
+                }
+              ],
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+            }]
+          }
+          EOF
+          )
+
+          curl -X POST \
+            -H 'Content-Type: application/json' \
+            --data "${PAYLOAD}" \
+            "$DISCORD_WEBHOOK"

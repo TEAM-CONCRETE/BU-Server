@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
  * 로그인 결과 내부 DTO
  *
  * <p>Service와 Controller 간의 데이터 전달용 내부 DTO입니다.</p>
- * <p>API 응답에는 loginResponse만 포함되고, refreshToken은 HttpOnly 쿠키로 전달됩니다.</p>
+ * <p>API 응답에는 loginResponse만 포함되고, accessToken과 refreshToken은 HttpOnly 쿠키로 전달됩니다.</p>
  *
  * @author Build-Up Team
  * @since 1.0
@@ -24,6 +24,11 @@ public class LoginResult {
      * 로그인 응답 (API Body로 전달)
      */
     private LoginResponse loginResponse;
+
+    /**
+     * Access Token (HttpOnly 쿠키로 전달, 평문)
+     */
+    private String accessToken;
 
     /**
      * Refresh Token (HttpOnly 쿠키로 전달, 평문)
