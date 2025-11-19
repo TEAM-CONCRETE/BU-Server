@@ -6,9 +6,12 @@ import com.concrete.buildup.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/sites/{siteId}/employees")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Employee", description = "사원 관리 API")
 public class EmployeeController {
 
@@ -51,10 +55,10 @@ public class EmployeeController {
             @RequestParam(required = false) String name,
 
             @Parameter(description = "페이지 번호 (1부터 시작)")
-            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "1") @Min(1) int page,
 
             @Parameter(description = "페이지 크기")
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size
     ) {
         log.info("사원 목록 조회 API 호출: siteId={}, empType={}, name={}, page={}, size={}",
                 siteId, empType, name, page, size);
