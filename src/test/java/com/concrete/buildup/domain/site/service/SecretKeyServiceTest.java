@@ -1,6 +1,7 @@
 package com.concrete.buildup.domain.site.service;
 
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.global.exception.SecretKeyGenerationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,7 +79,7 @@ class SecretKeyServiceTest {
         assertThat(result.getEmployeeSecretKey()).isNotNull();
 
         verify(siteRepository, times(2)).existsByManagerSecretKey(anyString());
-        verify(siteRepository, times(2)).existsByEmployeeSecretKey(anyString());
+        verify(siteRepository, times(1)).existsByEmployeeSecretKey(anyString());
     }
 
     @Test
@@ -94,7 +95,7 @@ class SecretKeyServiceTest {
 
         // when & then
         assertThatThrownBy(() -> secretKeyService.generateUniqueSecretKeys(corpName, siteId))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(SecretKeyGenerationException.class)
                 .hasMessageContaining("유니크한 시크릿키 생성에 실패했습니다");
 
         verify(siteRepository, times(10)).existsByManagerSecretKey(anyString());

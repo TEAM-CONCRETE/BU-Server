@@ -1,5 +1,8 @@
 package com.concrete.buildup.domain.attendance.exception;
 
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.AttendanceErrorCode;
+
 /**
  * 얼굴 이미지 미등록 예외
  *
@@ -8,7 +11,7 @@ package com.concrete.buildup.domain.attendance.exception;
  * @author Build-Up Team
  * @since 1.0
  */
-public class FaceImageNotRegisteredException extends RuntimeException {
+public class FaceImageNotRegisteredException extends BusinessException {
 
     /**
      * 얼굴 이미지가 등록되지 않았을 때 발생하는 예외
@@ -16,7 +19,8 @@ public class FaceImageNotRegisteredException extends RuntimeException {
      * @param employeeId 근로자 ID
      */
     public FaceImageNotRegisteredException(Long employeeId) {
-        super(String.format("근로자 ID %d의 얼굴 이미지가 등록되지 않았습니다. 먼저 얼굴을 등록해주세요.", employeeId));
+        super(AttendanceErrorCode.FACE_IMAGE_NOT_REGISTERED,
+                String.format("근로자 ID %d의 얼굴 이미지가 등록되지 않았습니다. 먼저 얼굴을 등록해주세요.", employeeId));
     }
 
     /**
@@ -25,6 +29,6 @@ public class FaceImageNotRegisteredException extends RuntimeException {
      * @param message 상세 메시지
      */
     public FaceImageNotRegisteredException(String message) {
-        super(message);
+        super(AttendanceErrorCode.FACE_IMAGE_NOT_REGISTERED, message);
     }
 }
