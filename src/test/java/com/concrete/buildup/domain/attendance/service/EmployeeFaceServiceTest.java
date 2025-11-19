@@ -47,7 +47,7 @@ class EmployeeFaceServiceTest {
     void registerEmployeeFaceImage_Success() {
         // Given
         String userId = "test123";
-        String uploadId = "uploads/employee-profiles/1/face.jpg";
+        String uploadId = "profile/1/face.jpg";
         String bucketName = "test-bucket";
 
         ReflectionTestUtils.setField(employeeFaceService, "bucketName", bucketName);
@@ -79,6 +79,7 @@ class EmployeeFaceServiceTest {
 
         verify(userRepository, times(1)).findByUserId(userId);
         verify(employeeRepository, times(1)).findByUserId(1L);
+        verify(s3Service, times(1)).doesObjectExist(uploadId);
         verify(employeeRepository, times(1)).save(any(Employee.class));
     }
 
@@ -87,7 +88,7 @@ class EmployeeFaceServiceTest {
     void registerEmployeeFaceImage_UserNotFound() {
         // Given
         String userId = "nonexistent";
-        String uploadId = "uploads/employee-profiles/999/face.jpg";
+        String uploadId = "profile/999/face.jpg";
 
         when(userRepository.findByUserId(userId)).thenReturn(Optional.empty());
 
@@ -106,7 +107,7 @@ class EmployeeFaceServiceTest {
     void registerEmployeeFaceImage_EmployeeNotFound() {
         // Given
         String userId = "test123";
-        String uploadId = "uploads/employee-profiles/999/face.jpg";
+        String uploadId = "profile/999/face.jpg";
 
         User mockUser = User.builder()
                 .userId(userId)
@@ -133,9 +134,9 @@ class EmployeeFaceServiceTest {
     void registerEmployeeFaceImage_ReplaceExisting() {
         // Given
         String userId = "test123";
-        String uploadId = "uploads/employee-profiles/1/new-face.jpg";
+        String uploadId = "profile/1/face.jpg";
         String bucketName = "test-bucket";
-        String oldImageUrl = "https://test-bucket.s3.amazonaws.com/uploads/employee-profiles/1/old-face.jpg";
+        String oldImageUrl = "https://test-bucket.s3.amazonaws.com/profile/1/old-face.jpg";
 
         ReflectionTestUtils.setField(employeeFaceService, "bucketName", bucketName);
 
@@ -166,6 +167,42 @@ class EmployeeFaceServiceTest {
         assertThat(result).isEqualTo(expectedUrl);
         assertThat(result).isNotEqualTo(oldImageUrl);
 
+        verify(s3Service, times(1)).doesObjectExist(uploadId);
         verify(employeeRepository, times(1)).save(any(Employee.class));
+    }
+
+    @Test
+    @DisplayName("얼굴 이미지 등록 실패 - S3에 파일이 존재하지 않음")
+    void registerEmployeeFaceImage_S3ObjectNotFound() {
+        // Given
+        String userId = "test123";
+        String uploadId = "profile/1/face.jpg";
+
+        User mockUser = User.builder()
+                .userId(userId)
+                .password("password")
+                .phone("010-1234-5678")
+                .build();
+        ReflectionTestUtils.setField(mockUser, "id", 1L);
+
+        Employee mockEmployee = Employee.builder()
+                .user(mockUser)
+                .empName("테스트")
+                .build();
+        ReflectionTestUtils.setField(mockEmployee, "id", 1L);
+
+        when(userRepository.findByUserId(userId)).thenReturn(Optional.of(mockUser));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(mockEmployee));
+        when(s3Service.doesObjectExist(uploadId)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> employeeFaceService.registerEmployeeFaceImage(userId, uploadId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("업로드된 이미지 파일이 S3에 존재하지 않습니다");
+
+        verify(userRepository, times(1)).findByUserId(userId);
+        verify(employeeRepository, times(1)).findByUserId(1L);
+        verify(s3Service, times(1)).doesObjectExist(uploadId);
+        verify(employeeRepository, never()).save(any());
     }
 }
