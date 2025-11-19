@@ -203,18 +203,20 @@ class AuthIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(jsonPath("$.data.userId").value("employee123"))
                 .andReturn();
 
-        // then: Access Token 추출
-        String responseBody = loginResult.getResponse().getContentAsString();
-        String accessToken = objectMapper.readTree(responseBody)
-                .path("data").path("accessToken").asText();
+        // then: Access Token 쿠키 추출
+        String accessTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(cookie -> cookie.contains("accessToken="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("accessToken cookie not found"));
 
-        // when: 내 정보 조회
+        String accessToken = accessTokenCookie.split("accessToken=")[1].split(";")[0];
+
+        // when: 내 정보 조회 (쿠키 전달)
         mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .cookie(new jakarta.servlet.http.Cookie("accessToken", accessToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -254,18 +256,20 @@ class AuthIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(jsonPath("$.data.userId").value("manager123"))
                 .andReturn();
 
-        // then: Access Token 추출
-        String responseBody = loginResult.getResponse().getContentAsString();
-        String accessToken = objectMapper.readTree(responseBody)
-                .path("data").path("accessToken").asText();
+        // then: Access Token 쿠키 추출
+        String accessTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(cookie -> cookie.contains("accessToken="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("accessToken cookie not found"));
 
-        // when: 내 정보 조회
+        String accessToken = accessTokenCookie.split("accessToken=")[1].split(";")[0];
+
+        // when: 내 정보 조회 (쿠키 전달)
         mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .cookie(new jakarta.servlet.http.Cookie("accessToken", accessToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -319,7 +323,6 @@ class AuthIntegrationTest {
                         .cookie(new jakarta.servlet.http.Cookie("refreshToken", refreshToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists());
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

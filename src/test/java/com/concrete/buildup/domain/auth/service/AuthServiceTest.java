@@ -325,7 +325,7 @@ class AuthServiceTest {
         // then
         assertThat(result).isNotNull();
         assertThat(result.getLoginResponse()).isNotNull();
-        assertThat(result.getLoginResponse().getAccessToken()).isEqualTo("new-access-token");
+        assertThat(result.getAccessToken()).isEqualTo("new-access-token");
         assertThat(result.getLoginResponse().getUserId()).isEqualTo(userId);
         assertThat(result.getLoginResponse().getRole()).isEqualTo("EMPLOYEE");
         assertThat(result.getRefreshToken()).isEqualTo("new-refresh-token");

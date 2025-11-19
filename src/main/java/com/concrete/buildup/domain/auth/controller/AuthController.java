@@ -172,16 +172,16 @@ public class AuthController {
      * 로그인 API
      *
      * <p>근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다.</p>
-     * <p>Access Token은 응답 Body에, Refresh Token은 HttpOnly 쿠키로 전달됩니다.</p>
+     * <p>Access Token과 Refresh Token은 모두 HttpOnly 쿠키로 전달됩니다.</p>
      *
      * @param request 로그인 요청 정보
      * @param response HTTP 응답 (쿠키 설정용)
-     * @return LoginResponse - Access Token과 사용자 정보
+     * @return LoginResponse - 사용자 정보 (토큰은 쿠키로 전달)
      */
     @Operation(
             summary = "로그인",
             description = "근로자, 현장 관리자, 기업 관리자 공통 로그인 API입니다. " +
-                    "Access Token은 응답 Body에 포함되며, Refresh Token은 HttpOnly 쿠키로 전달됩니다."
+                    "Access Token과 Refresh Token은 모두 HttpOnly 쿠키로 전달됩니다."
     )
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
@@ -197,7 +197,7 @@ public class AuthController {
         boolean isProduction = !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "local"));
 
         // Access Token을 HttpOnly 쿠키로 설정 (XSS 방어)
-        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
+        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
                 .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
@@ -289,7 +289,7 @@ public class AuthController {
         boolean isProduction = !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "local"));
 
         // 새로운 Access Token을 HttpOnly 쿠키로 설정
-        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
+        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
                 .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능

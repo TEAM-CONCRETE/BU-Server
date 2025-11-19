@@ -6,6 +6,7 @@ import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +31,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class EmployeeFaceServiceTest {
 
-    @InjectMocks
     private EmployeeFaceService employeeFaceService;
 
     @Mock
@@ -41,6 +41,15 @@ class EmployeeFaceServiceTest {
 
     @Mock
     private S3Service s3Service;
+
+    @BeforeEach
+    void setUp() {
+        employeeFaceService = new EmployeeFaceService(
+            userRepository,
+            employeeRepository,
+            java.util.Optional.of(s3Service)
+        );
+    }
 
     @Test
     @DisplayName("얼굴 이미지 등록 성공 - S3 URL 구성 및 저장")
