@@ -96,14 +96,14 @@ class AttendanceServiceTest {
         optionalS3Service = Optional.of(s3Service);
         ReflectionTestUtils.setField(attendanceService, "s3Service", optionalS3Service);
 
-        // SecurityContext 모킹 (lenient - 모든 테스트에서 사용되지 않을 수 있음)
+        // SecurityContext 모킹
         SecurityContext securityContext = mock(SecurityContext.class);
         Authentication authentication = new UsernamePasswordAuthenticationToken(
             "manager123",
             null,
             Collections.singletonList(new SimpleGrantedAuthority("ROLE_MANAGER"))
         );
-        lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
         SecurityContextHolder.setContext(securityContext);
 
         // 관리자 User 생성
@@ -397,6 +397,8 @@ class AttendanceServiceTest {
             .faceImage(mockFile)
             .build();
 
+        when(userRepository.findByUserId("manager123")).thenReturn(Optional.of(mockManagerUser));
+        when(siteRepository.findByManagerUserId(100L)).thenReturn(Optional.of(mockSite));
         when(employeeRepository.findByPhoneWithUser("01099999999")).thenReturn(Optional.empty());
 
         // When & Then

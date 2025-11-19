@@ -125,7 +125,7 @@ class AuthServiceTest {
         String secretKey = "test-secret-key";
 
         Role employeeRole = Role.builder()
-                .roleName("ROLE_EMPLOYEE")
+                .roleName("EMPLOYEE")
                 .build();
 
         User user = User.builder()
@@ -160,7 +160,7 @@ class AuthServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isEqualTo(userId);
-        assertThat(response.getRole()).isEqualTo("ROLE_EMPLOYEE");
+        assertThat(response.getRole()).isEqualTo("EMPLOYEE");
         assertThat(response.getName()).isEqualTo("홍길동");
         assertThat(response.getPhone()).isEqualTo("010-1234-5678");
         assertThat(response.getEmail()).isEqualTo("employee@test.com");
@@ -186,7 +186,7 @@ class AuthServiceTest {
         String secretKey = "test-manager-key";
 
         Role managerRole = Role.builder()
-                .roleName("ROLE_MANAGER")
+                .roleName("MANAGER")
                 .build();
 
         User user = User.builder()
@@ -217,7 +217,7 @@ class AuthServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isEqualTo(userId);
-        assertThat(response.getRole()).isEqualTo("ROLE_MANAGER");
+        assertThat(response.getRole()).isEqualTo("MANAGER");
         assertThat(response.getName()).isEqualTo("김관리");
 
         UserInfoResponse.ManagerInfo mgrInfo = (UserInfoResponse.ManagerInfo) response.getAdditionalInfo();
@@ -238,7 +238,7 @@ class AuthServiceTest {
         String userId = "corp001";
 
         Role corpRole = Role.builder()
-                .roleName("ROLE_CORPORATION")
+                .roleName("CORPORATION")
                 .build();
 
         // User 엔티티 생성 (id는 BaseEntity에서 관리되므로 직접 설정하지 않음)
@@ -265,7 +265,7 @@ class AuthServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isEqualTo(userId);
-        assertThat(response.getRole()).isEqualTo("ROLE_CORPORATION");
+        assertThat(response.getRole()).isEqualTo("CORPORATION");
         assertThat(response.getName()).isEqualTo("주식회사 건설");
 
         UserInfoResponse.CorporationInfo corpInfo = (UserInfoResponse.CorporationInfo) response.getAdditionalInfo();

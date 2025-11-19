@@ -52,7 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
         "spring.datasource.username=sa",
-        "spring.datasource.password=sa",
+        "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
 })
@@ -270,29 +270,18 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Refresh Token으로 Access Token 재발급 플로우")
     void refreshToken_Success() throws Exception {
-        // given: 근로자 회원가입
-        EmployeeSignUpRequest signUpRequest = EmployeeSignUpRequest.builder()
-                .empName("테스트 사용자")
+        // given: 사용자 생성 및 로그인
+        User user = User.builder()
                 .userId("testuser")
-                .password("Test123!@")
-                .confirmPassword("Test123!@")
-                .secretKey("test-secret-key")
-                .agreeTerms(true)
-                .agreePrivacy(true)
-                .residentNum("900101-1234567")
-                .phone("01012341234")
-                .empAddress("서울시 강남구")
+                .password(passwordEncoder.encode("password123"))
+                .phone("01012345678")
+                .role(employeeRole)
                 .build();
+        userRepository.save(user);
 
-        mockMvc.perform(post("/v1/auth/register/employee")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(signUpRequest)))
-                .andExpect(status().isCreated());
-
-        // when: 로그인
         LoginRequest loginRequest = LoginRequest.builder()
                 .username("testuser")
-                .password("Test123!@")
+                .password("password123")
                 .build();
 
         MvcResult loginResult = mockMvc.perform(post("/v1/auth/login")
@@ -301,13 +290,12 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        // Refresh Token 쿠키 추출 (multiple Set-Cookie headers)
-        String refreshTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
-                .filter(cookie -> cookie.contains("refreshToken="))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("refreshToken cookie not found"));
+        // Refresh Token 쿠키 추출
+        String setCookieHeader = loginResult.getResponse().getHeader("Set-Cookie");
+        assertThat(setCookieHeader).isNotNull();
+        assertThat(setCookieHeader).contains("refreshToken=");
 
-        String refreshToken = refreshTokenCookie.split("refreshToken=")[1].split(";")[0];
+        String refreshToken = setCookieHeader.split("refreshToken=")[1].split(";")[0];
 
         // when: Refresh Token으로 토큰 재발급
         mockMvc.perform(post("/v1/auth/token/refresh")

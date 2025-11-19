@@ -23,6 +23,7 @@ import lombok.NoArgsConstructor;
 @Schema(description = "로그인 응답")
 public class LoginResponse {
 
+    @JsonIgnore  // Access Token은 HttpOnly 쿠키로 전달되므로 JSON 응답에서 제외
     @Schema(description = "Access Token (JWT)", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String accessToken;
 
