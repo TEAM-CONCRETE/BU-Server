@@ -577,9 +577,10 @@ public class AuthService {
                 .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
                 .build();
 
-        // 8. LoginResult 생성 (refreshToken 포함, 평문)
+        // 8. LoginResult 생성 (accessToken, refreshToken 포함, 평문)
         LoginResult result = LoginResult.builder()
                 .loginResponse(loginResponse)
+                .accessToken(accessToken)    // 평문 토큰 (쿠키로 전달용)
                 .refreshToken(refreshToken)  // 평문 토큰 (쿠키로 전달용)
                 .refreshTokenMaxAge(expiration / 1000)  // 초 단위로 변환
                 .build();
@@ -832,9 +833,8 @@ public class AuthService {
             log.debug("현장 ID 조회 완료: userId={}, siteId={}", user.getUserId(), siteId);
         }
 
-        // 12. Response 생성
+        // 12. Response 생성 (Access Token은 HttpOnly 쿠키로 전달)
         LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken(newAccessToken)
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
@@ -843,9 +843,10 @@ public class AuthService {
                 .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
                 .build();
 
-        // 11. LoginResult 생성 (새로운 refreshToken 포함, 평문)
+        // 11. LoginResult 생성 (accessToken, refreshToken 포함, 평문)
         LoginResult result = LoginResult.builder()
                 .loginResponse(loginResponse)
+                .accessToken(newAccessToken)     // 평문 토큰 (쿠키로 전달용)
                 .refreshToken(newRefreshToken)  // 평문 토큰 (쿠키로 전달용)
                 .refreshTokenMaxAge(expiration / 1000)  // 초 단위로 변환 (rememberMe 반영)
                 .build();

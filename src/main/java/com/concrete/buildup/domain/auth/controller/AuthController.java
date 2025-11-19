@@ -197,7 +197,7 @@ public class AuthController {
         boolean isProduction = !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "local"));
 
         // Access Token을 HttpOnly 쿠키로 설정 (XSS 방어)
-        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
+        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
                 .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
@@ -289,7 +289,7 @@ public class AuthController {
         boolean isProduction = !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "local"));
 
         // 새로운 Access Token을 HttpOnly 쿠키로 설정
-        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getLoginResponse().getAccessToken())
+        org.springframework.http.ResponseCookie accessTokenCookie = org.springframework.http.ResponseCookie.from("accessToken", loginResult.getAccessToken())
                 .httpOnly(true)          // XSS 공격 방어
                 .secure(isProduction)    // 운영: HTTPS 필수, 개발: HTTP 허용
                 .path("/")               // 모든 경로에서 접근 가능
