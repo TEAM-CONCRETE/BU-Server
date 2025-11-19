@@ -23,9 +23,6 @@ import lombok.NoArgsConstructor;
 @Schema(description = "로그인 응답")
 public class LoginResponse {
 
-    @Schema(description = "Access Token (JWT)", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
-    private String accessToken;
-
     @Schema(description = "사용자 ID", example = "testuser001")
     private String userId;
 

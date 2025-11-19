@@ -567,9 +567,8 @@ public class AuthService {
             log.debug("현장 ID 조회 완료: userId={}, siteId={}", user.getUserId(), siteId);
         }
 
-        // 9. Response 생성
+        // 9. Response 생성 (Access Token은 HttpOnly 쿠키로 전달)
         LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken(accessToken)
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
