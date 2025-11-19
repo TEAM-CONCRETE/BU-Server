@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class EmployeeFaceServiceTest {
     @Mock
     private EmployeeRepository employeeRepository;
 
+    @Mock
+    private S3Service s3Service;
+
     @Test
     @DisplayName("얼굴 이미지 등록 성공 - S3 URL 구성 및 저장")
     void registerEmployeeFaceImage_Success() {
@@ -63,6 +67,7 @@ class EmployeeFaceServiceTest {
 
         when(userRepository.findByUserId(userId)).thenReturn(Optional.of(mockUser));
         when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(mockEmployee));
+        when(s3Service.doesObjectExist(uploadId)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenReturn(mockEmployee);
 
         // When
@@ -150,6 +155,7 @@ class EmployeeFaceServiceTest {
 
         when(userRepository.findByUserId(userId)).thenReturn(Optional.of(mockUser));
         when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(mockEmployee));
+        when(s3Service.doesObjectExist(uploadId)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenReturn(mockEmployee);
 
         // When
