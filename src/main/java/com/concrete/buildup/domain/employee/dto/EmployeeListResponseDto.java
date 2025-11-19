@@ -2,7 +2,6 @@ package com.concrete.buildup.domain.employee.dto;
 
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.global.util.MaskingUtil;
-import lombok.Builder;
 import lombok.Getter;
 
 /**
@@ -14,7 +13,6 @@ import lombok.Getter;
  * @since 1.0
  */
 @Getter
-@Builder
 public class EmployeeListResponseDto {
 
     /**
