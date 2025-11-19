@@ -144,9 +144,9 @@ jobs:
           sleep 20
 
           # 애플리케이션 컨테이너 시작
-          docker run --rm -d --name buildup-test \
+          docker run -d --name buildup-test \
             --network buildup-test-network \
-            -e SPRING_PROFILES_ACTIVE=prod \
+            -e SPRING_PROFILES_ACTIVE=dev \
             -e JWT_SECRET=test-secret-key-min-256-bits-long-for-hs256-algorithm-test \
             -e ENCRYPTION_KEY=0123456789abcdef0123456789abcdef \
             -e SPRING_DATASOURCE_URL="jdbc:mysql://mysql-test:3306/buildup_test?useSSL=false&allowPublicKeyRetrieval=true" \
@@ -178,6 +178,7 @@ jobs:
 
             # 정리
             docker stop buildup-test
+            docker rm buildup-test
             docker stop mysql-test
             docker rm mysql-test
             docker network rm buildup-test-network
@@ -185,7 +186,8 @@ jobs:
             echo "✅ Docker 컨테이너 테스트 완료"
           else
             echo "❌ Docker 컨테이너 실행 실패"
-            docker logs buildup-test
+            docker logs buildup-test 2>/dev/null || echo "컨테이너 로그를 가져올 수 없습니다"
+            docker rm buildup-test 2>/dev/null || true
             docker stop mysql-test
             docker rm mysql-test
             docker network rm buildup-test-network
