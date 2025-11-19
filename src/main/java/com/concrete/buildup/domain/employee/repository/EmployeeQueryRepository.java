@@ -3,7 +3,7 @@ package com.concrete.buildup.domain.employee.repository;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
+import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -30,6 +30,7 @@ public class EmployeeQueryRepository {
      * 현장 ID 기반 사원 목록 조회 (페이징, 필터링)
      *
      * <p>Site → Manager → Contract → Employee 경로로 조회합니다.</p>
+     * <p>Native Query를 사용하여 @Convert 우회</p>
      *
      * @param siteId 현장 ID
      * @param empType 근로자 유형 필터 (nullable)
@@ -37,39 +38,39 @@ public class EmployeeQueryRepository {
      * @param pageable 페이징 정보
      * @return 사원 목록 (페이징)
      */
+    @SuppressWarnings("unchecked")
     public Page<EmployeeListResponseDto> findBySiteId(
             Long siteId,
             EmpType empType,
             String name,
             Pageable pageable
     ) {
-        // 동적 JPQL 생성
-        StringBuilder jpql = new StringBuilder();
-        jpql.append("SELECT new com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto(")
-            .append("e.id, e.empName, e.residentNum, c.empType) ")
-            .append("FROM Employee e ")
-            .append("JOIN Contract c ON c.employeeId = e.id ")
-            .append("JOIN Site s ON s.manager.id = c.managerId ")
-            .append("WHERE s.id = :siteId ")
-            .append("AND c.contractState = 'FULLY_SIGNED' ");
+        // Native Query 생성
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT e.id, e.emp_name, e.resident_num, c.emp_type ")
+           .append("FROM employees e ")
+           .append("JOIN contracts c ON c.employee_id = e.id ")
+           .append("JOIN sites s ON s.manager_id = c.manager_id ")
+           .append("WHERE s.id = :siteId ")
+           .append("AND c.contract_state = 'FULLY_SIGNED' ");
 
         // 동적 조건 추가
         if (empType != null) {
-            jpql.append("AND c.empType = :empType ");
+            sql.append("AND c.emp_type = :empType ");
         }
         if (name != null && !name.isBlank()) {
-            jpql.append("AND e.empName LIKE :name ");
+            sql.append("AND e.emp_name LIKE :name ");
         }
 
-        jpql.append("GROUP BY e.id, e.empName, e.residentNum, c.empType ")
-            .append("ORDER BY e.empName ASC");
+        sql.append("GROUP BY e.id, e.emp_name, e.resident_num, c.emp_type ")
+           .append("ORDER BY e.emp_name ASC");
 
         // 데이터 조회 쿼리
-        TypedQuery<EmployeeListResponseDto> query = em.createQuery(jpql.toString(), EmployeeListResponseDto.class);
+        Query query = em.createNativeQuery(sql.toString());
         query.setParameter("siteId", siteId);
 
         if (empType != null) {
-            query.setParameter("empType", empType);
+            query.setParameter("empType", empType.name());
         }
         if (name != null && !name.isBlank()) {
             query.setParameter("name", "%" + name + "%");
@@ -78,7 +79,16 @@ public class EmployeeQueryRepository {
         query.setFirstResult((int) pageable.getOffset());
         query.setMaxResults(pageable.getPageSize());
 
-        List<EmployeeListResponseDto> content = query.getResultList();
+        // Object[] → DTO 변환
+        List<Object[]> results = query.getResultList();
+        List<EmployeeListResponseDto> content = results.stream()
+                .map(row -> new EmployeeListResponseDto(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        (String) row[2],
+                        row[3] != null ? EmpType.valueOf((String) row[3]) : null
+                ))
+                .toList();
 
         // Count 쿼리
         long total = countBySiteId(siteId, empType, name);
@@ -90,31 +100,31 @@ public class EmployeeQueryRepository {
      * 전체 개수 조회
      */
     private long countBySiteId(Long siteId, EmpType empType, String name) {
-        StringBuilder countJpql = new StringBuilder();
-        countJpql.append("SELECT COUNT(DISTINCT e.id) ")
-                .append("FROM Employee e ")
-                .append("JOIN Contract c ON c.employeeId = e.id ")
-                .append("JOIN Site s ON s.manager.id = c.managerId ")
+        StringBuilder countSql = new StringBuilder();
+        countSql.append("SELECT COUNT(DISTINCT e.id) ")
+                .append("FROM employees e ")
+                .append("JOIN contracts c ON c.employee_id = e.id ")
+                .append("JOIN sites s ON s.manager_id = c.manager_id ")
                 .append("WHERE s.id = :siteId ")
-                .append("AND c.contractState = 'FULLY_SIGNED' ");
+                .append("AND c.contract_state = 'FULLY_SIGNED' ");
 
         if (empType != null) {
-            countJpql.append("AND c.empType = :empType ");
+            countSql.append("AND c.emp_type = :empType ");
         }
         if (name != null && !name.isBlank()) {
-            countJpql.append("AND e.empName LIKE :name ");
+            countSql.append("AND e.emp_name LIKE :name ");
         }
 
-        TypedQuery<Long> countQuery = em.createQuery(countJpql.toString(), Long.class);
+        Query countQuery = em.createNativeQuery(countSql.toString());
         countQuery.setParameter("siteId", siteId);
 
         if (empType != null) {
-            countQuery.setParameter("empType", empType);
+            countQuery.setParameter("empType", empType.name());
         }
         if (name != null && !name.isBlank()) {
             countQuery.setParameter("name", "%" + name + "%");
         }
 
-        return countQuery.getSingleResult();
+        return ((Number) countQuery.getSingleResult()).longValue();
     }
 }
