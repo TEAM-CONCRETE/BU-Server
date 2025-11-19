@@ -16,6 +16,13 @@ spring:
       max-lifetime: 1800000
       leak-detection-threshold: 60000
 
+  # Flyway 설정 (운영 환경)
+  flyway:
+    enabled: true
+    baseline-on-migrate: true  # 기존 스키마가 있을 경우 baseline 생성
+    baseline-version: 0        # baseline 버전
+    locations: classpath:db/migration
+
   # JPA 설정 (운영 환경)
   jpa:
     hibernate:
@@ -74,7 +81,7 @@ server:
     include-exception: false
   shutdown: graceful
 
-# 로깅 설정 (운영 환경 - 최소화)
+# 로깅 설정 (운영 환경 - Docker 컨테이너용)
 logging:
   level:
     root: WARN
@@ -84,18 +91,20 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: /var/log/buildup/application.log
-    max-size: 10MB
-    max-history: 30
-    total-size-cap: 1GB
 
 # SpringDoc (Swagger) 설정 - 운영 환경에서는 비활성화
 springdoc:
   api-docs:
-    enabled: false
+    path: /v3/api-docs
+    enabled: true
   swagger-ui:
-    enabled: false
+    path: /swagger-ui.html  # context-path /api가 자동으로 적용됨
+    enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
 
 # Actuator 설정 (운영 환경)
 management:
