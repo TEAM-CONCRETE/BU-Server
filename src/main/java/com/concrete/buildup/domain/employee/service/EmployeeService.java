@@ -1,6 +1,11 @@
 package com.concrete.buildup.domain.employee.service;
 
+import com.concrete.buildup.domain.auth.entity.Employee;
+import com.concrete.buildup.domain.contract.entity.Contract;
+import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
+import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
 import com.concrete.buildup.domain.employee.repository.EmployeeQueryRepository;
@@ -15,6 +20,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * 사원 관리 Service
@@ -32,6 +40,7 @@ public class EmployeeService {
 
     private final EmployeeQueryRepository employeeQueryRepository;
     private final SiteRepository siteRepository;
+    private final ContractRepository contractRepository;
 
     /**
      * 현장 기반 사원 목록 조회
@@ -80,6 +89,55 @@ public class EmployeeService {
         log.info("사원 목록 조회 완료: totalCount={}", employeePage.getTotalElements());
 
         return EmployeePageResponseDto.from(employeePage);
+    }
+
+    /**
+     * 사원 상세 조회
+     *
+     * <p>현장 ID와 사원 ID로 사원의 상세 정보를 조회합니다.</p>
+     * <p>현장에 소속된 사원인지 검증 후, 최근 계약 정보와 함께 반환합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 사원 상세 정보
+     * @throws BusinessException 현장이 존재하지 않거나 사원이 해당 현장에 소속되지 않은 경우
+     */
+    public EmployeeDetailResponseDto getEmployeeDetail(Long siteId, Long employeeId) {
+        log.info("사원 상세 조회: siteId={}, employeeId={}", siteId, employeeId);
+
+        // 현장 존재 여부 확인
+        if (!siteRepository.existsById(siteId)) {
+            throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+        }
+
+        // 사원 조회 (현장별 권한 검증 포함)
+        Employee employee = employeeQueryRepository.findByIdAndSiteId(siteId, employeeId)
+            .orElseThrow(() -> new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_FOUND));
+
+        // 최근 계약 정보 조회 (FULLY_SIGNED 상태의 계약 중 가장 최근 것)
+        List<Contract> contracts = contractRepository.findByEmployeeIdAndContractState(
+            employeeId,
+            ContractState.FULLY_SIGNED
+        );
+
+        // 최신 계약 선택: employeeStartDate 기준 내림차순, 동일 시 계약 ID 기준 내림차순
+        // null 값이 있을 경우를 대비하여 nullsLast() 사용
+        Contract latestContract = contracts.stream()
+            .filter(c -> c.getEmployeeStartDate() != null)  // null 값 제외
+            .max(Comparator
+                .comparing(Contract::getEmployeeStartDate)
+                .thenComparing(Contract::getId))  // 동일 시작일인 경우 ID로 결정
+            .orElse(null);
+
+        if (latestContract != null) {
+            log.info("사원 상세 조회 완료: employeeId={}, latestContractId={}, startDate={}",
+                employeeId, latestContract.getId(), latestContract.getEmployeeStartDate());
+        } else {
+            log.warn("사원 상세 조회 완료: employeeId={}, 유효한 계약 정보 없음 (totalContracts={})",
+                employeeId, contracts.size());
+        }
+
+        return EmployeeDetailResponseDto.from(employee, latestContract);
     }
 
     /**
