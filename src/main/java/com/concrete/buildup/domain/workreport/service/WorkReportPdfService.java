@@ -1,9 +1,14 @@
 package com.concrete.buildup.domain.workreport.service;
 
 import com.concrete.buildup.domain.site.entity.Site;
+import com.concrete.buildup.domain.workreport.dto.WorkSectionDto;
 import com.concrete.buildup.domain.workreport.entity.WorkReport;
 import com.concrete.buildup.domain.workreport.entity.WorkReportMaterial;
+import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.WorkReportErrorCode;
 import com.concrete.buildup.global.service.PdfService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +36,7 @@ import java.util.Map;
 public class WorkReportPdfService {
 
     private final PdfService pdfService;
+    private final ObjectMapper objectMapper;
 
     /**
      * 작업일보 PDF 생성
@@ -51,12 +57,28 @@ public class WorkReportPdfService {
     ) {
         log.info("작업일보 PDF 생성 시작: workReportId={}", workReport.getId());
 
+        // JSON 문자열을 List<WorkSectionDto>로 파싱
+        List<WorkSectionDto> workSections;
+        try {
+            workSections = objectMapper.readValue(
+                    workReport.getWorkSections(),
+                    new TypeReference<List<WorkSectionDto>>() {}
+            );
+        } catch (Exception e) {
+            log.error("공정 정보 JSON 파싱 실패: workReportId={}", workReport.getId(), e);
+            throw new BusinessException(
+                    WorkReportErrorCode.PDF_GENERATION_FAILED,
+                    "공정 정보 처리 중 오류가 발생했습니다."
+            );
+        }
+
         // 공통 PDF 서비스를 사용하여 템플릿 렌더링 및 PDF 변환
         Map<String, Object> variables = Map.of(
                 "workReport", workReport,
                 "site", site,
                 "managerName", managerName,
-                "materials", materials != null ? materials : List.of()
+                "materials", materials != null ? materials : List.of(),
+                "workSections", workSections
         );
 
         return pdfService.generatePdfFromTemplate("workreport/workreport-pdf", variables);

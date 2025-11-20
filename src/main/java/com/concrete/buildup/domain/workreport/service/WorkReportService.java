@@ -1,7 +1,9 @@
 package com.concrete.buildup.domain.workreport.service;
 
 import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
@@ -15,12 +17,16 @@ import com.concrete.buildup.domain.workreport.repository.WorkReportRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.WorkReportErrorCode;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,9 +45,11 @@ public class WorkReportService {
     private final WorkReportRepository workReportRepository;
     private final WorkReportMaterialRepository workReportMaterialRepository;
     private final SiteRepository siteRepository;
+    private final UserRepository userRepository;
     private final ManagerRepository managerRepository;
     private final WorkReportPdfService workReportPdfService;
     private final Optional<S3Service> s3Service;
+    private final ObjectMapper objectMapper;
 
     /**
      * 작업일보 생성 (PDF 자동 생성)
@@ -62,7 +70,7 @@ public class WorkReportService {
      *
      * @param siteId 현장 ID
      * @param request 작업일보 생성 요청
-     * @param managerId 관리자 ID (JWT에서 추출)
+     * @param currentUserId 관리자 userId (JWT에서 추출)
      * @return 작업일보 생성 응답 (workReportId, pdfUrl)
      * @throws BusinessException 현장 미존재, 권한 없음, 중복 작성, PDF 생성 실패 등
      */
@@ -70,10 +78,10 @@ public class WorkReportService {
     public CreateWorkReportResponse createWorkReport(
             Long siteId,
             CreateWorkReportRequest request,
-            Long managerId
+            String currentUserId
     ) {
-        log.info("작업일보 생성 시작: siteId={}, managerId={}, workDate={}",
-                siteId, managerId, request.getWorkDate());
+        log.info("작업일보 생성 시작: siteId={}, currentUserId={}",
+                siteId, currentUserId);
 
         // 1. Site 존재 여부 검증
         Site site = siteRepository.findById(siteId)
@@ -82,34 +90,53 @@ public class WorkReportService {
                         "현장을 찾을 수 없습니다. siteId=" + siteId
                 ));
 
-        // 2. Manager 조회
-        Manager manager = managerRepository.findById(managerId)
+        // 2. User 조회 후 Manager 조회
+        User user = userRepository.findByUserId(currentUserId)
                 .orElseThrow(() -> new BusinessException(
                         AuthErrorCode.USER_NOT_FOUND,
-                        "관리자를 찾을 수 없습니다. managerId=" + managerId
+                        "사용자를 찾을 수 없습니다. userId=" + currentUserId
                 ));
 
-        // 3. 중복 작성 검증 (동일 현장, 동일 날짜)
-        List<WorkReport> existingReports = workReportRepository
-                .findBySiteIdAndWorkDateAndIsDeletedFalse(siteId, request.getWorkDate());
-        if (!existingReports.isEmpty()) {
+        Manager manager = managerRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new BusinessException(
+                        AuthErrorCode.USER_NOT_FOUND,
+                        "관리자를 찾을 수 없습니다. userId=" + currentUserId
+                ));
+
+        // 3. 오늘 생성된 작업일보 개수 조회 (순번 계산용)
+        LocalDate today = LocalDate.now();
+        String todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
+
+        // 오늘 작성된 작업일보 개수를 세어 순번 결정
+        long todayCount = workReportRepository
+                .findBySiteIdAndIsDeletedFalse(siteId).stream()
+                .filter(wr -> wr.getCreatedAt() != null && wr.getCreatedAt().toLocalDate().equals(today))
+                .count();
+
+        int sequenceNumber = (int) todayCount + 1;
+        log.info("오늘({}) 생성된 작업일보 개수: {}, 다음 순번: {}", todayStr, todayCount, sequenceNumber);
+
+        // 4. 공정 정보를 JSON으로 변환
+        String workSectionsJson;
+        try {
+            workSectionsJson = objectMapper.writeValueAsString(request.getWorkSections());
+        } catch (JsonProcessingException e) {
+            log.error("공정 정보 JSON 변환 실패", e);
             throw new BusinessException(
-                    WorkReportErrorCode.DUPLICATE_WORK_REPORT,
-                    String.format("해당 날짜에 이미 작업일보가 작성되었습니다. workDate=%s", request.getWorkDate())
+                    WorkReportErrorCode.PDF_GENERATION_FAILED,
+                    "공정 정보 처리 중 오류가 발생했습니다."
             );
         }
 
-        // 4. WorkReport 엔티티 생성
+        // 5. WorkReport 엔티티 생성
         WorkReport workReport = WorkReport.builder()
                 .site(site)
                 .manager(manager)
-                .workDate(request.getWorkDate())
-                .workSection(request.getWorkSection())
-                .workSectionEmployeeNum(request.getWorkSectionEmployeeNum())
-                .workReportContext(request.getWorkReportContext())
+                .corporation(site.getCorporation())
+                .workSections(workSectionsJson)
                 .build();
 
-        // 5. 자재 목록 추가
+        // 6. 자재 목록 추가
         if (request.getMaterials() != null && !request.getMaterials().isEmpty()) {
             for (MaterialInputDto materialDto : request.getMaterials()) {
                 WorkReportMaterial material = WorkReportMaterial.builder()
@@ -122,16 +149,16 @@ public class WorkReportService {
             }
         }
 
-        // 6. DB 저장
+        // 7. DB 저장
         WorkReport savedWorkReport = workReportRepository.save(workReport);
         log.info("작업일보 저장 완료: workReportId={}", savedWorkReport.getId());
 
         try {
-            // 7. PDF 생성
+            // 8. PDF 생성
             byte[] pdfBytes = workReportPdfService.generateWorkReportPdf(
                     savedWorkReport,
                     site,
-                    manager.getUser().getName(),
+                    manager.getManagerName(),
                     savedWorkReport.getMaterials()
             );
 
@@ -139,7 +166,7 @@ public class WorkReportService {
             S3Service service = s3Service.orElseThrow(() ->
                     new BusinessException(WorkReportErrorCode.S3_UPLOAD_FAILED, "S3 서비스가 비활성화되어 있습니다."));
 
-            String s3Key = buildS3Key(savedWorkReport.getId(), siteId, request.getWorkDate().toString());
+            String s3Key = buildS3Key(savedWorkReport.getId(), siteId, todayStr, sequenceNumber);
             service.uploadPdf(s3Key, pdfBytes);
             String pdfUrl = service.getPdfUrl(s3Key);
 
@@ -173,14 +200,17 @@ public class WorkReportService {
     /**
      * S3 Key 생성
      *
-     * <p>형식: work-reports/{siteId}/{workReportId}/WR-{date}.pdf</p>
+     * <p>형식: work-reports/{siteId}/{date}/WR-{date}-{sequence}.pdf</p>
+     * <p>날짜별 폴더로 구성하여 동일 현장의 작업일보를 날짜별로 정리합니다.</p>
+     * <p>같은 날짜에 여러 개 생성 시 순번(-1, -2, -3)을 사용합니다.</p>
      *
-     * @param workReportId 작업일보 ID
+     * @param workReportId 작업일보 ID (로그용)
      * @param siteId 현장 ID
-     * @param workDate 작업일자
+     * @param createdDate 작성일 (yyyy-MM-dd 형식)
+     * @param sequenceNumber 순번 (1부터 시작)
      * @return S3 Key
      */
-    private String buildS3Key(Long workReportId, Long siteId, String workDate) {
-        return String.format("work-reports/%d/%d/WR-%s.pdf", siteId, workReportId, workDate);
+    private String buildS3Key(Long workReportId, Long siteId, String createdDate, int sequenceNumber) {
+        return String.format("work-reports/%d/%s/WR-%s-%d.pdf", siteId, createdDate, createdDate, sequenceNumber);
     }
 }
