@@ -95,42 +95,79 @@
                 <th>현장 주소</th>
                 <td th:text="${site != null and site.siteAddress != null ? site.siteAddress : '-'}"></td>
             </tr>
-        </table>
-    </div>
-
-    <!-- 2. 작업 정보 -->
-    <div class="section">
-        <h2>2. 작업 정보</h2>
-        <table class="two-col">
             <tr>
-                <th>작업일자</th>
-                <td th:text="${workReport != null and workReport.workDate != null ? #temporals.format(workReport.workDate, 'yyyy년 MM월 dd일') : '-'}"></td>
-                <th>작성자</th>
-                <td th:text="${managerName != null ? managerName : '-'}"></td>
-            </tr>
-            <tr>
-                <th>공정명</th>
-                <td th:text="${workReport != null and workReport.workSection != null ? workReport.workSection : '-'}"></td>
-                <th>투입 인력</th>
+                <th>공사 기간</th>
                 <td>
-                    <span th:if="${workReport != null and workReport.workSectionEmployeeNum != null}">
-                        <span th:text="${workReport.workSectionEmployeeNum}"></span>명
+                    <span th:if="${site != null and site.startDate != null and site.endDate != null}">
+                        <span th:text="${#temporals.format(site.startDate, 'yyyy년 MM월 dd일')}"></span>
+                        ~
+                        <span th:text="${#temporals.format(site.endDate, 'yyyy년 MM월 dd일')}"></span>
                     </span>
-                    <span th:if="${workReport == null or workReport.workSectionEmployeeNum == null}">-</span>
+                    <span th:if="${site == null or site.startDate == null or site.endDate == null}">-</span>
                 </td>
             </tr>
         </table>
     </div>
 
-    <!-- 3. 작업 내용 -->
+    <!-- 2. 작성 정보 -->
     <div class="section">
-        <h2>3. 작업 내용</h2>
-        <div class="content-box" th:text="${workReport != null and workReport.workReportContext != null ? workReport.workReportContext : ''}"></div>
+        <h2>2. 작성 정보</h2>
+        <table class="two-col">
+            <tr>
+                <th>작성일</th>
+                <td th:text="${workReport != null and workReport.createdAt != null ? #temporals.format(workReport.createdAt, 'yyyy년 MM월 dd일') : '-'}"></td>
+                <th>작성자</th>
+                <td th:text="${managerName != null ? managerName : '-'}"></td>
+            </tr>
+        </table>
     </div>
 
-    <!-- 4. 자재 투입 현황 -->
+    <!-- 3. 인력 투입 현황 -->
     <div class="section">
-        <h2>4. 자재 투입 현황</h2>
+        <h2>3. 인력 투입 현황</h2>
+        <table class="material-table">
+            <thead>
+                <tr>
+                    <th>공정명</th>
+                    <th>투입 인력</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 공정 목록이 있는 경우 -->
+                <tr th:if="${workSections != null and !workSections.empty}" th:each="section : ${workSections}">
+                    <td th:text="${section.sectionName != null ? section.sectionName : '-'}"></td>
+                    <td>
+                        <span th:if="${section.employeeNum != null}">
+                            <span th:text="${section.employeeNum}"></span>명
+                        </span>
+                        <span th:if="${section.employeeNum == null}">-</span>
+                    </td>
+                </tr>
+                <!-- 공정 목록이 없는 경우 -->
+                <tr th:if="${workSections == null or workSections.empty}">
+                    <td colspan="2" style="text-align: center; color: #999;">공정 정보가 없습니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 4. 공정별 작업 내용 -->
+    <div class="section">
+        <h2>4. 공정별 작업 내용</h2>
+        <!-- 공정 목록이 있는 경우 -->
+        <div th:if="${workSections != null and !workSections.empty}" th:each="section, iterStat : ${workSections}">
+            <h3 style="font-size: 12pt; margin: 10px 0 5px 0; font-weight: bold;">
+                <span th:text="${iterStat.count}"></span>. <span th:text="${section.sectionName}"></span>
+            </h3>
+            <div class="content-box" style="min-height: 60px;" th:text="${section.context != null ? section.context : ''}"></div>
+        </div>
+        <!-- 공정 목록이 없는 경우 -->
+        <div th:if="${workSections == null or workSections.empty}" class="content-box">작업 내용이 없습니다.</div>
+    </div>
+
+    <!-- 5. 자재 투입 현황 -->
+    <div class="section">
+        <h2>5. 자재 투입 현황</h2>
         <table class="material-table">
             <thead>
                 <tr>
