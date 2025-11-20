@@ -1,12 +1,12 @@
 package com.concrete.buildup.domain.workreport.entity;
 
+import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,30 +43,20 @@ public class WorkReport extends BaseEntity {
     private Manager manager;
 
     /**
-     * 작업일자
+     * 소속 기업 (FK)
      */
-    @Column(name = "work_date", nullable = false)
-    private LocalDate workDate;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "corporation_id", nullable = false)
+    private Corporation corporation;
 
     /**
-     * 공정명 (예: 철근공사, 거푸집공사)
-     */
-    @Column(name = "work_section", nullable = false, length = 100)
-    private String workSection;
-
-    /**
-     * 투입 인력 수 (명)
-     */
-    @Column(name = "work_section_employee_num", nullable = false)
-    private Integer workSectionEmployeeNum;
-
-    /**
-     * 공정별 작업 내용
+     * 공정 정보 (JSON 배열)
      *
-     * <p>해당 공정에 따른 구체적인 작업 내용을 기록합니다.</p>
+     * <p>여러 공정의 정보를 JSON 형식으로 저장합니다.</p>
+     * <p>형식: [{"sectionName": "철근공사", "employeeNum": 9, "context": "작업내용"}, ...]</p>
      */
-    @Column(name = "work_report_context", nullable = false, columnDefinition = "TEXT")
-    private String workReportContext;
+    @Column(name = "work_sections", nullable = false, columnDefinition = "TEXT")
+    private String workSections;
 
     /**
      * 생성된 PDF 파일의 S3 URL
