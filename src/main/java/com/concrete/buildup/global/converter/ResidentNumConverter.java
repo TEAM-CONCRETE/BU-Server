@@ -1,47 +1,42 @@
 package com.concrete.buildup.global.converter;
 
-import com.concrete.buildup.global.util.AesEncryptionUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 주민등록번호 암호화 컨버터
+ * 주민등록번호 컨버터
  *
- * JPA Entity의 주민등록번호 필드를 DB에 저장할 때 자동으로 암호화하고,
- * 조회 시 자동으로 복호화합니다.
+ * DB에 암호화되지 않은 상태로 저장된 주민등록번호를 처리합니다.
+ * 실제 마스킹은 ResidentNumMaskingSerializer에서 수행됩니다.
  */
 @Slf4j
 @Component
 @Converter
-@RequiredArgsConstructor
 public class ResidentNumConverter implements AttributeConverter<String, String> {
 
-    private final AesEncryptionUtil aesEncryptionUtil;
-
     /**
-     * Entity -> DB 변환 (암호화)
+     * Entity -> DB 변환 (그대로 저장)
      */
     @Override
     public String convertToDatabaseColumn(String attribute) {
         if (attribute == null) {
             return null;
         }
-        log.debug("주민등록번호 암호화 수행");
-        return aesEncryptionUtil.encrypt(attribute);
+        log.debug("주민등록번호 DB 저장");
+        return attribute;
     }
 
     /**
-     * DB -> Entity 변환 (복호화)
+     * DB -> Entity 변환 (그대로 반환)
      */
     @Override
     public String convertToEntityAttribute(String dbData) {
         if (dbData == null) {
             return null;
         }
-        log.debug("주민등록번호 복호화 수행");
-        return aesEncryptionUtil.decrypt(dbData);
+        log.debug("주민등록번호 DB 조회");
+        return dbData;
     }
 }
