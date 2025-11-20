@@ -67,12 +67,12 @@ public class WorkReportController {
             @PathVariable Long siteId,
             @Valid @RequestBody CreateWorkReportRequest request
     ) {
-        log.info("작업일보 생성 API 호출: siteId={}, workDate={}", siteId, request.getWorkDate());
+        log.info("작업일보 생성 API 호출: siteId={}", siteId);
 
-        // JWT에서 관리자 ID 추출
-        Long managerId = SecurityUtil.getCurrentUserIdAsLong();
+        // JWT에서 관리자 userId 추출
+        String currentUserId = SecurityUtil.getCurrentUserId();
 
-        CreateWorkReportResponse response = workReportService.createWorkReport(siteId, request, managerId);
+        CreateWorkReportResponse response = workReportService.createWorkReport(siteId, request, currentUserId);
 
         log.info("작업일보 생성 완료: siteId={}, workReportId={}, pdfUrl={}",
                 siteId, response.getWorkReportId(), response.getPdfUrl());

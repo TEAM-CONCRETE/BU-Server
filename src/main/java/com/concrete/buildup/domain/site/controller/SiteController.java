@@ -2,10 +2,12 @@ package com.concrete.buildup.domain.site.controller;
 
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
+import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
 import com.concrete.buildup.domain.site.service.SiteService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.MaskingUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -64,5 +66,37 @@ public class SiteController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "현장이 성공적으로 등록되었습니다"));
+    }
+
+    /**
+     * 현장 상세 조회 API
+     *
+     * <p>현장 ID로 현장 상세 정보를 조회합니다.</p>
+     * <p>작업일보 작성 페이지 등에서 현장 기본 정보를 표시하는 데 사용됩니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return SiteDetailResponse - 현장 상세 정보
+     */
+    @Operation(
+            summary = "현장 상세 조회",
+            description = "현장 ID로 현장 상세 정보를 조회합니다. " +
+                    "현장명, 주소, 공사 기간, 관리자 이름 등의 정보를 반환합니다. " +
+                    "작업일보 작성 페이지에서 현장 기본 정보를 자동으로 표시하는 데 사용됩니다."
+    )
+    @GetMapping("/{siteId}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'CORPORATION', 'EMPLOYEE')")
+    public ResponseEntity<ApiResponse<SiteDetailResponse>> getSiteDetail(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId
+    ) {
+        log.info("현장 상세 조회 API 호출: siteId={}", siteId);
+
+        SiteDetailResponse response = siteService.getSiteById(siteId);
+
+        log.info("현장 상세 조회 완료: siteId={}, siteName={}", siteId, response.getSiteName());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "현장 정보를 성공적으로 조회했습니다")
+        );
     }
 }

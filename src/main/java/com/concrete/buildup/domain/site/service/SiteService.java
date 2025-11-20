@@ -6,6 +6,7 @@ import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
+import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
@@ -101,5 +102,30 @@ public class SiteService {
             secretKeyPair.getManagerSecretKey(),
             secretKeyPair.getEmployeeSecretKey()
         );
+    }
+
+    /**
+     * 현장 상세 조회
+     *
+     * <p>현장 ID로 현장 상세 정보를 조회합니다.</p>
+     * <p>작업일보 작성 페이지 등에서 현장 기본 정보를 표시하는 데 사용됩니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return 현장 상세 정보 DTO
+     * @throws BusinessException 현장을 찾을 수 없는 경우
+     */
+    public SiteDetailResponse getSiteById(Long siteId) {
+        log.info("현장 상세 조회 시작 - siteId: {}", siteId);
+
+        // Manager 정보를 함께 조회 (N+1 문제 방지)
+        Site site = siteRepository.findByIdWithManager(siteId)
+            .orElseThrow(() -> {
+                log.error("현장을 찾을 수 없음 - siteId: {}", siteId);
+                return new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+            });
+
+        log.info("현장 상세 조회 완료 - siteId: {}, siteName: {}", siteId, site.getSiteName());
+
+        return SiteDetailResponse.from(site);
     }
 }
