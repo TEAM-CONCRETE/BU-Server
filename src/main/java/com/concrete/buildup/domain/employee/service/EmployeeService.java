@@ -120,12 +120,22 @@ public class EmployeeService {
             ContractState.FULLY_SIGNED
         );
 
+        // 최신 계약 선택: employeeStartDate 기준 내림차순, 동일 시 계약 ID 기준 내림차순
+        // null 값이 있을 경우를 대비하여 nullsLast() 사용
         Contract latestContract = contracts.stream()
-            .max(Comparator.comparing(Contract::getEmployeeStartDate))
+            .filter(c -> c.getEmployeeStartDate() != null)  // null 값 제외
+            .max(Comparator
+                .comparing(Contract::getEmployeeStartDate)
+                .thenComparing(Contract::getId))  // 동일 시작일인 경우 ID로 결정
             .orElse(null);
 
-        log.info("사원 상세 조회 완료: employeeId={}, latestContractId={}",
-            employeeId, latestContract != null ? latestContract.getId() : null);
+        if (latestContract != null) {
+            log.info("사원 상세 조회 완료: employeeId={}, latestContractId={}, startDate={}",
+                employeeId, latestContract.getId(), latestContract.getEmployeeStartDate());
+        } else {
+            log.warn("사원 상세 조회 완료: employeeId={}, 유효한 계약 정보 없음 (totalContracts={})",
+                employeeId, contracts.size());
+        }
 
         return EmployeeDetailResponseDto.from(employee, latestContract);
     }
