@@ -128,25 +128,28 @@ jobs:
       # ---------------------------------
       - name: 🧪 Test Docker container
         run: |
+          # Docker 네트워크 생성
+          docker network create buildup-test-network
+
           # MySQL 컨테이너 시작 (테스트용)
           docker run -d --name mysql-test \
+            --network buildup-test-network \
             -e MYSQL_ROOT_PASSWORD=test_root_pass \
             -e MYSQL_DATABASE=buildup_test \
             -e MYSQL_USER=buildup_user \
             -e MYSQL_PASSWORD=test_pass \
-            -p 3306:3306 \
             mysql:8.0
 
           echo "⏳ MySQL 시작 대기 중..."
           sleep 20
 
           # 애플리케이션 컨테이너 시작
-          docker run --rm -d --name buildup-test \
-            --link mysql-test:mysql \
-            -e SPRING_PROFILES_ACTIVE=prod \
+          docker run -d --name buildup-test \
+            --network buildup-test-network \
+            -e SPRING_PROFILES_ACTIVE=dev \
             -e JWT_SECRET=test-secret-key-min-256-bits-long-for-hs256-algorithm-test \
             -e ENCRYPTION_KEY=0123456789abcdef0123456789abcdef \
-            -e SPRING_DATASOURCE_URL="jdbc:mysql://mysql:3306/buildup_test?useSSL=false&allowPublicKeyRetrieval=true" \
+            -e SPRING_DATASOURCE_URL="jdbc:mysql://mysql-test:3306/buildup_test?useSSL=false&allowPublicKeyRetrieval=true" \
             -e SPRING_DATASOURCE_USERNAME=buildup_user \
             -e SPRING_DATASOURCE_PASSWORD=test_pass \
             -e ADMIN_USERNAME=admin \
@@ -164,26 +167,30 @@ jobs:
           # 헬스체크
           if docker ps | grep buildup-test; then
             echo "✅ Docker 컨테이너 정상 실행 중"
-            
+
             # 로그 확인
             echo "📋 컨테이너 로그 (마지막 50줄):"
             docker logs buildup-test --tail 50
-            
+
             # 헬스체크 엔드포인트 확인
             CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' buildup-test)
             echo "🔍 헬스체크 테스트: http://${CONTAINER_IP}:8080/api/actuator/health"
-            
+
             # 정리
             docker stop buildup-test
+            docker rm buildup-test
             docker stop mysql-test
             docker rm mysql-test
-            
+            docker network rm buildup-test-network
+
             echo "✅ Docker 컨테이너 테스트 완료"
           else
             echo "❌ Docker 컨테이너 실행 실패"
-            docker logs buildup-test
+            docker logs buildup-test 2>/dev/null || echo "컨테이너 로그를 가져올 수 없습니다"
+            docker rm buildup-test 2>/dev/null || true
             docker stop mysql-test
             docker rm mysql-test
+            docker network rm buildup-test-network
             exit 1
           fi
 

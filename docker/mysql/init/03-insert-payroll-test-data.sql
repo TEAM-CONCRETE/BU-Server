@@ -10,8 +10,8 @@ USE buildup;
 -- ============================================
 -- 1. 법인 데이터 생성
 -- ============================================
-INSERT INTO users (user_id, password, phone, email, role_id) 
-SELECT 'corp001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '02-1234-5678', 'corp@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id) 
+SELECT 'corp001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '02-1234-5678', 'corp@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_CORPORATION'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
@@ -23,8 +23,8 @@ ON DUPLICATE KEY UPDATE corp_name = VALUES(corp_name);
 -- ============================================
 -- 2. 관리자 데이터 생성
 -- ============================================
-INSERT INTO users (user_id, password, phone, email, role_id)
-SELECT 'manager001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-1111-2222', 'manager@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id)
+SELECT 'manager001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-1111-2222', 'manager@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_MANAGER'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
@@ -49,8 +49,8 @@ ON DUPLICATE KEY UPDATE site_name = VALUES(site_name);
 -- ============================================
 
 -- 4-1. 상용직 근로자 (월급)
-INSERT INTO users (user_id, password, phone, email, role_id)
-SELECT 'emp001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2001-0001', 'emp001@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id)
+SELECT 'emp001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2001-0001', 'emp001@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_EMPLOYEE'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
@@ -60,8 +60,8 @@ FROM users u WHERE u.user_id = 'emp001'
 ON DUPLICATE KEY UPDATE emp_name = VALUES(emp_name);
 
 -- 4-2. 일용직 근로자 (일급)
-INSERT INTO users (user_id, password, phone, email, role_id)
-SELECT 'emp002', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2002-0001', 'emp002@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id)
+SELECT 'emp002', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2002-0001', 'emp002@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_EMPLOYEE'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
@@ -71,8 +71,8 @@ FROM users u WHERE u.user_id = 'emp002'
 ON DUPLICATE KEY UPDATE emp_name = VALUES(emp_name);
 
 -- 4-3. 일용직 근로자 (주급)
-INSERT INTO users (user_id, password, phone, email, role_id)
-SELECT 'emp003', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2003-0001', 'emp003@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id)
+SELECT 'emp003', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2003-0001', 'emp003@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_EMPLOYEE'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 
@@ -82,8 +82,8 @@ FROM users u WHERE u.user_id = 'emp003'
 ON DUPLICATE KEY UPDATE emp_name = VALUES(emp_name);
 
 -- 4-4. 일용직 근로자 (월급)
-INSERT INTO users (user_id, password, phone, email, role_id)
-SELECT 'emp004', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2004-0001', 'emp004@buildup.com', r.id
+INSERT INTO users (user_id, password, phone, email, secret_key, profile_completed, is_deleted, role_id)
+SELECT 'emp004', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z2EHdsDGF.fWVFR7A1tJDG3a', '010-2004-0001', 'emp004@buildup.com', NULL, b'1', b'0', r.id
 FROM roles r WHERE r.role_name = 'ROLE_EMPLOYEE'
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 

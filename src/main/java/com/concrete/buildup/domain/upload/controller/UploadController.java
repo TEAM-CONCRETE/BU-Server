@@ -288,7 +288,8 @@ public class UploadController {
                                             value = """
                                                     {
                                                       "resourceType": "EMPLOYEE_PROFILE",
-                                                      "fileExtension": "jpg"
+                                                      "fileExtension": "jpg",
+                                                      "employeeId": 22
                                                     }
                                                     """
                                     ),
@@ -297,7 +298,9 @@ public class UploadController {
                                             value = """
                                                     {
                                                       "resourceType": "ATTENDANCE_PROBE",
-                                                      "fileExtension": "jpg"
+                                                      "fileExtension": "jpg",
+                                                      "siteId": 1,
+                                                      "employeeId": 22
                                                     }
                                                     """
                                     )

@@ -13,6 +13,7 @@ import com.concrete.buildup.domain.auth.repository.RoleRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.util.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -52,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
         "spring.datasource.username=sa",
-        "spring.datasource.password=",
+        "spring.datasource.password=sa",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
 })
@@ -91,6 +93,9 @@ class AuthIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private S3Service s3Service;
 
     private Role employeeRole;
     private Role managerRole;
@@ -198,18 +203,20 @@ class AuthIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(jsonPath("$.data.userId").value("employee123"))
                 .andReturn();
 
-        // then: Access Token 추출
-        String responseBody = loginResult.getResponse().getContentAsString();
-        String accessToken = objectMapper.readTree(responseBody)
-                .path("data").path("accessToken").asText();
+        // then: Access Token 쿠키 추출
+        String accessTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(cookie -> cookie.contains("accessToken="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("accessToken cookie not found"));
 
-        // when: 내 정보 조회
+        String accessToken = accessTokenCookie.split("accessToken=")[1].split(";")[0];
+
+        // when: 내 정보 조회 (쿠키 전달)
         mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .cookie(new jakarta.servlet.http.Cookie("accessToken", accessToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -249,18 +256,20 @@ class AuthIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(jsonPath("$.data.userId").value("manager123"))
                 .andReturn();
 
-        // then: Access Token 추출
-        String responseBody = loginResult.getResponse().getContentAsString();
-        String accessToken = objectMapper.readTree(responseBody)
-                .path("data").path("accessToken").asText();
+        // then: Access Token 쿠키 추출
+        String accessTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(cookie -> cookie.contains("accessToken="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("accessToken cookie not found"));
 
-        // when: 내 정보 조회
+        String accessToken = accessTokenCookie.split("accessToken=")[1].split(";")[0];
+
+        // when: 내 정보 조회 (쿠키 전달)
         mockMvc.perform(get("/v1/auth/me")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .cookie(new jakarta.servlet.http.Cookie("accessToken", accessToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -270,18 +279,29 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Refresh Token으로 Access Token 재발급 플로우")
     void refreshToken_Success() throws Exception {
-        // given: 사용자 생성 및 로그인
-        User user = User.builder()
+        // given: 근로자 회원가입
+        EmployeeSignUpRequest signUpRequest = EmployeeSignUpRequest.builder()
+                .empName("테스트 사용자")
                 .userId("testuser")
-                .password(passwordEncoder.encode("password123"))
-                .phone("01012345678")
-                .role(employeeRole)
+                .password("Test123!@")
+                .confirmPassword("Test123!@")
+                .secretKey("test-secret-key")
+                .agreeTerms(true)
+                .agreePrivacy(true)
+                .residentNum("900101-1234567")
+                .phone("01012341234")
+                .empAddress("서울시 강남구")
                 .build();
-        userRepository.save(user);
 
+        mockMvc.perform(post("/v1/auth/register/employee")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(signUpRequest)))
+                .andExpect(status().isCreated());
+
+        // when: 로그인
         LoginRequest loginRequest = LoginRequest.builder()
                 .username("testuser")
-                .password("password123")
+                .password("Test123!@")
                 .build();
 
         MvcResult loginResult = mockMvc.perform(post("/v1/auth/login")
@@ -290,19 +310,19 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        // Refresh Token 쿠키 추출
-        String setCookieHeader = loginResult.getResponse().getHeader("Set-Cookie");
-        assertThat(setCookieHeader).isNotNull();
-        assertThat(setCookieHeader).contains("refreshToken=");
+        // Refresh Token 쿠키 추출 (multiple Set-Cookie headers)
+        String refreshTokenCookie = loginResult.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(cookie -> cookie.contains("refreshToken="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("refreshToken cookie not found"));
 
-        String refreshToken = setCookieHeader.split("refreshToken=")[1].split(";")[0];
+        String refreshToken = refreshTokenCookie.split("refreshToken=")[1].split(";")[0];
 
         // when: Refresh Token으로 토큰 재발급
         mockMvc.perform(post("/v1/auth/token/refresh")
                         .cookie(new jakarta.servlet.http.Cookie("refreshToken", refreshToken)))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").exists());
+                .andExpect(jsonPath("$.success").value(true));
     }
 }
