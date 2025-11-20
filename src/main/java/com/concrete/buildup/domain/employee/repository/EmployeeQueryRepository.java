@@ -1,5 +1,6 @@
 package com.concrete.buildup.domain.employee.repository;
 
+import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import jakarta.persistence.EntityManager;
@@ -11,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 사원 조회용 Repository
@@ -126,5 +128,35 @@ public class EmployeeQueryRepository {
         }
 
         return ((Number) countQuery.getSingleResult()).longValue();
+    }
+
+    /**
+     * 현장 ID와 사원 ID로 사원 상세 조회
+     *
+     * <p>현장에 소속된 사원인지 검증하고, Employee + User를 Fetch Join으로 조회합니다.</p>
+     * <p>N+1 문제 방지를 위해 User를 함께 조회합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return Employee + User (Optional)
+     */
+    public Optional<Employee> findByIdAndSiteId(Long siteId, Long employeeId) {
+        String jpql = """
+            SELECT DISTINCT e
+            FROM Employee e
+            JOIN FETCH e.user u
+            JOIN Contract c ON c.employeeId = e.id
+            JOIN Site s ON s.manager.id = c.managerId
+            WHERE s.id = :siteId
+              AND e.id = :employeeId
+              AND c.contractState = 'FULLY_SIGNED'
+            """;
+
+        List<Employee> results = em.createQuery(jpql, Employee.class)
+            .setParameter("siteId", siteId)
+            .setParameter("employeeId", employeeId)
+            .getResultList();
+
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 }
