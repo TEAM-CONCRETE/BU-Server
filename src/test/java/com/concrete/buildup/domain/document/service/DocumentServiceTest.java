@@ -17,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -47,8 +46,17 @@ class DocumentServiceTest {
     @Mock
     private PayrollRepository payrollRepository;
 
-    @InjectMocks
     private DocumentService documentService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        documentService = new DocumentService(
+                Optional.of(s3Service),
+                contractRepository,
+                contractDetailRepository,
+                payrollRepository
+        );
+    }
 
     @Nested
     @DisplayName("근로계약서 PDF URL 발급")

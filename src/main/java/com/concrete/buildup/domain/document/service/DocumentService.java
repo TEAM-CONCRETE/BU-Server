@@ -10,6 +10,7 @@ import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.exception.errorcode.DocumentErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 /**
  * 문서 조회 Service
@@ -30,7 +32,7 @@ import java.time.format.DateTimeFormatter;
 @Transactional(readOnly = true)
 public class DocumentService {
 
-    private final S3Service s3Service;
+    private final Optional<S3Service> s3Service;
     private final ContractRepository contractRepository;
     private final ContractDetailRepository contractDetailRepository;
     private final PayrollRepository payrollRepository;
@@ -73,14 +75,18 @@ public class DocumentService {
         // S3 키 동적 생성
         String s3Key = buildContractS3Key(contractId, contract, contractDetail, pdfVersion);
 
+        // S3 서비스 확인
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+
         // S3에 파일 존재 여부 확인
-        if (!s3Service.doesObjectExist(s3Key)) {
+        if (!service.doesObjectExist(s3Key)) {
             log.warn("근로계약서 PDF 파일이 존재하지 않음: s3Key={}", s3Key);
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
 
         // Signed URL 발급
-        String signedUrl = s3Service.generatePresignedGetUrl(s3Key);
+        String signedUrl = service.generatePresignedGetUrl(s3Key);
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(SIGNED_URL_EXPIRATION_MINUTES);
 
         log.info("근로계약서 PDF URL 발급 완료: contractId={}, version={}, expiresAt={}", contractId, pdfVersion, expiresAt);
@@ -111,14 +117,18 @@ public class DocumentService {
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
 
+        // S3 서비스 확인
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+
         // S3에 파일 존재 여부 확인
-        if (!s3Service.doesObjectExist(s3Key)) {
+        if (!service.doesObjectExist(s3Key)) {
             log.warn("급여명세서 PDF 파일이 존재하지 않음: s3Key={}", s3Key);
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
 
         // Signed URL 발급
-        String signedUrl = s3Service.generatePresignedGetUrl(s3Key);
+        String signedUrl = service.generatePresignedGetUrl(s3Key);
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(SIGNED_URL_EXPIRATION_MINUTES);
 
         log.info("급여명세서 PDF URL 발급 완료: payrollId={}, expiresAt={}", payrollId, expiresAt);
