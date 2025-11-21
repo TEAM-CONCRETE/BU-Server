@@ -159,4 +159,30 @@ public class EmployeeQueryRepository {
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
+
+    /**
+     * 현장 ID와 사원 ID로 사원 존재 여부 확인
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 존재 여부
+     */
+    public boolean existsByIdAndSiteId(Long siteId, Long employeeId) {
+        String jpql = """
+            SELECT COUNT(e)
+            FROM Employee e
+            JOIN Contract c ON c.employeeId = e.id
+            JOIN Site s ON s.manager.id = c.managerId
+            WHERE s.id = :siteId
+              AND e.id = :employeeId
+              AND c.contractState = 'FULLY_SIGNED'
+            """;
+
+        Long count = em.createQuery(jpql, Long.class)
+            .setParameter("siteId", siteId)
+            .setParameter("employeeId", employeeId)
+            .getSingleResult();
+
+        return count > 0;
+    }
 }

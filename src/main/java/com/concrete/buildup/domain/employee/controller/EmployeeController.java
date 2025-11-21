@@ -1,5 +1,6 @@
 package com.concrete.buildup.domain.employee.controller;
 
+import com.concrete.buildup.domain.employee.dto.EmployeeContractListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
 import com.concrete.buildup.domain.employee.service.EmployeeService;
@@ -120,5 +121,53 @@ public class EmployeeController {
         EmployeeDetailResponseDto response = employeeService.getEmployeeDetail(siteId, employeeId);
 
         return ResponseEntity.ok(ApiResponse.success(response, "사원 상세 조회에 성공했습니다"));
+    }
+
+    /**
+     * 사원의 근로계약서 목록 조회
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 근로계약서 목록
+     */
+    @GetMapping("/{employeeId}/contracts")
+    @Operation(
+        summary = "사원 근로계약서 목록 조회",
+        description = """
+            현장에 소속된 사원의 근로계약서 목록을 조회합니다.
+
+            **조회 정보:**
+            - 계약서 ID
+            - 문서명 (근로계약서)
+            - 작성일
+            - 상태 (초안, 관리자 서명 대기, 근로자 서명 대기, 완전 서명 완료 등)
+
+            **정렬:**
+            - 작성일 기준 최신순
+            """
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "근로계약서 목록 조회 성공",
+            content = @Content(schema = @Schema(implementation = EmployeeContractListResponseDto.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404",
+            description = "현장 또는 사원을 찾을 수 없음"
+        )
+    })
+    public ResponseEntity<ApiResponse<EmployeeContractListResponseDto>> getEmployeeContracts(
+            @Parameter(description = "현장 ID", required = true)
+            @PathVariable Long siteId,
+
+            @Parameter(description = "사원 ID", required = true)
+            @PathVariable Long employeeId
+    ) {
+        log.info("사원 근로계약서 목록 조회 API 호출: siteId={}, employeeId={}", siteId, employeeId);
+
+        EmployeeContractListResponseDto response = employeeService.getEmployeeContracts(siteId, employeeId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "사원 근로계약서 목록 조회에 성공했습니다"));
     }
 }

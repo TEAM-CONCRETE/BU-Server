@@ -6,6 +6,7 @@ import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.employee.dto.EmployeeContractListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -445,5 +447,167 @@ class EmployeeServiceTest {
         assertThat(response.getLeftAt()).isEqualTo("2025-12-31");
 
         verify(contractRepository, times(1)).findByEmployeeIdAndContractState(employeeId, ContractState.FULLY_SIGNED);
+    }
+
+    // ========== 사원 근로계약서 목록 조회 테스트 ==========
+
+    @Test
+    @DisplayName("사원 근로계약서 목록 조회 성공")
+    void getEmployeeContracts_Success() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        Contract contract1 = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.FULLY_SIGNED)
+                .employeeStartDate(LocalDate.of(2025, 1, 1))
+                .writtenAt(LocalDateTime.of(2025, 1, 15, 10, 0))
+                .build();
+
+        Contract contract2 = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.DRAFT)
+                .employeeStartDate(LocalDate.of(2025, 6, 1))
+                .writtenAt(LocalDateTime.of(2025, 5, 20, 14, 30))
+                .build();
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(contractRepository.findByEmployeeIdOrderByWrittenAtDesc(employeeId))
+                .willReturn(List.of(contract2, contract1));
+
+        // when
+        EmployeeContractListResponseDto response = employeeService.getEmployeeContracts(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getEmployeeId()).isEqualTo(employeeId);
+        assertThat(response.getContracts()).hasSize(2);
+        assertThat(response.getContracts().get(0).getTitle()).isEqualTo("근로계약서");
+        assertThat(response.getContracts().get(0).getCreatedAt()).isEqualTo(LocalDate.of(2025, 5, 20));
+        assertThat(response.getContracts().get(0).getStatus()).isEqualTo("초안");
+        assertThat(response.getContracts().get(1).getCreatedAt()).isEqualTo(LocalDate.of(2025, 1, 15));
+        assertThat(response.getContracts().get(1).getStatus()).isEqualTo("완전 서명 완료");
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, times(1)).existsByIdAndSiteId(siteId, employeeId);
+        verify(contractRepository, times(1)).findByEmployeeIdOrderByWrittenAtDesc(employeeId);
+    }
+
+    @Test
+    @DisplayName("사원 근로계약서 목록 조회 성공 - 빈 목록")
+    void getEmployeeContracts_Success_EmptyList() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(contractRepository.findByEmployeeIdOrderByWrittenAtDesc(employeeId))
+                .willReturn(List.of());
+
+        // when
+        EmployeeContractListResponseDto response = employeeService.getEmployeeContracts(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getEmployeeId()).isEqualTo(employeeId);
+        assertThat(response.getContracts()).isEmpty();
+
+        verify(contractRepository, times(1)).findByEmployeeIdOrderByWrittenAtDesc(employeeId);
+    }
+
+    @Test
+    @DisplayName("사원 근로계약서 목록 조회 실패 - 현장 없음")
+    void getEmployeeContracts_Fail_SiteNotFound() {
+        // given
+        Long siteId = 999L;
+        Long employeeId = 100L;
+
+        given(siteRepository.existsById(siteId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> employeeService.getEmployeeContracts(siteId, employeeId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", SiteErrorCode.SITE_NOT_FOUND);
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, never()).existsByIdAndSiteId(any(), any());
+        verify(contractRepository, never()).findByEmployeeIdOrderByWrittenAtDesc(any());
+    }
+
+    @Test
+    @DisplayName("사원 근로계약서 목록 조회 실패 - 현장에 소속되지 않은 사원")
+    void getEmployeeContracts_Fail_EmployeeNotInSite() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 999L;
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> employeeService.getEmployeeContracts(siteId, employeeId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", EmployeeErrorCode.EMPLOYEE_NOT_IN_SITE);
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, times(1)).existsByIdAndSiteId(siteId, employeeId);
+        verify(contractRepository, never()).findByEmployeeIdOrderByWrittenAtDesc(any());
+    }
+
+    @Test
+    @DisplayName("사원 근로계약서 목록 조회 성공 - 다양한 상태의 계약서")
+    void getEmployeeContracts_Success_VariousStates() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        Contract draftContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(1L)
+                .empType(EmpType.DAILY)
+                .contractState(ContractState.DRAFT)
+                .employeeStartDate(LocalDate.of(2025, 8, 1))
+                .writtenAt(LocalDateTime.of(2025, 7, 25, 9, 0))
+                .build();
+
+        Contract managerPendingContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.MANAGER_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2025, 6, 1))
+                .writtenAt(LocalDateTime.of(2025, 5, 15, 11, 0))
+                .build();
+
+        Contract employeePendingContract = Contract.builder()
+                .employeeId(employeeId)
+                .corporationId(1L)
+                .empType(EmpType.PERMANENT)
+                .contractState(ContractState.EMPLOYEE_SIGNING_PENDING)
+                .employeeStartDate(LocalDate.of(2025, 3, 1))
+                .writtenAt(LocalDateTime.of(2025, 2, 20, 15, 0))
+                .build();
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(contractRepository.findByEmployeeIdOrderByWrittenAtDesc(employeeId))
+                .willReturn(List.of(draftContract, managerPendingContract, employeePendingContract));
+
+        // when
+        EmployeeContractListResponseDto response = employeeService.getEmployeeContracts(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getContracts()).hasSize(3);
+        assertThat(response.getContracts().get(0).getStatus()).isEqualTo("초안");
+        assertThat(response.getContracts().get(1).getStatus()).isEqualTo("관리자 서명 대기");
+        assertThat(response.getContracts().get(2).getStatus()).isEqualTo("근로자 서명 대기");
     }
 }
