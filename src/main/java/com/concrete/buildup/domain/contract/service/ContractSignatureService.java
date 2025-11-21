@@ -80,7 +80,7 @@ public class ContractSignatureService {
     private String buildS3Key(Long contractId, ContractDetail contractDetail, String version) {
         String employeeName = contractDetail.getEmpName();
         String empType = contractDetail.getContract().getEmpType().name();
-        String dateStr = LocalDateTime.now().format(DATE_FORMATTER);
+        String dateStr = contractDetail.getContract().getWrittenAt().format(DATE_FORMATTER);
 
         // 파일명 생성: {근로자이름}_{근로자타입}_{날짜}_{버전}.pdf
         String fileName = String.format("%s_%s_%s_%s.pdf", employeeName, empType, dateStr, version);
