@@ -29,7 +29,8 @@ public enum ErrorCategory {
     PAYROLL("PAYROLL_"),            // 5000-5999: 급여 관리
     ATTENDANCE("ATTENDANCE_"),      // 6000-6999: 근태 관리
     WORKREPORT("WORKREPORT_"),      // 7000-7999: 작업일보
-    SAFETYDOC("SAFETYDOC_");        // 8000-8999: 안전교육일지
+    SAFETYDOC("SAFETYDOC_"),        // 8000-8999: 안전교육일지
+    DOCUMENT("DOCUMENT_");          // 9000-9999: 문서 관리
 
     private final String prefix;
 
