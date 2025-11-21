@@ -65,6 +65,14 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
     List<Contract> findByEmployeeIdAndContractState(Long employeeId, ContractState contractState);
 
     /**
+     * 근로자 ID로 계약 목록 조회 (최신순 정렬)
+     *
+     * @param employeeId 근로자 ID
+     * @return 계약 목록 (작성일 기준 최신순)
+     */
+    List<Contract> findByEmployeeIdOrderByWrittenAtDesc(Long employeeId);
+
+    /**
      * 근로 시작일 범위로 계약 목록 조회
      *
      * @param startDate 시작일 (이상)
