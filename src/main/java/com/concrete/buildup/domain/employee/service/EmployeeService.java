@@ -10,6 +10,10 @@ import com.concrete.buildup.domain.employee.dto.EmployeeContractSummaryDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
+import com.concrete.buildup.domain.employee.dto.EmployeePayslipListResponseDto;
+import com.concrete.buildup.domain.employee.dto.EmployeePayslipSummaryDto;
+import com.concrete.buildup.domain.payroll.entity.Payroll;
+import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.employee.repository.EmployeeQueryRepository;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
@@ -43,6 +47,7 @@ public class EmployeeService {
     private final EmployeeQueryRepository employeeQueryRepository;
     private final SiteRepository siteRepository;
     private final ContractRepository contractRepository;
+    private final PayrollRepository payrollRepository;
 
     /**
      * 현장 기반 사원 목록 조회
@@ -173,6 +178,39 @@ public class EmployeeService {
         log.info("사원 근로계약서 목록 조회 완료: employeeId={}, contractCount={}", employeeId, contractDtos.size());
 
         return EmployeeContractListResponseDto.of(employeeId, contractDtos);
+    }
+
+    /**
+     * 사원의 급여명세서 목록 조회
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 사원의 급여명세서 목록
+     * @throws BusinessException 현장이 존재하지 않거나 사원이 해당 현장에 소속되지 않은 경우
+     */
+    public EmployeePayslipListResponseDto getEmployeePayslips(Long siteId, Long employeeId) {
+        log.info("사원 급여명세서 목록 조회: siteId={}, employeeId={}", siteId, employeeId);
+
+        // 현장 존재 여부 확인
+        if (!siteRepository.existsById(siteId)) {
+            throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+        }
+
+        // 사원이 해당 현장에 소속되어 있는지 검증
+        if (!employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)) {
+            throw new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_IN_SITE);
+        }
+
+        // 급여명세서 목록 조회 (지급 기준월 기준 최신순 정렬)
+        List<Payroll> payrolls = payrollRepository.findByEmployeeIdOrderBySearchDateDesc(employeeId);
+
+        List<EmployeePayslipSummaryDto> payslipDtos = payrolls.stream()
+                .map(EmployeePayslipSummaryDto::from)
+                .toList();
+
+        log.info("사원 급여명세서 목록 조회 완료: employeeId={}, payslipCount={}", employeeId, payslipDtos.size());
+
+        return EmployeePayslipListResponseDto.of(employeeId, payslipDtos);
     }
 
     /**

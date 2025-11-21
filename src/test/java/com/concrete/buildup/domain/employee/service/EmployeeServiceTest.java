@@ -10,6 +10,10 @@ import com.concrete.buildup.domain.employee.dto.EmployeeContractListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
+import com.concrete.buildup.domain.employee.dto.EmployeePayslipListResponseDto;
+import com.concrete.buildup.domain.payroll.entity.Payroll;
+import com.concrete.buildup.domain.payroll.enums.PayStatus;
+import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.employee.repository.EmployeeQueryRepository;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
@@ -56,6 +60,9 @@ class EmployeeServiceTest {
 
     @Mock
     private ContractRepository contractRepository;
+
+    @Mock
+    private PayrollRepository payrollRepository;
 
     @InjectMocks
     private EmployeeService employeeService;
@@ -609,5 +616,187 @@ class EmployeeServiceTest {
         assertThat(response.getContracts().get(0).getStatus()).isEqualTo("초안");
         assertThat(response.getContracts().get(1).getStatus()).isEqualTo("관리자 서명 대기");
         assertThat(response.getContracts().get(2).getStatus()).isEqualTo("근로자 서명 대기");
+    }
+
+    // ========== 사원 급여명세서 목록 조회 테스트 ==========
+
+    @Test
+    @DisplayName("사원 급여명세서 목록 조회 성공")
+    void getEmployeePayslips_Success() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        Payroll payroll1 = Payroll.builder()
+                .employeeId(employeeId)
+                .contractId(1L)
+                .corporationId(1L)
+                .siteId(siteId)
+                .salaryYear(2025)
+                .salaryMonth(9)
+                .salaryWeek(0)
+                .salaryDay(LocalDate.of(2025, 9, 1))
+                .searchDate(LocalDate.of(2025, 9, 1))
+                .payStatus(PayStatus.PAID)
+                .build();
+
+        Payroll payroll2 = Payroll.builder()
+                .employeeId(employeeId)
+                .contractId(1L)
+                .corporationId(1L)
+                .siteId(siteId)
+                .salaryYear(2025)
+                .salaryMonth(8)
+                .salaryWeek(0)
+                .salaryDay(LocalDate.of(2025, 8, 1))
+                .searchDate(LocalDate.of(2025, 8, 1))
+                .payStatus(PayStatus.PENDING)
+                .build();
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(payrollRepository.findByEmployeeIdOrderBySearchDateDesc(employeeId))
+                .willReturn(List.of(payroll1, payroll2));
+
+        // when
+        EmployeePayslipListResponseDto response = employeeService.getEmployeePayslips(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getEmployeeId()).isEqualTo(employeeId);
+        assertThat(response.getPayslips()).hasSize(2);
+        assertThat(response.getPayslips().get(0).getTitle()).isEqualTo("급여명세서");
+        assertThat(response.getPayslips().get(0).getCreatedAt()).isEqualTo(LocalDate.of(2025, 9, 1));
+        assertThat(response.getPayslips().get(0).getStatus()).isEqualTo("지급 완료");
+        assertThat(response.getPayslips().get(1).getCreatedAt()).isEqualTo(LocalDate.of(2025, 8, 1));
+        assertThat(response.getPayslips().get(1).getStatus()).isEqualTo("지급 대기");
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, times(1)).existsByIdAndSiteId(siteId, employeeId);
+        verify(payrollRepository, times(1)).findByEmployeeIdOrderBySearchDateDesc(employeeId);
+    }
+
+    @Test
+    @DisplayName("사원 급여명세서 목록 조회 성공 - 빈 목록")
+    void getEmployeePayslips_Success_EmptyList() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(payrollRepository.findByEmployeeIdOrderBySearchDateDesc(employeeId))
+                .willReturn(List.of());
+
+        // when
+        EmployeePayslipListResponseDto response = employeeService.getEmployeePayslips(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getEmployeeId()).isEqualTo(employeeId);
+        assertThat(response.getPayslips()).isEmpty();
+
+        verify(payrollRepository, times(1)).findByEmployeeIdOrderBySearchDateDesc(employeeId);
+    }
+
+    @Test
+    @DisplayName("사원 급여명세서 목록 조회 실패 - 현장 없음")
+    void getEmployeePayslips_Fail_SiteNotFound() {
+        // given
+        Long siteId = 999L;
+        Long employeeId = 100L;
+
+        given(siteRepository.existsById(siteId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> employeeService.getEmployeePayslips(siteId, employeeId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", SiteErrorCode.SITE_NOT_FOUND);
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, never()).existsByIdAndSiteId(any(), any());
+        verify(payrollRepository, never()).findByEmployeeIdOrderBySearchDateDesc(any());
+    }
+
+    @Test
+    @DisplayName("사원 급여명세서 목록 조회 실패 - 현장에 소속되지 않은 사원")
+    void getEmployeePayslips_Fail_EmployeeNotInSite() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 999L;
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> employeeService.getEmployeePayslips(siteId, employeeId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", EmployeeErrorCode.EMPLOYEE_NOT_IN_SITE);
+
+        verify(siteRepository, times(1)).existsById(siteId);
+        verify(employeeQueryRepository, times(1)).existsByIdAndSiteId(siteId, employeeId);
+        verify(payrollRepository, never()).findByEmployeeIdOrderBySearchDateDesc(any());
+    }
+
+    @Test
+    @DisplayName("사원 급여명세서 목록 조회 성공 - 다양한 지급 상태")
+    void getEmployeePayslips_Success_VariousStatuses() {
+        // given
+        Long siteId = 1L;
+        Long employeeId = 100L;
+
+        Payroll paidPayroll = Payroll.builder()
+                .employeeId(employeeId)
+                .contractId(1L)
+                .corporationId(1L)
+                .siteId(siteId)
+                .salaryYear(2025)
+                .salaryMonth(9)
+                .salaryWeek(0)
+                .salaryDay(LocalDate.of(2025, 9, 1))
+                .searchDate(LocalDate.of(2025, 9, 1))
+                .payStatus(PayStatus.PAID)
+                .build();
+
+        Payroll pendingPayroll = Payroll.builder()
+                .employeeId(employeeId)
+                .contractId(1L)
+                .corporationId(1L)
+                .siteId(siteId)
+                .salaryYear(2025)
+                .salaryMonth(8)
+                .salaryWeek(0)
+                .salaryDay(LocalDate.of(2025, 8, 1))
+                .searchDate(LocalDate.of(2025, 8, 1))
+                .payStatus(PayStatus.PENDING)
+                .build();
+
+        Payroll cancelledPayroll = Payroll.builder()
+                .employeeId(employeeId)
+                .contractId(1L)
+                .corporationId(1L)
+                .siteId(siteId)
+                .salaryYear(2025)
+                .salaryMonth(7)
+                .salaryWeek(0)
+                .salaryDay(LocalDate.of(2025, 7, 1))
+                .searchDate(LocalDate.of(2025, 7, 1))
+                .payStatus(PayStatus.CANCELLED)
+                .build();
+
+        given(siteRepository.existsById(siteId)).willReturn(true);
+        given(employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)).willReturn(true);
+        given(payrollRepository.findByEmployeeIdOrderBySearchDateDesc(employeeId))
+                .willReturn(List.of(paidPayroll, pendingPayroll, cancelledPayroll));
+
+        // when
+        EmployeePayslipListResponseDto response = employeeService.getEmployeePayslips(siteId, employeeId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getPayslips()).hasSize(3);
+        assertThat(response.getPayslips().get(0).getStatus()).isEqualTo("지급 완료");
+        assertThat(response.getPayslips().get(1).getStatus()).isEqualTo("지급 대기");
+        assertThat(response.getPayslips().get(2).getStatus()).isEqualTo("지급 취소");
     }
 }

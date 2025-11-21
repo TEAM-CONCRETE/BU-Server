@@ -3,6 +3,7 @@ package com.concrete.buildup.domain.employee.controller;
 import com.concrete.buildup.domain.employee.dto.EmployeeContractListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
+import com.concrete.buildup.domain.employee.dto.EmployeePayslipListResponseDto;
 import com.concrete.buildup.domain.employee.service.EmployeeService;
 import com.concrete.buildup.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -169,5 +170,53 @@ public class EmployeeController {
         EmployeeContractListResponseDto response = employeeService.getEmployeeContracts(siteId, employeeId);
 
         return ResponseEntity.ok(ApiResponse.success(response, "사원 근로계약서 목록 조회에 성공했습니다"));
+    }
+
+    /**
+     * 사원의 급여명세서 목록 조회
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 급여명세서 목록
+     */
+    @GetMapping("/{employeeId}/payslips")
+    @Operation(
+        summary = "사원 급여명세서 목록 조회",
+        description = """
+            현장에 소속된 사원의 급여명세서 목록을 조회합니다.
+
+            **조회 정보:**
+            - 급여 ID
+            - 문서명 (급여명세서)
+            - 작성일 (지급 기준월)
+            - 상태 (지급 대기, 지급 완료, 지급 취소)
+
+            **정렬:**
+            - 지급 기준월 기준 최신순
+            """
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "급여명세서 목록 조회 성공",
+            content = @Content(schema = @Schema(implementation = EmployeePayslipListResponseDto.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404",
+            description = "현장 또는 사원을 찾을 수 없음"
+        )
+    })
+    public ResponseEntity<ApiResponse<EmployeePayslipListResponseDto>> getEmployeePayslips(
+            @Parameter(description = "현장 ID", required = true)
+            @PathVariable Long siteId,
+
+            @Parameter(description = "사원 ID", required = true)
+            @PathVariable Long employeeId
+    ) {
+        log.info("사원 급여명세서 목록 조회 API 호출: siteId={}, employeeId={}", siteId, employeeId);
+
+        EmployeePayslipListResponseDto response = employeeService.getEmployeePayslips(siteId, employeeId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "사원 급여명세서 목록 조회에 성공했습니다"));
     }
 }
