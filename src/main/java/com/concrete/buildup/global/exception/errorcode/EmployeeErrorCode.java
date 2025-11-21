@@ -22,6 +22,7 @@ public enum EmployeeErrorCode implements BaseErrorCode {
 
     // 404 Not Found
     EMPLOYEE_NOT_FOUND(HttpStatus.NOT_FOUND, 2003, "사원을 찾을 수 없습니다."),
+    EMPLOYEE_NOT_IN_SITE(HttpStatus.NOT_FOUND, 2004, "해당 현장에 소속된 사원이 아닙니다."),
 
     // 500 Internal Server Error
     DATA_CONVERSION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, 2500, "데이터 변환 중 오류가 발생했습니다."),

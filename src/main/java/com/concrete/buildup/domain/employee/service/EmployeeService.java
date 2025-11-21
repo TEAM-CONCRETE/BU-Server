@@ -5,6 +5,8 @@ import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.enums.ContractState;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.repository.ContractRepository;
+import com.concrete.buildup.domain.employee.dto.EmployeeContractListResponseDto;
+import com.concrete.buildup.domain.employee.dto.EmployeeContractSummaryDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeDetailResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
 import com.concrete.buildup.domain.employee.dto.EmployeePageResponseDto;
@@ -138,6 +140,39 @@ public class EmployeeService {
         }
 
         return EmployeeDetailResponseDto.from(employee, latestContract);
+    }
+
+    /**
+     * 사원의 근로계약서 목록 조회
+     *
+     * @param siteId 현장 ID
+     * @param employeeId 사원 ID
+     * @return 사원의 근로계약서 목록
+     * @throws BusinessException 현장이 존재하지 않거나 사원이 해당 현장에 소속되지 않은 경우
+     */
+    public EmployeeContractListResponseDto getEmployeeContracts(Long siteId, Long employeeId) {
+        log.info("사원 근로계약서 목록 조회: siteId={}, employeeId={}", siteId, employeeId);
+
+        // 현장 존재 여부 확인
+        if (!siteRepository.existsById(siteId)) {
+            throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+        }
+
+        // 사원이 해당 현장에 소속되어 있는지 검증
+        if (!employeeQueryRepository.existsByIdAndSiteId(siteId, employeeId)) {
+            throw new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_IN_SITE);
+        }
+
+        // 근로계약서 목록 조회 (최신순 정렬)
+        List<Contract> contracts = contractRepository.findByEmployeeIdOrderByWrittenAtDesc(employeeId);
+
+        List<EmployeeContractSummaryDto> contractDtos = contracts.stream()
+                .map(EmployeeContractSummaryDto::from)
+                .toList();
+
+        log.info("사원 근로계약서 목록 조회 완료: employeeId={}, contractCount={}", employeeId, contractDtos.size());
+
+        return EmployeeContractListResponseDto.of(employeeId, contractDtos);
     }
 
     /**
