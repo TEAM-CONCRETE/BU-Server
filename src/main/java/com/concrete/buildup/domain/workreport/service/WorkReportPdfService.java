@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -73,13 +74,13 @@ public class WorkReportPdfService {
         }
 
         // 공통 PDF 서비스를 사용하여 템플릿 렌더링 및 PDF 변환
-        Map<String, Object> variables = Map.of(
-                "workReport", workReport,
-                "site", site,
-                "managerName", managerName,
-                "materials", materials != null ? materials : List.of(),
-                "workSections", workSections
-        );
+        // HashMap 사용 - Map.of()는 null 값을 허용하지 않아 NPE 발생 가능
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("workReport", workReport);
+        variables.put("site", site);
+        variables.put("managerName", managerName != null ? managerName : "");
+        variables.put("materials", materials != null ? materials : List.of());
+        variables.put("workSections", workSections != null ? workSections : List.of());
 
         return pdfService.generatePdfFromTemplate("workreport/workreport-pdf", variables);
     }
