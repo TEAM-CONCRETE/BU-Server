@@ -19,6 +19,7 @@ public enum WorkReportErrorCode implements BaseErrorCode {
     // 400 Bad Request
     DUPLICATE_WORK_REPORT(HttpStatus.BAD_REQUEST, 7001, "해당 날짜에 이미 작업일보가 작성되었습니다."),
     INVALID_WORK_DATE(HttpStatus.BAD_REQUEST, 7002, "유효하지 않은 작업일자입니다."),
+    INVALID_WORK_SECTION_DATA(HttpStatus.BAD_REQUEST, 7008, "공정 정보 형식이 올바르지 않습니다."),
 
     // 403 Forbidden
     MANAGER_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, 7003, "해당 현장에 대한 권한이 없습니다."),
