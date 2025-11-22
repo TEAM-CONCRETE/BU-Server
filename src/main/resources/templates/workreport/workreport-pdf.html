@@ -161,7 +161,7 @@
         <!-- 공정 목록이 있는 경우 -->
         <div th:if="${workSections != null and !workSections.empty}" th:each="section, iterStat : ${workSections}">
             <h3 style="font-size: 12pt; margin: 10px 0 5px 0; font-weight: bold;">
-                <span th:text="${iterStat.count}"></span>. <span th:text="${section.sectionName}"></span>
+                <span th:text="${iterStat.count}"></span>. <span th:text="${section.sectionName != null ? section.sectionName : '-'}"></span>
             </h3>
             <div class="content-box" style="min-height: 60px;" th:text="${section.context != null ? section.context : ''}"></div>
         </div>
