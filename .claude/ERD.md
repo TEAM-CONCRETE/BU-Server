@@ -651,7 +651,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ### 17. work_reports (작업일보)
 
-**설명:** 일일 작업 보고서
+**설명:** 일일 작업 보고서 (작성 즉시 PDF 생성)
 
 **컬럼:**
 
@@ -660,23 +660,18 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `id` | BIGINT | PK, AUTO_INCREMENT | 작업일보 ID |
 | `site_id` | BIGINT | FK, NOT NULL | 현장 ID |
 | `manager_id` | BIGINT | FK, NOT NULL | 작성 관리자 ID |
-| `corporation_id` | BIGINT | FK, NOT NULL | 소속 회사 ID |
-| `work_report_title` | VARCHAR(200) | NOT NULL | 작업일보 제목 |
-| `work_report_created_at` | DATETIME | DEFAULT now() | 작성일시 |
-| `work_report_started_at` | DATETIME | NOT NULL | 작업 시작일시 |
-| `work_report_ended_at` | DATETIME | NOT NULL | 작업 종료일시 |
-| `work_report_context` | TEXT | NULL | 당일 작업 요약 |
-| `work_section_name` | VARCHAR(100) | NULL | 공정 구분명 |
-| `work_section_employee_num` | INT | NULL | 공정별 투입 인원수 |
-| `work_report_status` | VARCHAR(30) | NULL | 상태 (DRAFT/SUBMITTED/APPROVED) |
-| `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `corporation_id` | BIGINT | FK, NOT NULL | 소속 기업 ID |
+| `work_sections` | TEXT | NOT NULL | 공정 정보 JSON 배열 (sectionName, employeeNum, context) |
+| `pdf_url` | VARCHAR(500) | NULL | 생성된 PDF S3 URL |
+| `pdf_generated_at` | DATETIME | NULL | PDF 생성 일시 |
+| `created_at` | DATETIME | DEFAULT now() | 생성 일시 (작성일) |
 | `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT false | 삭제 여부 (Soft Delete) |
 
 **인덱스:**
 - PRIMARY KEY: `id`
 - INDEX: `site_id`, `manager_id`, `corporation_id`
-- INDEX: `work_report_status`
-- INDEX: `work_report_started_at`
+- INDEX: `created_at`
 - FOREIGN KEY: `site_id` REFERENCES `sites(id)`
 - FOREIGN KEY: `manager_id` REFERENCES `managers(id)`
 - FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
@@ -684,8 +679,6 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 **관계:**
 - N:1 → sites
 - N:1 → managers
-- N:1 → corporations
-- 1:N ← work_report_employees
 - 1:N ← work_report_materials
 
 ---
@@ -882,5 +875,8 @@ ON work_reports(work_report_status);
 | 2025-11-17 | sites 테이블에 client_name, start_date, end_date 컬럼 추가 (현장 등록 API 구현) | 김세원 |
 | 2025-11-17 | sites 테이블 manager_id nullable 명시화 및 데이터베이스 스키마 수정 (현장 등록 시점에는 manager 미할당, 추후 할당 가능) | 김세원 |
 | 2025-11-17 | payrolls 테이블 site_id 컬럼 추가 및 기간별 조회 복합 인덱스 추가 (급여 내역 조회 API) | Claude |
+| 2025-11-19 | work_reports 테이블 스키마 수정 (즉시 PDF 생성 방식으로 변경: corporation_id, work_report_title, work_report_created_at, work_report_started_at, work_report_ended_at, work_report_status 제거, work_date, pdf_url, pdf_generated_at, is_deleted 추가, work_report_context를 공정별 작업 내용으로 변경) | 김세원 |
+| 2025-11-20 | work_reports 테이블 work_date, work_report_title 컬럼 제거 (작업일자 대신 작성일(created_at) 사용, S3 경로에 순번 추가하여 같은 날짜 여러 작업일보 생성 가능) | 김세원 |
+| 2025-11-21 | work_reports 테이블 컬럼 재구조화: work_section, work_section_employee_num, work_report_context 제거 → work_sections(TEXT) 추가로 여러 공정 정보를 JSON 배열로 저장 | 김세원 |
 
 ---

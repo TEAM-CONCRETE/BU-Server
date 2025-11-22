@@ -62,4 +62,15 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      * @return 존재 여부
      */
     boolean existsByEmployeeSecretKey(String employeeSecretKey);
+
+    /**
+     * 현장 ID로 조회 (Manager JOIN FETCH)
+     *
+     * <p>N+1 문제 방지를 위해 Manager를 함께 조회합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return 현장 정보 (Manager 포함)
+     */
+    @Query("SELECT s FROM Site s LEFT JOIN FETCH s.manager WHERE s.id = :siteId")
+    Optional<Site> findByIdWithManager(@Param("siteId") Long siteId);
 }
