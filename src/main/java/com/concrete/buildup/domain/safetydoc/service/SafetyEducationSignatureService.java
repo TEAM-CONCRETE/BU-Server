@@ -33,6 +33,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -179,7 +180,7 @@ public class SafetyEducationSignatureService {
             String signedDevice
     ) {
         // 1. 안전교육일지 조회 및 상태 검증
-        SafetyEducationLog log = safetyEducationLogRepository.findById(logId)
+        SafetyEducationLog log = safetyEducationLogRepository.findByIdWithAttendees(logId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
 
         if (log.getStatus() != SafetyEducationStatus.MANAGER_SIGNED) {
@@ -209,7 +210,7 @@ public class SafetyEducationSignatureService {
             throw new BusinessException(SafetyDocErrorCode.SIGNATURE_HASH_MISMATCH);
         }
 
-        // 5. 참석자 서명 완료 처리
+        // 5. 참석자 서명 완료 처리 (DB에 서명 이미지 URL 저장)
         attendee.sign(request.getSignatureS3Key());
         attendeeRepository.save(attendee);
 
@@ -229,19 +230,26 @@ public class SafetyEducationSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 7. 모든 참석자 서명 완료 시 상태 변경 및 최종 PDF 생성
+        // 7. 모든 참석자 서명 완료 시 최종 PDF 생성
         String pdfUrl = log.getPdfUrl();
         String pdfHash = null;
 
-        if (log.areAllAttendeesSigned()) {
-            log.complete();
+        // 다시 조회하여 모든 참석자 서명 상태 확인
+        List<SafetyEducationAttendee> allAttendees = attendeeRepository
+                .findBySafetyEducationLogIdAndIsDeletedFalse(logId);
+        boolean allSigned = allAttendees.stream().allMatch(SafetyEducationAttendee::getIsSigned);
+
+        if (allSigned) {
+            // 최종 PDF 생성: 관리자 서명된 PDF에 모든 참석자 서명 스탬핑
+            pdfUrl = generateFinalPdfWithAllSignatures(log, allAttendees, siteId, service);
 
             // 최종 PDF 해시 계산
-            String existingS3Key = extractS3KeyFromUrl(log.getPdfUrl());
-            byte[] finalPdfBytes = service.downloadPdf(existingS3Key);
+            String finalS3Key = extractS3KeyFromUrl(pdfUrl);
+            byte[] finalPdfBytes = service.downloadPdf(finalS3Key);
             pdfHash = SignatureVerificationUtil.calculateSHA256(new ByteArrayInputStream(finalPdfBytes));
 
-            log.updateFinalPdf(log.getPdfUrl(), pdfHash);
+            log.complete();
+            log.updateFinalPdf(pdfUrl, pdfHash);
         }
 
         safetyEducationLogRepository.save(log);
@@ -253,6 +261,63 @@ public class SafetyEducationSignatureService {
                 .pdfHash(pdfHash)
                 .signedAt(signLog.getSignedAt())
                 .build();
+    }
+
+    /**
+     * 모든 참석자 서명이 완료되었을 때 최종 PDF 생성
+     * 관리자 서명된 PDF에 모든 참석자의 서명을 스탬핑
+     */
+    private String generateFinalPdfWithAllSignatures(
+            SafetyEducationLog log,
+            List<SafetyEducationAttendee> attendees,
+            Long siteId,
+            S3Service service
+    ) {
+        // 1. 관리자 서명된 PDF 다운로드
+        String existingPdfUrl = log.getPdfUrl();
+        String existingS3Key = extractS3KeyFromUrl(existingPdfUrl);
+        byte[] currentPdfBytes = service.downloadPdf(existingS3Key);
+
+        // 2. 각 참석자의 서명을 PDF에 스탬핑
+        // 참석자 테이블의 서명란 위치 계산 (PDF 좌표 기준)
+        // PDF 템플릿 기준: 참석자 테이블은 약 Y=400pt 부근에서 시작
+        // 각 행 높이 약 25pt, 서명란은 우측에 위치
+        final double TABLE_START_Y = 380.0;  // 테이블 시작 Y 위치 (상단 기준)
+        final double ROW_HEIGHT = 25.0;       // 각 행의 높이
+        final double SIGNATURE_X = 480.0;     // 서명란 X 위치 (좌측 기준)
+        final double SIGNATURE_WIDTH = 60.0;  // 서명 이미지 너비
+        final double SIGNATURE_HEIGHT = 20.0; // 서명 이미지 높이
+
+        for (int i = 0; i < attendees.size(); i++) {
+            SafetyEducationAttendee attendee = attendees.get(i);
+            if (attendee.getIsSigned() && attendee.getSignatureImageUrl() != null) {
+                // 서명 이미지 다운로드
+                byte[] signatureImageBytes = service.downloadImage(attendee.getSignatureImageUrl());
+
+                // 해당 참석자 행의 서명란 Y 좌표 계산
+                // PDF는 좌하단이 원점이므로, 페이지 높이(842)에서 빼야 함
+                double rowY = PDF_PAGE_HEIGHT - (TABLE_START_Y + (i + 1) * ROW_HEIGHT);
+
+                // PDF에 서명 스탬핑
+                currentPdfBytes = pdfGenerationService.stampSignatureOnPdf(
+                        currentPdfBytes,
+                        signatureImageBytes,
+                        BigDecimal.valueOf(SIGNATURE_X),
+                        BigDecimal.valueOf(rowY),
+                        BigDecimal.valueOf(SIGNATURE_WIDTH),
+                        BigDecimal.valueOf(SIGNATURE_HEIGHT)
+                );
+            }
+        }
+
+        // 3. 최종 PDF S3 업로드
+        LocalDate today = LocalDate.now();
+        String dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String finalS3Key = String.format("safety-docs/%d/%s/SE-%s-%d-final.pdf",
+                siteId, dateStr, dateStr, log.getId());
+
+        service.uploadPdf(finalS3Key, currentPdfBytes);
+        return service.getPdfUrl(finalS3Key);
     }
 
     public String generateInitialPdf(Long siteId, Long logId, String currentUserId) {
