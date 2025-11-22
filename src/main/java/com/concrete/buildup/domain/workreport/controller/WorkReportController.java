@@ -39,14 +39,15 @@ public class WorkReportController {
      * 작업일보 생성 API
      *
      * <p>관리자가 작업일보를 생성하면 즉시 PDF가 생성되어 S3에 업로드됩니다.</p>
+     * <p>동일 현장의 동일 날짜에 여러 개의 작업일보를 생성할 수 있으며,
+     * 생성 순서대로 순번(sequence)이 부여됩니다.</p>
      * <p>비즈니스 로직:</p>
      * <ul>
      *   <li>현장 존재 여부 검증</li>
      *   <li>관리자 권한 검증</li>
-     *   <li>중복 작성 검증 (동일 현장, 동일 날짜)</li>
      *   <li>작업일보 DB 저장 (WorkReport + WorkReportMaterial)</li>
      *   <li>PDF 생성 (Thymeleaf 템플릿 + Flying Saucer)</li>
-     *   <li>S3 업로드 (work-reports/{siteId}/{workReportId}/WR-{date}.pdf)</li>
+     *   <li>S3 업로드 (work-reports/{siteId}/{date}/WR-{date}-{sequence}.pdf)</li>
      *   <li>PDF URL 및 생성 시각 저장</li>
      * </ul>
      *
@@ -58,7 +59,8 @@ public class WorkReportController {
             summary = "작업일보 생성",
             description = "관리자가 작업일보를 생성합니다. " +
                     "PDF가 즉시 생성되어 S3에 업로드되며, 생성 완료 후 PDF URL이 반환됩니다. " +
-                    "동일 현장의 동일 날짜에 이미 작업일보가 존재하면 중복 오류가 발생합니다."
+                    "동일 현장의 동일 날짜에 여러 개의 작업일보를 생성할 수 있으며, " +
+                    "생성 순서대로 순번이 부여됩니다 (예: WR-2025-11-23-1.pdf, WR-2025-11-23-2.pdf)."
     )
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @PostMapping
