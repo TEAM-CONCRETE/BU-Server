@@ -554,98 +554,116 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 ---
 
-### 14. safety_docs (안전교육 문서)
+### 14. safety_education_logs (안전교육일지)
 
-**설명:** 안전교육 일지
+**설명:** 안전교육 실시 기록 및 PDF 관리
 
 **컬럼:**
 
 | 컬럼명 | 타입 | 제약조건 | 설명 |
 |--------|------|----------|------|
-| `id` | BIGINT | PK, AUTO_INCREMENT | 문서 ID |
+| `id` | BIGINT | PK, AUTO_INCREMENT | 안전교육일지 ID |
 | `site_id` | BIGINT | FK, NOT NULL | 현장 ID |
 | `manager_id` | BIGINT | FK, NOT NULL | 작성 관리자 ID |
-| `safetydoc_title` | VARCHAR(200) | NOT NULL | 교육 제목 |
-| `safetydoc_type` | VARCHAR(50) | NULL | 교육 유형 (REGULAR/SPECIAL/EMERGENCY) |
-| `safetydoc_context` | TEXT | NULL | 교육 내용 |
-| `safetydoc_employee_cnt` | INT | NULL | 교육 대상 근로자 수 |
-| `safetydoc_status` | VARCHAR(30) | NULL | 상태 (DRAFT/ONGOING/COMPLETED) |
-| `safetydoc_created_at` | DATETIME | DEFAULT now() | 생성 일시 |
-| `safetydoc_updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `corporation_id` | BIGINT | FK, NOT NULL | 소속 기업 ID |
+| `education_type` | VARCHAR(30) | NOT NULL | 교육 구분 (REGULAR/HIRING/WORK_CHANGE/SPECIAL/ETC) |
+| `education_subject` | VARCHAR(200) | NOT NULL | 교육과목 |
+| `education_content` | TEXT | NOT NULL | 교육내용 |
+| `instructor_name` | VARCHAR(50) | NOT NULL | 교육 실시자 성명 |
+| `education_location` | VARCHAR(200) | NOT NULL | 교육 실시 장소 |
+| `status` | VARCHAR(30) | NOT NULL | 상태 (DRAFT/MANAGER_SIGNING_PENDING/MANAGER_SIGNED/COMPLETED) |
+| `manager_signed_at` | DATETIME | NULL | 관리자 서명 일시 |
+| `pdf_url` | VARCHAR(500) | NULL | PDF S3 URL |
+| `pdf_generated_at` | DATETIME | NULL | PDF 생성 일시 |
+| `final_pdf_url` | VARCHAR(500) | NULL | 최종 서명 완료 PDF URL |
+| `final_pdf_hash` | VARCHAR(255) | NULL | 최종 PDF 해시 |
+| `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT false | 삭제 여부 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
-- INDEX: `site_id`, `manager_id`
-- INDEX: `safetydoc_status`
+- INDEX: `site_id`, `manager_id`, `corporation_id`
+- INDEX: `status`
 - FOREIGN KEY: `site_id` REFERENCES `sites(id)`
 - FOREIGN KEY: `manager_id` REFERENCES `managers(id)`
+- FOREIGN KEY: `corporation_id` REFERENCES `corporations(id)`
 
 **관계:**
 - N:1 → sites
 - N:1 → managers
-- 1:N ← safety_doc_attendees
+- N:1 → corporations
+- 1:N ← safety_education_attendees
+- 1:N ← safety_education_sign_logs
 
 ---
 
-### 15. safety_doc_attendees (안전교육 참석자)
+### 15. safety_education_attendees (안전교육 참석자)
 
-**설명:** 안전교육 참석 근로자 목록
+**설명:** 안전교육 대상 근로자 목록 및 서명 상태
 
 **컬럼:**
 
 | 컬럼명 | 타입 | 제약조건 | 설명 |
 |--------|------|----------|------|
 | `id` | BIGINT | PK, AUTO_INCREMENT | 참석자 ID |
-| `safety_doc_id` | BIGINT | FK, NOT NULL | 안전교육 문서 ID |
+| `safety_education_log_id` | BIGINT | FK, NOT NULL | 안전교육일지 ID |
 | `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
-| `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
-| `attendance_status` | VARCHAR(20) | NULL | 출석 상태 (PRESENT/ABSENT) |
-| `signed_at` | DATETIME | NULL | 서명 시간 |
+| `is_signed` | BOOLEAN | NOT NULL, DEFAULT false | 서명 완료 여부 |
+| `signed_at` | DATETIME | NULL | 서명 일시 |
+| `signature_image_url` | VARCHAR(500) | NULL | 서명 이미지 S3 URL |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT false | 삭제 여부 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
-- INDEX: `safety_doc_id`, `employee_id`
-- FOREIGN KEY: `safety_doc_id` REFERENCES `safety_docs(id)`
+- INDEX: `safety_education_log_id`, `employee_id`
+- FOREIGN KEY: `safety_education_log_id` REFERENCES `safety_education_logs(id)`
 - FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
 
 **관계:**
-- N:1 → safety_docs
+- N:1 → safety_education_logs
 - N:1 → employees
-- 1:1 ← safety_sign_logs
 
 ---
 
-### 16. safety_sign_logs (안전교육 서명 로그)
+### 16. safety_education_sign_logs (안전교육 서명 로그)
 
-**설명:** 안전교육 전자서명 증적 데이터
+**설명:** 안전교육일지 전자서명 증적 데이터 (계약서 서명 로그와 동일한 구조)
 
 **컬럼:**
 
 | 컬럼명 | 타입 | 제약조건 | 설명 |
 |--------|------|----------|------|
 | `id` | BIGINT | PK, AUTO_INCREMENT | 서명 로그 ID |
-| `attendee_id` | BIGINT | FK, NOT NULL, UNIQUE | 참석자 ID (1:1) |
-| `signer_type` | VARCHAR(20) | NULL | 서명자 유형 (EMPLOYEE/MANAGER) |
-| `signature_hash` | VARCHAR(255) | NOT NULL | 서명 데이터 해시값 |
-| `signature_image_url` | VARCHAR(255) | NULL | S3 서명 이미지 경로 |
+| `safety_education_log_id` | BIGINT | FK, NOT NULL | 안전교육일지 ID |
+| `signer_role` | VARCHAR(30) | NOT NULL | 서명자 역할 (MANAGER/EMPLOYEE) |
+| `signer_id` | BIGINT | NOT NULL | 서명자 ID (Manager ID 또는 Employee ID) |
+| `signer_name` | VARCHAR(50) | NOT NULL | 서명자 이름 |
+| `signature_image_url` | VARCHAR(500) | NULL | S3 서명 이미지 URL |
+| `signature_hash` | VARCHAR(255) | NULL | SHA-256 해시값 |
+| `signature_x` | DECIMAL(10,2) | NULL | 서명 X 좌표 (PDF pt) |
+| `signature_y` | DECIMAL(10,2) | NULL | 서명 Y 좌표 (PDF pt) |
+| `signature_width` | DECIMAL(10,2) | NULL | 서명 너비 |
+| `signature_height` | DECIMAL(10,2) | NULL | 서명 높이 |
+| `signed_ip` | VARCHAR(45) | NULL | 서명 시점 IP 주소 |
 | `signed_device` | VARCHAR(100) | NULL | 서명 디바이스 정보 |
-| `signed_ip` | VARCHAR(45) | NULL | 서명자 IP 주소 |
-| `retention_until` | DATETIME | NULL | 보존 기간 |
-| `signed_at` | DATETIME | DEFAULT now() | 서명 시각 |
-| `verified_at` | DATETIME | NULL | 검증 완료 시각 |
+| `signed_at` | DATETIME | NULL | 서명 시각 |
 | `verification_status` | VARCHAR(20) | NULL | 검증 상태 (PENDING/VERIFIED/FAILED) |
+| `verified_at` | DATETIME | NULL | 검증 완료 시각 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT false | 삭제 여부 |
 
 **인덱스:**
 - PRIMARY KEY: `id`
-- UNIQUE INDEX: `attendee_id`
+- INDEX: `safety_education_log_id`, `signer_id`
 - INDEX: `verification_status`
-- FOREIGN KEY: `attendee_id` REFERENCES `safety_doc_attendees(id)`
+- FOREIGN KEY: `safety_education_log_id` REFERENCES `safety_education_logs(id)`
 
 **관계:**
-- 1:1 → safety_doc_attendees
+- N:1 → safety_education_logs
 
 ---
 
