@@ -57,22 +57,26 @@ public class WorkReportService {
      * <p>워크플로우:</p>
      * <ol>
      *   <li>Site 존재 여부 검증</li>
-     *   <li>Manager 권한 검증</li>
-     *   <li>중복 작성 검증 (동일 현장, 동일 날짜)</li>
+     *   <li>Manager 존재 여부 검증</li>
+     *   <li>Manager가 해당 Site에 권한이 있는지 검증</li>
+     *   <li>오늘 생성된 작업일보 개수를 세어 순번(sequence) 결정</li>
      *   <li>WorkReport 엔티티 생성</li>
      *   <li>자재 목록 추가</li>
      *   <li>DB 저장 (트랜잭션)</li>
      *   <li>PDF 생성</li>
-     *   <li>S3 업로드</li>
+     *   <li>S3 업로드 (work-reports/{siteId}/{date}/WR-{date}-{sequence}.pdf)</li>
      *   <li>WorkReport 업데이트 (pdfUrl, pdfGeneratedAt)</li>
      *   <li>응답 반환</li>
      * </ol>
+     *
+     * <p>참고: 동일 현장의 동일 날짜에 여러 개의 작업일보 생성이 허용됩니다.
+     * 각 작업일보에는 순번(1, 2, 3...)이 부여됩니다.</p>
      *
      * @param siteId 현장 ID
      * @param request 작업일보 생성 요청
      * @param currentUserId 관리자 userId (JWT에서 추출)
      * @return 작업일보 생성 응답 (workReportId, pdfUrl)
-     * @throws BusinessException 현장 미존재, 권한 없음, 중복 작성, PDF 생성 실패 등
+     * @throws BusinessException 현장 미존재, 관리자 미존재, 권한 없음, PDF 생성 실패 등
      */
     @Transactional
     public CreateWorkReportResponse createWorkReport(
@@ -103,7 +107,16 @@ public class WorkReportService {
                         "관리자를 찾을 수 없습니다. userId=" + currentUserId
                 ));
 
-        // 3. 오늘 생성된 작업일보 개수 조회 (순번 계산용)
+        // 3. Manager가 해당 Site에 권한이 있는지 검증
+        // Site에 할당된 manager와 현재 요청한 manager가 일치하는지 확인
+        if (site.getManager() == null || !site.getManager().getId().equals(manager.getId())) {
+            throw new BusinessException(
+                    WorkReportErrorCode.MANAGER_NOT_AUTHORIZED,
+                    "해당 현장에 대한 권한이 없습니다. siteId=" + siteId + ", managerId=" + manager.getId()
+            );
+        }
+
+        // 4. 오늘 생성된 작업일보 개수 조회 (순번 계산용)
         LocalDate today = LocalDate.now();
         String todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
 
@@ -116,7 +129,7 @@ public class WorkReportService {
         int sequenceNumber = (int) todayCount + 1;
         log.info("오늘({}) 생성된 작업일보 개수: {}, 다음 순번: {}", todayStr, todayCount, sequenceNumber);
 
-        // 4. 공정 정보를 JSON으로 변환
+        // 5. 공정 정보를 JSON으로 변환
         String workSectionsJson;
         try {
             workSectionsJson = objectMapper.writeValueAsString(request.getWorkSections());
@@ -128,7 +141,7 @@ public class WorkReportService {
             );
         }
 
-        // 5. WorkReport 엔티티 생성
+        // 6. WorkReport 엔티티 생성
         WorkReport workReport = WorkReport.builder()
                 .site(site)
                 .manager(manager)
@@ -136,7 +149,7 @@ public class WorkReportService {
                 .workSections(workSectionsJson)
                 .build();
 
-        // 6. 자재 목록 추가
+        // 7. 자재 목록 추가
         if (request.getMaterials() != null && !request.getMaterials().isEmpty()) {
             for (MaterialInputDto materialDto : request.getMaterials()) {
                 WorkReportMaterial material = WorkReportMaterial.builder()
@@ -149,12 +162,12 @@ public class WorkReportService {
             }
         }
 
-        // 7. DB 저장
+        // 8. DB 저장
         WorkReport savedWorkReport = workReportRepository.save(workReport);
         log.info("작업일보 저장 완료: workReportId={}", savedWorkReport.getId());
 
         try {
-            // 8. PDF 생성
+            // 9. PDF 생성
             byte[] pdfBytes = workReportPdfService.generateWorkReportPdf(
                     savedWorkReport,
                     site,
@@ -162,7 +175,7 @@ public class WorkReportService {
                     savedWorkReport.getMaterials()
             );
 
-            // 8. S3 업로드
+            // 10. S3 업로드
             S3Service service = s3Service.orElseThrow(() ->
                     new BusinessException(WorkReportErrorCode.S3_UPLOAD_FAILED, "S3 서비스가 비활성화되어 있습니다."));
 
@@ -172,13 +185,13 @@ public class WorkReportService {
 
             log.info("작업일보 PDF S3 업로드 완료: s3Key={}, pdfUrl={}", s3Key, pdfUrl);
 
-            // 9. WorkReport 업데이트 (pdfUrl, pdfGeneratedAt)
+            // 11. WorkReport 업데이트 (pdfUrl, pdfGeneratedAt)
             savedWorkReport.updatePdf(pdfUrl, LocalDateTime.now());
             workReportRepository.save(savedWorkReport);
 
             log.info("작업일보 생성 완료: workReportId={}, pdfUrl={}", savedWorkReport.getId(), pdfUrl);
 
-            // 10. 응답 반환
+            // 12. 응답 반환
             return CreateWorkReportResponse.builder()
                     .workReportId(savedWorkReport.getId())
                     .pdfUrl(pdfUrl)
