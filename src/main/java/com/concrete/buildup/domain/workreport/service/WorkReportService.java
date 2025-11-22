@@ -136,8 +136,8 @@ public class WorkReportService {
         } catch (JsonProcessingException e) {
             log.error("공정 정보 JSON 변환 실패", e);
             throw new BusinessException(
-                    WorkReportErrorCode.PDF_GENERATION_FAILED,
-                    "공정 정보 처리 중 오류가 발생했습니다."
+                    WorkReportErrorCode.INVALID_WORK_SECTION_DATA,
+                    "공정 정보 JSON 변환에 실패했습니다: " + e.getMessage()
             );
         }
 
