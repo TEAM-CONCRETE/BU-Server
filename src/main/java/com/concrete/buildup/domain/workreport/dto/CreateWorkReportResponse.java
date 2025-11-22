@@ -22,7 +22,7 @@ public class CreateWorkReportResponse {
     @Schema(description = "생성된 작업일보 ID", example = "123")
     private Long workReportId;
 
-    @Schema(description = "생성된 PDF URL", example = "https://build-up-contracts.s3.ap-northeast-2.amazonaws.com/work-reports/1/123/WR-20251119_홍길동.pdf")
+    @Schema(description = "생성된 PDF URL", example = "https://build-up-contracts.s3.ap-northeast-2.amazonaws.com/work-reports/1/2025-11-19/WR-2025-11-19-1.pdf")
     private String pdfUrl;
 
     @Schema(description = "응답 메시지", example = "작업일보가 생성되었습니다.")
