@@ -85,26 +85,26 @@ class WorkReportServiceTest {
                 .build();
         ReflectionTestUtils.setField(testCorporation, "id", 1L);
 
-        // Site 설정
-        testSite = Site.builder()
-                .siteName("테스트 현장")
-                .siteAddress("서울시 강남구")
-                .corporation(testCorporation)
-                .build();
-        ReflectionTestUtils.setField(testSite, "id", 1L);
-
-        // User 설정
+        // Manager 설정 (Site보다 먼저 생성해야 함)
         testUser = User.builder()
                 .userId("manager01")
                 .build();
         ReflectionTestUtils.setField(testUser, "id", 1L);
 
-        // Manager 설정
         testManager = Manager.builder()
                 .user(testUser)
                 .managerName("김관리")
                 .build();
         ReflectionTestUtils.setField(testManager, "id", 1L);
+
+        // Site 설정 (manager 할당 포함)
+        testSite = Site.builder()
+                .siteName("테스트 현장")
+                .siteAddress("서울시 강남구")
+                .corporation(testCorporation)
+                .manager(testManager)  // Manager 권한 검증을 위해 추가
+                .build();
+        ReflectionTestUtils.setField(testSite, "id", 1L);
 
         // Request 설정 - 여러 공정 포함
         List<WorkSectionDto> workSections = new ArrayList<>();
