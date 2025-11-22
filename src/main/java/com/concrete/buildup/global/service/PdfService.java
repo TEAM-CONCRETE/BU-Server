@@ -186,18 +186,21 @@ public class PdfService {
             // Flying Saucer를 사용하여 HTML을 PDF로 변환
             ITextRenderer renderer = new ITextRenderer();
 
-            // 한글 폰트 등록 (macOS/Windows/Linux 대응)
+            // 한글 폰트 등록 (macOS/Windows/Linux 대응) - layout() 전에 호출해야 함
             registerKoreanFonts(renderer);
 
             // HTML 문자열을 문서로 설정
             // baseUrl은 상대 경로 리소스를 위한 기본 URL (필요시 설정)
             renderer.setDocumentFromString(html, null);
 
-            // PDF 레이아웃 계산 및 렌더링
+            // PDF 레이아웃 계산 및 렌더링 (폰트 등록 후 호출)
             renderer.layout();
 
             // PDF 생성
             renderer.createPDF(baos);
+
+            // 리소스 정리
+            renderer.finishPDF();
 
             byte[] pdfBytes = baos.toByteArray();
             log.debug("HTML to PDF 변환 완료: pdfSize={} bytes", pdfBytes.length);
@@ -218,12 +221,14 @@ public class PdfService {
      *
      * <p>Flying Saucer에 한글 폰트를 등록하여 PDF에서 한글이 표시되도록 합니다.</p>
      * <p>OS별로 시스템 폰트 경로가 다르므로, 여러 경로를 시도합니다.</p>
+     * <p>중요: setDocumentFromString() 호출 전에 폰트를 등록해야 합니다.</p>
      *
      * @param renderer ITextRenderer 인스턴스
      */
     private void registerKoreanFonts(ITextRenderer renderer) {
         try {
             // 한글 폰트 경로 목록 (OS별)
+            // 각 OS의 기본 한글 폰트를 우선순위대로 시도
             String[] fontPaths = {
                     // macOS
                     "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
@@ -242,25 +247,34 @@ public class PdfService {
                 try {
                     java.io.File fontFile = new java.io.File(fontPath);
                     if (fontFile.exists()) {
+                        // ITextFontResolver를 통해 폰트 등록
+                        // IDENTITY_H: 한글 인코딩, EMBEDDED: PDF에 폰트 임베딩
+                        // 명시적인 font family name으로 등록
                         renderer.getFontResolver().addFont(
                                 fontPath,
+                                "KoreanFont",  // CSS에서 사용할 font-family 이름
                                 com.lowagie.text.pdf.BaseFont.IDENTITY_H,
-                                com.lowagie.text.pdf.BaseFont.EMBEDDED
+                                com.lowagie.text.pdf.BaseFont.EMBEDDED,
+                                null
                         );
-                        log.debug("한글 폰트 등록 성공: {}", fontPath);
+                        log.info("✅ 한글 폰트 등록 성공: {} (family name: KoreanFont)", fontPath);
                         fontRegistered = true;
                         break;
                     }
                 } catch (Exception e) {
-                    log.debug("한글 폰트 등록 실패 (다음 폰트 시도): {}", fontPath);
+                    log.debug("한글 폰트 등록 실패 (다음 폰트 시도): {}, 오류: {}", fontPath, e.getMessage());
                 }
             }
 
             if (!fontRegistered) {
-                log.warn("시스템에서 한글 폰트를 찾을 수 없습니다. PDF에서 한글이 제대로 표시되지 않을 수 있습니다.");
+                log.error("❌ 시스템에서 한글 폰트를 찾을 수 없습니다. PDF에서 한글이 제대로 표시되지 않습니다.");
+                log.error("다음 경로 중 하나에 한글 폰트가 있는지 확인하세요:");
+                for (String path : fontPaths) {
+                    log.error("  - {}", path);
+                }
             }
         } catch (Exception e) {
-            log.warn("한글 폰트 등록 중 예외 발생 (PDF 생성은 계속됩니다)", e);
+            log.error("한글 폰트 등록 중 예외 발생", e);
         }
     }
 }
