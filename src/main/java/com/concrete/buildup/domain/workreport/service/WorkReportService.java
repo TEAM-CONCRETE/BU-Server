@@ -10,6 +10,7 @@ import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.domain.workreport.dto.CreateWorkReportRequest;
 import com.concrete.buildup.domain.workreport.dto.CreateWorkReportResponse;
 import com.concrete.buildup.domain.workreport.dto.MaterialInputDto;
+import com.concrete.buildup.domain.workreport.dto.WorkReportListResponse;
 import com.concrete.buildup.domain.workreport.entity.WorkReport;
 import com.concrete.buildup.domain.workreport.entity.WorkReportMaterial;
 import com.concrete.buildup.domain.workreport.repository.WorkReportMaterialRepository;
@@ -21,6 +22,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -225,5 +228,41 @@ public class WorkReportService {
      */
     private String buildS3Key(Long workReportId, Long siteId, String createdDate, int sequenceNumber) {
         return String.format("work-reports/%d/%s/WR-%s-%d.pdf", siteId, createdDate, createdDate, sequenceNumber);
+    }
+
+    /**
+     * 현장 관리자용 작업일보 목록 조회
+     *
+     * <p>현장에 속한 작업일보 목록을 페이지네이션하여 조회합니다.</p>
+     * <p>작업일자, 작성자 이름을 포함하여 반환합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param pageable 페이지네이션 정보
+     * @return 작업일보 목록 응답
+     */
+    public WorkReportListResponse getWorkReportList(Long siteId, Pageable pageable) {
+        log.info("작업일보 목록 조회: siteId={}, page={}, size={}",
+                siteId, pageable.getPageNumber(), pageable.getPageSize());
+
+        // 현장 존재 여부 확인
+        if (!siteRepository.existsById(siteId)) {
+            throw new BusinessException(WorkReportErrorCode.SITE_NOT_FOUND);
+        }
+
+        // 작업일보 목록 조회 (Manager fetch join)
+        Page<WorkReport> workReportPage = workReportRepository.findBySiteIdWithManager(siteId, pageable);
+
+        // DTO 변환
+        Page<WorkReportListResponse.WorkReportSummary> summaryPage = workReportPage.map(workReport ->
+                WorkReportListResponse.WorkReportSummary.builder()
+                        .workReportId(workReport.getId())
+                        .workDate(workReport.getCreatedAt().toLocalDate())
+                        .writerName(workReport.getManager().getManagerName())
+                        .build()
+        );
+
+        log.info("작업일보 목록 조회 완료: siteId={}, totalElements={}", siteId, summaryPage.getTotalElements());
+
+        return WorkReportListResponse.from(summaryPage);
     }
 }
