@@ -24,25 +24,29 @@ import lombok.NoArgsConstructor;
 @Schema(description = "공정 정보")
 public class WorkSectionDto {
 
-    /**
-     * 공정명 (예: 철근공사, 거푸집공사)
-     */
-    @Schema(description = "공정명", example = "철근공사")
+    @Schema(
+            description = "공정명",
+            example = "철근공사",
+            requiredMode = Schema.RequiredMode.REQUIRED
+    )
     @NotBlank(message = "공정명은 필수입니다.")
     private String sectionName;
 
-    /**
-     * 투입 인력 수 (명)
-     */
-    @Schema(description = "투입 인력 수", example = "9")
+    @Schema(
+            description = "투입 인력 수 (명)",
+            example = "9",
+            minimum = "0",
+            requiredMode = Schema.RequiredMode.REQUIRED
+    )
     @NotNull(message = "투입 인력 수는 필수입니다.")
     @Min(value = 0, message = "투입 인력 수는 0 이상이어야 합니다.")
     private Integer employeeNum;
 
-    /**
-     * 공정별 작업 내용
-     */
-    @Schema(description = "작업 내용", example = "1층 바닥 철근 배근 작업 완료")
+    @Schema(
+            description = "작업 내용",
+            example = "1층 바닥 철근 배근 작업 완료",
+            requiredMode = Schema.RequiredMode.REQUIRED
+    )
     @NotBlank(message = "작업 내용은 필수입니다.")
     private String context;
 }

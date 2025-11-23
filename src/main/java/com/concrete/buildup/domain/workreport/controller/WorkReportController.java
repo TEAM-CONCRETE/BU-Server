@@ -7,6 +7,9 @@ import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,11 +60,32 @@ public class WorkReportController {
      */
     @Operation(
             summary = "작업일보 생성",
-            description = "관리자가 작업일보를 생성합니다. " +
-                    "PDF가 즉시 생성되어 S3에 업로드되며, 생성 완료 후 PDF URL이 반환됩니다. " +
-                    "동일 현장의 동일 날짜에 여러 개의 작업일보를 생성할 수 있으며, " +
-                    "생성 순서대로 순번이 부여됩니다 (예: WR-2025-11-23-1.pdf, WR-2025-11-23-2.pdf)."
+            description = """
+                관리자가 작업일보를 생성합니다.
+
+                **처리 과정:**
+                1. 작업일보 DB 저장
+                2. PDF 즉시 생성 및 S3 업로드
+                3. PDF URL 반환
+
+                **파일명 규칙:** `WR-{날짜}-{순번}.pdf` (예: WR-2025-11-24-1.pdf)
+                """
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201",
+                    description = "작업일보 생성 성공",
+                    content = @Content(schema = @Schema(implementation = CreateWorkReportResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 (필수 필드 누락, 유효성 검증 실패)"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "현장을 찾을 수 없음"
+            )
+    })
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @PostMapping
     public ResponseEntity<ApiResponse<CreateWorkReportResponse>> createWorkReport(
