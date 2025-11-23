@@ -176,8 +176,8 @@
                 <tr th:if="${attendees != null and !attendees.empty}" th:each="attendee, iterStat : ${attendees}">
                     <td th:text="${iterStat.count}"></td>
                     <td th:text="${attendee.employee != null and attendee.employee.empName != null ? attendee.employee.empName : '-'}"></td>
-                    <td th:text="${attendee.employee != null and attendee.employee.empType != null ? attendee.employee.empType.description : '-'}"></td>
-                    <td th:text="${attendee.employee != null and attendee.employee.tel != null ? attendee.employee.tel : '-'}"></td>
+                    <td th:text="${attendee.employee != null and attendee.employee.empType != null ? (attendee.employee.empType == 'DAILY' ? '일용직' : (attendee.employee.empType == 'PERMANENT' ? '상용직' : attendee.employee.empType)) : '-'}"></td>
+                    <td th:text="${attendee.employee != null and attendee.employee.user != null and attendee.employee.user.phone != null ? attendee.employee.user.phone : '-'}"></td>
                     <td class="signature-cell"></td>
                 </tr>
                 <!-- 참석자 목록이 없는 경우 -->

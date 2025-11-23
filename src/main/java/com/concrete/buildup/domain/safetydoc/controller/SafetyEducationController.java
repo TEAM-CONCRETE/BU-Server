@@ -77,17 +77,6 @@ public class SafetyEducationController {
         return ResponseEntity.ok(ApiResponse.success(response, "근로자 목록을 조회했습니다."));
     }
 
-    @Operation(summary = "초안 PDF 생성", description = "안전교육일지의 초안 PDF를 생성합니다.")
-    @PostMapping("/{logId}/pdf/initial")
-    public ResponseEntity<ApiResponse<String>> generateInitialPdf(
-            @Parameter(description = "현장 ID") @PathVariable Long siteId,
-            @Parameter(description = "안전교육일지 ID") @PathVariable Long logId,
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-        String pdfUrl = signatureService.generateInitialPdf(siteId, logId, userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.success(pdfUrl, "초안 PDF가 생성되었습니다."));
-    }
-
     @Operation(summary = "관리자 서명 처리", description = "관리자의 서명을 처리하고 PDF에 서명을 추가합니다.")
     @PostMapping("/{logId}/signatures/manager")
     public ResponseEntity<ApiResponse<SafetyEducationSignatureResponse>> processManagerSignature(

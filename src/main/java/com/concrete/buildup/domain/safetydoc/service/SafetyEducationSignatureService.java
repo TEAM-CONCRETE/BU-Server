@@ -320,33 +320,6 @@ public class SafetyEducationSignatureService {
         return service.getPdfUrl(finalS3Key);
     }
 
-    public String generateInitialPdf(Long siteId, Long logId, String currentUserId) {
-        // Site 존재 여부 검증
-        Site site = siteRepository.findById(siteId)
-                .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SITE_NOT_FOUND));
-
-        // 안전교육일지 조회
-        SafetyEducationLog log = safetyEducationLogRepository.findByIdWithAttendees(logId)
-                .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
-
-        // 권한 검증
-        User user = userRepository.findByUserId(currentUserId)
-                .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
-
-        Manager manager = managerRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
-
-        if (site.getManager() == null || !site.getManager().getId().equals(manager.getId())) {
-            throw new BusinessException(SafetyDocErrorCode.MANAGER_NOT_AUTHORIZED);
-        }
-
-        // 상태 변경 및 저장
-        log.transitionToManagerSigningPending();
-        safetyEducationLogRepository.save(log);
-
-        return log.getPdfUrl();
-    }
-
     private String extractS3KeyFromUrl(String url) {
         // S3 URL에서 키 추출
         // 예: https://bucket.s3.region.amazonaws.com/safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf
