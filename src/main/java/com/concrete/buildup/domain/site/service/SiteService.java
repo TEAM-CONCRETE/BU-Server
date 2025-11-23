@@ -205,28 +205,24 @@ public class SiteService {
      * 특정 날짜의 안전/작업 문서 DTO 생성
      */
     private SafetyWorkDocumentDto buildDocumentDto(Long siteId, LocalDate date) {
-        // 해당 날짜의 안전교육일지 조회 (가장 최근 것)
-        List<SafetyEducationLog> safetyLogs = safetyEducationLogRepository.findBySiteIdAndDate(siteId, date);
-        SafetyWorkDocumentDto.SafetyEducationLogSummary safetySummary = null;
-        if (!safetyLogs.isEmpty()) {
-            SafetyEducationLog log = safetyLogs.get(0);
-            safetySummary = SafetyWorkDocumentDto.SafetyEducationLogSummary.builder()
-                    .logId(log.getId())
-                    .status(log.getStatus())
-                    .educationSubject(log.getEducationSubject())
-                    .build();
-        }
+        // 해당 날짜의 안전교육일지 조회 (가장 최근 것 1개)
+        SafetyWorkDocumentDto.SafetyEducationLogSummary safetySummary =
+                safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date)
+                        .map(safetyLog -> SafetyWorkDocumentDto.SafetyEducationLogSummary.builder()
+                                .logId(safetyLog.getId())
+                                .status(safetyLog.getStatus())
+                                .educationSubject(safetyLog.getEducationSubject())
+                                .build())
+                        .orElse(null);
 
-        // 해당 날짜의 작업일보 조회 (가장 최근 것)
-        List<WorkReport> workReports = workReportRepository.findBySiteIdAndDate(siteId, date);
-        SafetyWorkDocumentDto.WorkReportSummary workSummary = null;
-        if (!workReports.isEmpty()) {
-            WorkReport report = workReports.get(0);
-            workSummary = SafetyWorkDocumentDto.WorkReportSummary.builder()
-                    .workReportId(report.getId())
-                    .sequence(workReports.size())  // 해당 날짜의 작업일보 개수
-                    .build();
-        }
+        // 해당 날짜의 작업일보 조회 (가장 최근 것 1개)
+        SafetyWorkDocumentDto.WorkReportSummary workSummary =
+                workReportRepository.findLatestBySiteIdAndDate(siteId, date)
+                        .map(workReport -> SafetyWorkDocumentDto.WorkReportSummary.builder()
+                                .workReportId(workReport.getId())
+                                .sequence(1)
+                                .build())
+                        .orElse(null);
 
         return SafetyWorkDocumentDto.builder()
                 .date(date)

@@ -270,8 +270,8 @@ class SiteServiceTest {
             given(siteRepository.existsById(siteId)).willReturn(true);
             given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
             given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
-            given(safetyEducationLogRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(safetyLog));
-            given(workReportRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(workReport));
+            given(safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(safetyLog));
+            given(workReportRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(workReport));
 
             // when
             SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
@@ -318,8 +318,8 @@ class SiteServiceTest {
             given(siteRepository.existsById(siteId)).willReturn(true);
             given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
             given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
-            given(safetyEducationLogRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(safetyLog));
-            given(workReportRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of());
+            given(safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(safetyLog));
+            given(workReportRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.empty());
 
             // when
             SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);

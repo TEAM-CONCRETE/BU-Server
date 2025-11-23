@@ -51,11 +51,16 @@ public interface SafetyEducationLogRepository extends JpaRepository<SafetyEducat
 
     /**
      * 현장별, 날짜별 안전교육일지 조회 (가장 최근 것 1개)
+     *
+     * @param siteId 현장 ID
+     * @param date 조회 날짜
+     * @return 해당 날짜의 가장 최근 안전교육일지 (없으면 Optional.empty())
      */
     @Query("SELECT s FROM SafetyEducationLog s " +
             "WHERE s.site.id = :siteId " +
             "AND CAST(s.createdAt AS LocalDate) = :date " +
             "AND s.isDeleted = false " +
-            "ORDER BY s.createdAt DESC")
-    List<SafetyEducationLog> findBySiteIdAndDate(@Param("siteId") Long siteId, @Param("date") LocalDate date);
+            "ORDER BY s.createdAt DESC " +
+            "LIMIT 1")
+    Optional<SafetyEducationLog> findLatestBySiteIdAndDate(@Param("siteId") Long siteId, @Param("date") LocalDate date);
 }
