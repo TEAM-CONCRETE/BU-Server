@@ -206,43 +206,6 @@ public class SafetyEducationController {
     }
 
     @Operation(
-            summary = "안전교육일지 상세 조회",
-            description = """
-                    안전교육일지의 상세 정보를 조회합니다.
-
-                    ## 조회 정보
-                    - 현장 정보 (현장명, 소속기업, 관리자명)
-                    - 교육 정보 (구분, 과목, 내용, 실시자, 장소)
-                    - 상태 및 서명 일시
-                    - PDF URL (초안/관리자 서명/최종)
-                    - 참석자 목록 및 각 참석자 서명 현황
-                    """
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    description = "상세 조회 성공"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404",
-                    description = "안전교육일지를 찾을 수 없음"
-            )
-    })
-    @GetMapping("/{logId}")
-    public ResponseEntity<ApiResponse<SafetyEducationLogDetailResponse>> getSafetyEducationLogDetail(
-            @Parameter(description = "현장 ID", required = true, example = "1")
-            @PathVariable Long siteId,
-            @Parameter(description = "안전교육일지 ID", required = true, example = "1")
-            @PathVariable Long logId,
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-        SafetyEducationLogDetailResponse response = safetyEducationService.getSafetyEducationLogDetail(
-                siteId, logId, userDetails.getUsername()
-        );
-        return ResponseEntity.ok(ApiResponse.success(response, "안전교육일지 상세 정보를 조회했습니다."));
-    }
-
-    @Operation(
             summary = "교육 대상자용 근로자 목록 조회",
             description = """
                     안전교육 대상자로 선택할 수 있는 현장 근로자 목록을 조회합니다.

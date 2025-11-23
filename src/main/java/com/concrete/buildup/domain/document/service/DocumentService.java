@@ -8,6 +8,9 @@ import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.document.dto.DocumentUrlResponseDto;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
+import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
+import com.concrete.buildup.domain.safetydoc.enums.SafetyEducationStatus;
+import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
@@ -36,6 +39,7 @@ public class DocumentService {
     private final ContractRepository contractRepository;
     private final ContractDetailRepository contractDetailRepository;
     private final PayrollRepository payrollRepository;
+    private final SafetyEducationLogRepository safetyEducationLogRepository;
 
     private static final int SIGNED_URL_EXPIRATION_MINUTES = 15;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -134,6 +138,95 @@ public class DocumentService {
         log.info("급여명세서 PDF URL 발급 완료: payrollId={}, expiresAt={}", payrollId, expiresAt);
 
         return DocumentUrlResponseDto.of(signedUrl, expiresAt);
+    }
+
+    /**
+     * 안전교육일지 PDF Signed URL 발급
+     *
+     * <p>안전교육일지 상태에 따라 적절한 버전의 PDF를 조회합니다.</p>
+     * <ul>
+     *   <li>MANAGER_SIGNING_PENDING: 초안 PDF</li>
+     *   <li>MANAGER_SIGNED: 관리자 서명 완료 PDF</li>
+     *   <li>COMPLETED: 최종 PDF (모든 참석자 서명 완료)</li>
+     * </ul>
+     *
+     * @param logId 안전교육일지 ID
+     * @return Signed URL 응답
+     * @throws BusinessException 안전교육일지가 존재하지 않거나 PDF 파일이 없는 경우
+     */
+    public DocumentUrlResponseDto getSafetyEducationLogPdfUrl(Long logId) {
+        log.info("안전교육일지 PDF URL 발급 요청: logId={}", logId);
+
+        // 안전교육일지 조회
+        SafetyEducationLog educationLog = safetyEducationLogRepository.findById(logId)
+                .orElseThrow(() -> new BusinessException(DocumentErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
+
+        // 상태에 따른 PDF URL 결정
+        String pdfUrl = getPdfUrlByStatus(educationLog);
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            log.warn("안전교육일지 PDF가 아직 생성되지 않음: logId={}, status={}", logId, educationLog.getStatus());
+            throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
+        }
+
+        // S3 키 추출
+        String s3Key = extractS3KeyFromUrl(pdfUrl);
+
+        // S3 서비스 확인
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+
+        // S3에 파일 존재 여부 확인
+        if (!service.doesObjectExist(s3Key)) {
+            log.warn("안전교육일지 PDF 파일이 존재하지 않음: s3Key={}", s3Key);
+            throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
+        }
+
+        // Signed URL 발급
+        String signedUrl = service.generatePresignedGetUrl(s3Key);
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(SIGNED_URL_EXPIRATION_MINUTES);
+
+        log.info("안전교육일지 PDF URL 발급 완료: logId={}, status={}, expiresAt={}", logId, educationLog.getStatus(), expiresAt);
+
+        return DocumentUrlResponseDto.of(signedUrl, expiresAt);
+    }
+
+    /**
+     * 안전교육일지 상태에 따른 PDF URL 반환
+     *
+     * @param log 안전교육일지 엔티티
+     * @return PDF URL (최종 PDF 우선, 없으면 현재 PDF)
+     */
+    private String getPdfUrlByStatus(SafetyEducationLog log) {
+        // COMPLETED 상태이고 최종 PDF가 있으면 최종 PDF 반환
+        if (log.getStatus() == SafetyEducationStatus.COMPLETED && log.getFinalPdfUrl() != null) {
+            return log.getFinalPdfUrl();
+        }
+        // 그 외의 경우 현재 PDF URL 반환
+        return log.getPdfUrl();
+    }
+
+    /**
+     * S3 URL에서 키 추출
+     *
+     * @param url S3 URL
+     * @return S3 키
+     */
+    private String extractS3KeyFromUrl(String url) {
+        // 예: https://bucket.s3.amazonaws.com/safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf
+        // -> safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf
+        if (url == null) {
+            return null;
+        }
+        int index = url.indexOf("safety-docs/");
+        if (index == -1) {
+            // 다른 형식의 URL인 경우 마지막 / 이후의 경로 추출 시도
+            int lastSlashIndex = url.indexOf(".com/");
+            if (lastSlashIndex != -1) {
+                return url.substring(lastSlashIndex + 5);
+            }
+            return null;
+        }
+        return url.substring(index);
     }
 
     /**
