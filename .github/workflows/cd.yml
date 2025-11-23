@@ -156,10 +156,14 @@ jobs:
             echo "🧹 Cleaning up old images..."
             docker image prune -f
 
-            sleep 10
+            echo "⏳ Waiting for container to initialize (30s)..."
+            sleep 30  # 컨테이너 초기화 대기 시간 증가
+
             if docker ps | grep -q buildup-app; then
               echo "✅ Container started successfully"
-              docker logs --tail 30 buildup-app
+              echo ""
+              echo "📜 Container logs (last 50 lines):"
+              docker logs --tail 50 buildup-app
             else
               echo "❌ Container failed to start"
               docker logs buildup-app
@@ -173,18 +177,49 @@ jobs:
       - name: 🏥 Health Check
         run: |
           echo "⏳ Waiting for application to be ready..."
-          sleep 30
+          sleep 60  # 앱 시작 대기 시간 증가 (30s → 60s)
 
-          for i in {1..5}; do
-            if curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:8080/api/actuator/health | grep -q "200"; then
+          for i in {1..10}; do  # 재시도 횟수 증가 (5 → 10)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:8080/api/actuator/health 2>/dev/null || echo "000")
+            echo "📊 Attempt $i/10 - HTTP Status: $HTTP_CODE"
+
+            if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ Health check passed!"
               exit 0
             fi
-            echo "⏳ Attempt $i/5 failed, retrying in 10s..."
-            sleep 10
+
+            echo "⏳ Attempt $i/10 failed (status: $HTTP_CODE), retrying in 15s..."
+            sleep 15  # 재시도 간격 증가 (10s → 15s)
           done
 
-          echo "❌ Health check failed after 5 attempts"
+          echo "❌ Health check failed after 10 attempts"
+          echo ""
+          echo "🔍 Debugging information:"
+          echo "========================="
+
+          # EC2에 SSH로 접속하여 디버그 정보 수집
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOFDBG'
+            echo "📦 Container status:"
+            docker ps -a | grep buildup-app || echo "Container not found"
+
+            echo ""
+            echo "📜 Full application logs (last 100 lines):"
+            docker logs --tail 100 buildup-app 2>&1 || echo "Failed to get logs"
+
+            echo ""
+            echo "💾 Server resources:"
+            echo "Memory: $(free -h | grep Mem | awk '{print $3"/"$2}')"
+            echo "Disk: $(df -h / | tail -1 | awk '{print $3"/"$2" ("$5" used)"}')"
+
+            echo ""
+            echo "🔌 Port 8080 status:"
+            netstat -tlnp 2>/dev/null | grep 8080 || ss -tlnp | grep 8080 || echo "Port 8080 not listening"
+
+            echo ""
+            echo "🐳 Docker network check:"
+            docker network inspect buildup-network --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null || echo "Network check failed"
+          EOFDBG
+
           exit 1
 
   # ---------------------------------
