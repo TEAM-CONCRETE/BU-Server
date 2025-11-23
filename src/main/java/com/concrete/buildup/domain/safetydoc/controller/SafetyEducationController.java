@@ -21,29 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Safety Education", description = """
-        안전교육일지 관리 API
-
-        ## 개요
-        산업안전보건법에 따른 안전교육일지를 생성, 조회하고 전자서명을 처리하는 API입니다.
-
-        ## 주요 기능
-        - 안전교육일지 생성 및 초안 PDF 자동 생성
-        - 관리자 서명 처리 (PDF에 서명 스탬핑)
-        - 참석자(근로자) 서명 처리 (모든 참석자 서명 완료 시 최종 PDF 생성)
-        - 서명 현황 조회
-
-        ## 워크플로우
-        1. `POST /v1/{siteId}/safety-education-logs` - 안전교육일지 생성 (초안 PDF 생성)
-        2. `POST /{logId}/signatures/manager` - 관리자 서명 (상태: MANAGER_SIGNED)
-        3. `POST /{logId}/signatures/attendee/{employeeId}` - 각 참석자 서명
-        4. 모든 참석자 서명 완료 시 → 상태: COMPLETED, 최종 PDF 생성
-
-        ## 서명 프로세스
-        1. `/v1/uploads/signatures` API로 Presigned URL 발급
-        2. 클라이언트에서 서명 이미지를 S3에 업로드
-        3. 서명 API 호출 시 S3 키와 해시값 전달
-        """)
+@Tag(name = "Safety Education", description = "안전교육일지 관리 API")
 @RestController
 @RequestMapping("/v1/{siteId}/safety-education-logs")
 @RequiredArgsConstructor
