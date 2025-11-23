@@ -124,6 +124,23 @@ public class SafetyEducationController {
     public ResponseEntity<ApiResponse<CreateSafetyEducationLogResponse>> createSafetyEducationLog(
             @Parameter(description = "현장 ID", required = true, example = "1")
             @PathVariable Long siteId,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "안전교육일지 생성 요청",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "educationType": "REGULAR",
+                                      "educationSubject": "추락 재해 예방 교육",
+                                      "educationContent": "1. 추락 재해 현황 및 사례\\n2. 추락 방지 시설 점검 요령\\n3. 개인 보호구 착용 방법\\n4. 비상 시 대응 절차",
+                                      "instructorName": "김안전",
+                                      "educationLocation": "현장 사무실 회의실",
+                                      "attendeeEmployeeIds": [1, 2, 3, 5, 8]
+                                    }
+                                    """)
+                    )
+            )
             @Valid @RequestBody CreateSafetyEducationLogRequest request,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
@@ -370,6 +387,27 @@ public class SafetyEducationController {
             @PathVariable Long siteId,
             @Parameter(description = "안전교육일지 ID", required = true, example = "1")
             @PathVariable Long logId,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "관리자 서명 요청",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "signatureS3Key": "uploads/safetydocs/1/MANAGER/1699000000000.png",
+                                      "clientHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                      "coordinates": {
+                                        "x": 400.0,
+                                        "y": 750.0,
+                                        "width": 150.0,
+                                        "height": 50.0,
+                                        "viewWidth": 595.0,
+                                        "viewHeight": 842.0
+                                      }
+                                    }
+                                    """)
+                    )
+            )
             @Valid @RequestBody SafetyEducationSignatureRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest
@@ -474,6 +512,27 @@ public class SafetyEducationController {
             @PathVariable Long logId,
             @Parameter(description = "근로자(Employee) ID", required = true, example = "10")
             @PathVariable Long employeeId,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "참석자(근로자) 서명 요청",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "signatureS3Key": "uploads/safetydocs/1/EMPLOYEE/10/1699000000000.png",
+                                      "clientHash": "a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789a",
+                                      "coordinates": {
+                                        "x": 480.0,
+                                        "y": 400.0,
+                                        "width": 60.0,
+                                        "height": 20.0,
+                                        "viewWidth": 595.0,
+                                        "viewHeight": 842.0
+                                      }
+                                    }
+                                    """)
+                    )
+            )
             @Valid @RequestBody SafetyEducationSignatureRequest request,
             HttpServletRequest httpRequest
     ) {
