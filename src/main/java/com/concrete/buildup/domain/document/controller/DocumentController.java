@@ -164,4 +164,47 @@ public class DocumentController {
 
         return ResponseEntity.ok(ApiResponse.success(response, "급여명세서 PDF URL 발급에 성공했습니다"));
     }
+
+    /**
+     * 작업일보 PDF Signed URL 조회
+     *
+     * @param workReportId 작업일보 ID
+     * @return Signed URL 응답
+     */
+    @GetMapping("/work-reports/{workReportId}")
+    @Operation(
+        summary = "작업일보 PDF 조회 (미리보기/다운로드)",
+        description = """
+            작업일보 PDF 파일을 조회하기 위한 Signed URL을 발급합니다.
+
+            **사용 방법:**
+            - 발급된 URL을 iframe 또는 PDF 뷰어에서 사용 (미리보기)
+            - 발급된 URL로 직접 다운로드 가능
+            - URL은 15분 후 만료됩니다.
+
+            **S3 경로:**
+            - work-reports/{siteId}/{date}/WR-{workReportId}.pdf
+            """
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "Signed URL 발급 성공",
+            content = @Content(schema = @Schema(implementation = DocumentUrlResponseDto.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404",
+            description = "작업일보 또는 문서를 찾을 수 없음"
+        )
+    })
+    public ResponseEntity<ApiResponse<DocumentUrlResponseDto>> getWorkReportPdf(
+            @Parameter(description = "작업일보 ID", required = true)
+            @PathVariable Long workReportId
+    ) {
+        log.info("작업일보 PDF 조회 API 호출: workReportId={}", workReportId);
+
+        DocumentUrlResponseDto response = documentService.getWorkReportPdfUrl(workReportId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "작업일보 PDF URL 발급에 성공했습니다"));
+    }
 }

@@ -15,6 +15,8 @@ import com.concrete.buildup.domain.safetydoc.enums.EducationType;
 import com.concrete.buildup.domain.safetydoc.enums.SafetyEducationStatus;
 import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
+import com.concrete.buildup.domain.workreport.entity.WorkReport;
+import com.concrete.buildup.domain.workreport.repository.WorkReportRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.DocumentErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +55,9 @@ class DocumentServiceTest {
     @Mock
     private SafetyEducationLogRepository safetyEducationLogRepository;
 
+    @Mock
+    private WorkReportRepository workReportRepository;
+
     private DocumentService documentService;
 
     @org.junit.jupiter.api.BeforeEach
@@ -62,7 +67,8 @@ class DocumentServiceTest {
                 contractRepository,
                 contractDetailRepository,
                 payrollRepository,
-                safetyEducationLogRepository
+                safetyEducationLogRepository,
+                workReportRepository
         );
     }
 
@@ -553,6 +559,107 @@ class DocumentServiceTest {
 
             // when & then
             assertThatThrownBy(() -> documentService.getSafetyEducationLogPdfUrl(logId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
+
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+            verify(s3Service, never()).generatePresignedGetUrl(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("작업일보 PDF URL 발급")
+    class GetWorkReportPdfUrl {
+
+        @Test
+        @DisplayName("성공 - PDF URL 존재")
+        void success() {
+            // given
+            Long workReportId = 1L;
+            String expectedS3Key = "work-reports/1/2025-01-24/WR-1.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/work-reports/1/2025-01-24/WR-1.pdf";
+            String expectedSignedUrl = "https://bucket.s3.amazonaws.com/signed-url";
+
+            WorkReport workReport = WorkReport.builder()
+                    .workSections("[{\"sectionName\":\"철근공사\"}]")
+                    .build();
+            workReport.updatePdf(pdfUrl, LocalDateTime.now());
+
+            given(workReportRepository.findById(workReportId)).willReturn(Optional.of(workReport));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
+            given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
+
+            // when
+            DocumentUrlResponseDto response = documentService.getWorkReportPdfUrl(workReportId);
+
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
+            assertThat(response.getExpiresAt()).isNotNull();
+
+            verify(workReportRepository).findById(workReportId);
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+            verify(s3Service).generatePresignedGetUrl(expectedS3Key);
+        }
+
+        @Test
+        @DisplayName("실패 - 작업일보 없음")
+        void fail_workReportNotFound() {
+            // given
+            Long workReportId = 999L;
+            given(workReportRepository.findById(workReportId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getWorkReportPdfUrl(workReportId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.WORK_REPORT_NOT_FOUND);
+
+            verify(workReportRepository).findById(workReportId);
+            verify(s3Service, never()).doesObjectExist(anyString());
+        }
+
+        @Test
+        @DisplayName("실패 - PDF URL 없음")
+        void fail_noPdfUrl() {
+            // given
+            Long workReportId = 1L;
+            WorkReport workReport = WorkReport.builder()
+                    .workSections("[{\"sectionName\":\"철근공사\"}]")
+                    .build();
+            // PDF URL이 설정되지 않음
+
+            given(workReportRepository.findById(workReportId)).willReturn(Optional.of(workReport));
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getWorkReportPdfUrl(workReportId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
+
+            verify(s3Service, never()).doesObjectExist(anyString());
+        }
+
+        @Test
+        @DisplayName("실패 - S3 파일 없음")
+        void fail_s3FileNotFound() {
+            // given
+            Long workReportId = 1L;
+            String expectedS3Key = "work-reports/1/2025-01-24/WR-1.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/work-reports/1/2025-01-24/WR-1.pdf";
+
+            WorkReport workReport = WorkReport.builder()
+                    .workSections("[{\"sectionName\":\"철근공사\"}]")
+                    .build();
+            workReport.updatePdf(pdfUrl, LocalDateTime.now());
+
+            given(workReportRepository.findById(workReportId)).willReturn(Optional.of(workReport));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getWorkReportPdfUrl(workReportId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
 
