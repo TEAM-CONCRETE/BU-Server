@@ -7,6 +7,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +43,22 @@ public interface SafetyEducationLogRepository extends JpaRepository<SafetyEducat
             LocalDateTime startDateTime,
             LocalDateTime endDateTime
     );
+
+    /**
+     * 현장별 안전교육일지가 있는 날짜 목록 조회 (중복 제거, 페이지네이션)
+     */
+    @Query("SELECT DISTINCT CAST(s.createdAt AS LocalDate) FROM SafetyEducationLog s " +
+            "WHERE s.site.id = :siteId AND s.isDeleted = false " +
+            "ORDER BY CAST(s.createdAt AS LocalDate) DESC")
+    Page<LocalDate> findDistinctDatesBySiteId(@Param("siteId") Long siteId, Pageable pageable);
+
+    /**
+     * 현장별, 날짜별 안전교육일지 조회 (가장 최근 것 1개)
+     */
+    @Query("SELECT s FROM SafetyEducationLog s " +
+            "WHERE s.site.id = :siteId " +
+            "AND CAST(s.createdAt AS LocalDate) = :date " +
+            "AND s.isDeleted = false " +
+            "ORDER BY s.createdAt DESC")
+    List<SafetyEducationLog> findBySiteIdAndDate(@Param("siteId") Long siteId, @Param("date") LocalDate date);
 }
