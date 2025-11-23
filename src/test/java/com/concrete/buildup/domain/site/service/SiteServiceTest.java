@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -270,8 +271,8 @@ class SiteServiceTest {
             given(siteRepository.existsById(siteId)).willReturn(true);
             given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
             given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
-            given(safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(safetyLog));
-            given(workReportRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(workReport));
+            given(safetyEducationLogRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(safetyLog));
+            given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(workReport));
 
             // when
             SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
@@ -318,8 +319,8 @@ class SiteServiceTest {
             given(siteRepository.existsById(siteId)).willReturn(true);
             given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
             given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
-            given(safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.of(safetyLog));
-            given(workReportRepository.findLatestBySiteIdAndDate(siteId, date1)).willReturn(Optional.empty());
+            given(safetyEducationLogRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(safetyLog));
+            given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of());
 
             // when
             SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);

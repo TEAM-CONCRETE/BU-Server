@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -201,13 +202,17 @@ public class SiteService {
         return SafetyWorkDocumentListResponse.from(page);
     }
 
+    private static final Pageable SINGLE_RESULT = PageRequest.of(0, 1);
+
     /**
      * 특정 날짜의 안전/작업 문서 DTO 생성
      */
     private SafetyWorkDocumentDto buildDocumentDto(Long siteId, LocalDate date) {
         // 해당 날짜의 안전교육일지 조회 (가장 최근 것 1개)
         SafetyWorkDocumentDto.SafetyEducationLogSummary safetySummary =
-                safetyEducationLogRepository.findLatestBySiteIdAndDate(siteId, date)
+                safetyEducationLogRepository.findBySiteIdAndDate(siteId, date, SINGLE_RESULT)
+                        .stream()
+                        .findFirst()
                         .map(safetyLog -> SafetyWorkDocumentDto.SafetyEducationLogSummary.builder()
                                 .logId(safetyLog.getId())
                                 .status(safetyLog.getStatus())
@@ -217,7 +222,9 @@ public class SiteService {
 
         // 해당 날짜의 작업일보 조회 (가장 최근 것 1개)
         SafetyWorkDocumentDto.WorkReportSummary workSummary =
-                workReportRepository.findLatestBySiteIdAndDate(siteId, date)
+                workReportRepository.findBySiteIdAndDate(siteId, date, SINGLE_RESULT)
+                        .stream()
+                        .findFirst()
                         .map(workReport -> SafetyWorkDocumentDto.WorkReportSummary.builder()
                                 .workReportId(workReport.getId())
                                 .sequence(1)

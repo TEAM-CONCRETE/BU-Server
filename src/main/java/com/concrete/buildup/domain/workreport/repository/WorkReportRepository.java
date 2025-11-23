@@ -6,9 +6,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Pageable;
+
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 작업일보 Repository
@@ -52,17 +53,20 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
     List<LocalDate> findDistinctDatesBySiteId(@Param("siteId") Long siteId);
 
     /**
-     * 현장별, 날짜별 작업일보 조회 (가장 최근 것 1개)
+     * 현장별, 날짜별 작업일보 조회 (페이지네이션 지원)
      *
      * @param siteId 현장 ID
      * @param date 조회 날짜
-     * @return 해당 날짜의 가장 최근 작업일보 (없으면 Optional.empty())
+     * @param pageable 페이지네이션 정보
+     * @return 해당 날짜의 작업일보 목록 (createdAt 내림차순)
      */
     @Query("SELECT w FROM WorkReport w " +
             "WHERE w.site.id = :siteId " +
             "AND CAST(w.createdAt AS LocalDate) = :date " +
             "AND w.isDeleted = false " +
-            "ORDER BY w.createdAt DESC " +
-            "LIMIT 1")
-    Optional<WorkReport> findLatestBySiteIdAndDate(@Param("siteId") Long siteId, @Param("date") LocalDate date);
+            "ORDER BY w.createdAt DESC")
+    List<WorkReport> findBySiteIdAndDate(
+            @Param("siteId") Long siteId,
+            @Param("date") LocalDate date,
+            Pageable pageable);
 }

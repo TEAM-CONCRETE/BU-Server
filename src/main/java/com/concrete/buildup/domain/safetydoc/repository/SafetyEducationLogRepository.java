@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.safetydoc.repository;
 
 import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
 import com.concrete.buildup.domain.safetydoc.enums.SafetyEducationStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -50,17 +51,20 @@ public interface SafetyEducationLogRepository extends JpaRepository<SafetyEducat
     List<LocalDate> findDistinctDatesBySiteId(@Param("siteId") Long siteId);
 
     /**
-     * 현장별, 날짜별 안전교육일지 조회 (가장 최근 것 1개)
+     * 현장별, 날짜별 안전교육일지 조회 (페이지네이션 지원)
      *
      * @param siteId 현장 ID
      * @param date 조회 날짜
-     * @return 해당 날짜의 가장 최근 안전교육일지 (없으면 Optional.empty())
+     * @param pageable 페이지네이션 정보
+     * @return 해당 날짜의 안전교육일지 목록 (createdAt 내림차순)
      */
     @Query("SELECT s FROM SafetyEducationLog s " +
             "WHERE s.site.id = :siteId " +
             "AND CAST(s.createdAt AS LocalDate) = :date " +
             "AND s.isDeleted = false " +
-            "ORDER BY s.createdAt DESC " +
-            "LIMIT 1")
-    Optional<SafetyEducationLog> findLatestBySiteIdAndDate(@Param("siteId") Long siteId, @Param("date") LocalDate date);
+            "ORDER BY s.createdAt DESC")
+    List<SafetyEducationLog> findBySiteIdAndDate(
+            @Param("siteId") Long siteId,
+            @Param("date") LocalDate date,
+            Pageable pageable);
 }
