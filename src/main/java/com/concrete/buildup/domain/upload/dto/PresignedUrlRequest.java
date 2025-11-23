@@ -37,4 +37,11 @@ public class PresignedUrlRequest {
     @Pattern(regexp = "^(png|jpg|jpeg|pdf)$", message = "지원하지 않는 파일 형식입니다. (png, jpg, jpeg, pdf만 가능)")
     @Schema(description = "파일 확장자", example = "png", allowableValues = {"png", "jpg", "jpeg", "pdf"})
     private String fileExtension;
+
+    @Schema(
+            description = "근로자 ID (안전교육일지 참석자 서명 시 필수). 참석자별 서명 이미지를 구분하기 위해 사용",
+            example = "10",
+            nullable = true
+    )
+    private Long employeeId;
 }

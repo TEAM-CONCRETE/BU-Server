@@ -68,12 +68,13 @@ public class S3Service {
      */
     public PresignedUrlResponse generatePresignedUrl(PresignedUrlRequest request) {
         try {
-            // S3 키 생성: uploads/{resourceType}/{resourceId}/{signerRole}.{ext}
+            // S3 키 생성
             String s3Key = buildS3Key(
                     request.getResourceType(),
                     request.getResourceId(),
                     request.getSignerRole(),
-                    request.getFileExtension()
+                    request.getFileExtension(),
+                    request.getEmployeeId()
             );
 
             log.info("Generating presigned URL for s3Key: {}", s3Key);
@@ -145,19 +146,38 @@ public class S3Service {
 
     /**
      * S3 키 생성
-     * 파일명 규칙: uploads/{resourceType}/{resourceId}/{signerRole}.{ext}
+     *
+     * 파일명 규칙:
+     * - 기본: uploads/{resourceType}/{resourceId}/{signerRole}/{timestamp}.{ext}
+     * - 안전교육일지 참석자: uploads/{resourceType}/{resourceId}/{signerRole}/{employeeId}/{timestamp}.{ext}
      *
      * @param resourceType 리소스 타입 (CONTRACT, WORK_REPORT, SAFETY_DOC)
      * @param resourceId 리소스 ID
      * @param signerRole 서명자 역할
      * @param fileExtension 파일 확장자
+     * @param employeeId 근로자 ID (안전교육일지 참석자 서명 시 필수)
      * @return S3 객체 키
      */
-    private String buildS3Key(ResourceType resourceType, String resourceId, SignerRole signerRole, String fileExtension) {
-        return String.format("uploads/%s/%s/%s.%s",
+    private String buildS3Key(ResourceType resourceType, String resourceId, SignerRole signerRole, String fileExtension, Long employeeId) {
+        long timestamp = System.currentTimeMillis();
+
+        // 안전교육일지 참석자(EMPLOYEE) 서명인 경우 employeeId로 구분
+        if (resourceType == ResourceType.SAFETY_DOC && signerRole == SignerRole.EMPLOYEE && employeeId != null) {
+            return String.format("uploads/%s/%s/%s/%d/%d.%s",
+                    resourceType.getFolderName(),
+                    resourceId,
+                    signerRole.name(),
+                    employeeId,
+                    timestamp,
+                    fileExtension);
+        }
+
+        // 기본 경로 (타임스탬프로 덮어쓰기 방지)
+        return String.format("uploads/%s/%s/%s/%d.%s",
                 resourceType.getFolderName(),
                 resourceId,
                 signerRole.name(),
+                timestamp,
                 fileExtension);
     }
 

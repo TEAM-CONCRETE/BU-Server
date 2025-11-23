@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
         ## 서명 업로드 지원 타입
         다음 리소스 타입은 서명 이미지 업로드(Presigned URL)를 지원합니다:
         - `CONTRACT`: 계약서 서명 (기업/근로자)
-        - `WORK_REPORT`: 작업일보 서명 (관리자)
         - `SAFETY_DOC`: 안전교육일지 서명 (관리자/참석자)
 
         ## S3 경로 구조
@@ -31,7 +30,7 @@ public enum ResourceType {
     @Schema(description = "계약서 - 기업/근로자 서명 이미지, 계약서 PDF 등")
     CONTRACT("contracts", "계약서"),
 
-    @Schema(description = "작업일보 - 관리자 서명 이미지, 작업일보 PDF 등")
+    @Schema(description = "작업일보 - 작업일보 PDF 저장용 (서명 기능 없음)")
     WORK_REPORT("workreports", "작업일보"),
 
     @Schema(description = "안전교육일지 - 관리자/참석자 서명 이미지, 안전교육일지 PDF 등")
