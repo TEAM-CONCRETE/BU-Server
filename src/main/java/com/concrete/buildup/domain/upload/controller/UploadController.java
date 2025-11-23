@@ -151,17 +151,43 @@ public class UploadController {
                     required = true,
                     content = @Content(
                             schema = @Schema(implementation = PresignedUrlRequest.class),
-                            examples = @ExampleObject(
-                                    name = "계약서 서명 이미지",
-                                    value = """
-                                            {
-                                              "resourceType": "CONTRACT",
-                                              "resourceId": "123",
-                                              "signerRole": "EMPLOYEE",
-                                              "fileExtension": "png"
-                                            }
-                                            """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "계약서 서명 이미지",
+                                            value = """
+                                                    {
+                                                      "resourceType": "CONTRACT",
+                                                      "resourceId": "123",
+                                                      "signerRole": "EMPLOYEE",
+                                                      "fileExtension": "png"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "안전교육일지 - 관리자 서명",
+                                            value = """
+                                                    {
+                                                      "resourceType": "SAFETY_DOC",
+                                                      "resourceId": "1",
+                                                      "signerRole": "MANAGER",
+                                                      "fileExtension": "png"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "안전교육일지 - 참석자(근로자) 서명",
+                                            description = "참석자 서명 시 employeeId 필수",
+                                            value = """
+                                                    {
+                                                      "resourceType": "SAFETY_DOC",
+                                                      "resourceId": "1",
+                                                      "signerRole": "EMPLOYEE",
+                                                      "fileExtension": "png",
+                                                      "employeeId": 10
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             )
             @Valid @RequestBody PresignedUrlRequest request) {

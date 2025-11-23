@@ -68,12 +68,13 @@ public class S3Service {
      */
     public PresignedUrlResponse generatePresignedUrl(PresignedUrlRequest request) {
         try {
-            // S3 키 생성: uploads/{resourceType}/{resourceId}/{signerRole}.{ext}
+            // S3 키 생성
             String s3Key = buildS3Key(
                     request.getResourceType(),
                     request.getResourceId(),
                     request.getSignerRole(),
-                    request.getFileExtension()
+                    request.getFileExtension(),
+                    request.getEmployeeId()
             );
 
             log.info("Generating presigned URL for s3Key: {}", s3Key);
@@ -145,19 +146,48 @@ public class S3Service {
 
     /**
      * S3 키 생성
-     * 파일명 규칙: uploads/{resourceType}/{resourceId}/{signerRole}.{ext}
+     *
+     * 파일명 규칙:
+     * - CONTRACT: uploads/{resourceType}/{resourceId}/{signerRole}.{ext} (기존 패턴 유지)
+     * - SAFETY_DOC 관리자: uploads/{resourceType}/{resourceId}/{signerRole}/{timestamp}.{ext}
+     * - SAFETY_DOC 참석자: uploads/{resourceType}/{resourceId}/{signerRole}/{employeeId}/{timestamp}.{ext}
      *
      * @param resourceType 리소스 타입 (CONTRACT, WORK_REPORT, SAFETY_DOC)
      * @param resourceId 리소스 ID
      * @param signerRole 서명자 역할
      * @param fileExtension 파일 확장자
+     * @param employeeId 근로자 ID (안전교육일지 참석자 서명 시 필수)
      * @return S3 객체 키
      */
-    private String buildS3Key(ResourceType resourceType, String resourceId, SignerRole signerRole, String fileExtension) {
-        return String.format("uploads/%s/%s/%s.%s",
+    private String buildS3Key(ResourceType resourceType, String resourceId, SignerRole signerRole, String fileExtension, Long employeeId) {
+        // CONTRACT는 기존 패턴 유지 (다른 팀원 작업과의 호환성)
+        if (resourceType == ResourceType.CONTRACT) {
+            return String.format("uploads/%s/%s/%s.%s",
+                    resourceType.getFolderName(),
+                    resourceId,
+                    signerRole.name(),
+                    fileExtension);
+        }
+
+        long timestamp = System.currentTimeMillis();
+
+        // 안전교육일지 참석자(EMPLOYEE) 서명인 경우 employeeId로 구분
+        if (resourceType == ResourceType.SAFETY_DOC && signerRole == SignerRole.EMPLOYEE && employeeId != null) {
+            return String.format("uploads/%s/%s/%s/%d/%d.%s",
+                    resourceType.getFolderName(),
+                    resourceId,
+                    signerRole.name(),
+                    employeeId,
+                    timestamp,
+                    fileExtension);
+        }
+
+        // SAFETY_DOC 관리자 및 기타 경로 (타임스탬프로 덮어쓰기 방지)
+        return String.format("uploads/%s/%s/%s/%d.%s",
                 resourceType.getFolderName(),
                 resourceId,
                 signerRole.name(),
+                timestamp,
                 fileExtension);
     }
 
@@ -449,6 +479,56 @@ public class S3Service {
             case "pdf" -> "application/pdf";
             default -> "application/octet-stream";
         };
+    }
+
+    /**
+     * S3 URL에서 S3 키 추출
+     *
+     * <p>S3 URL에서 버킷 이후의 경로(키)를 추출합니다.</p>
+     * <p>지원하는 URL 형식:</p>
+     * <ul>
+     *   <li>https://bucket.s3.amazonaws.com/path/to/file.pdf</li>
+     *   <li>https://bucket.s3.ap-northeast-2.amazonaws.com/path/to/file.pdf</li>
+     * </ul>
+     *
+     * @param url S3 URL
+     * @return S3 키 (null이면 추출 실패)
+     */
+    public String extractS3KeyFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            log.warn("S3 URL이 null 또는 빈 문자열입니다.");
+            return null;
+        }
+
+        // safety-docs/ 로 시작하는 키 추출
+        int safetyDocsIndex = url.indexOf("safety-docs/");
+        if (safetyDocsIndex != -1) {
+            return url.substring(safetyDocsIndex);
+        }
+
+        // contracts/ 로 시작하는 키 추출
+        int contractsIndex = url.indexOf("contracts/");
+        if (contractsIndex != -1) {
+            return url.substring(contractsIndex);
+        }
+
+        // uploads/ 로 시작하는 키 추출
+        int uploadsIndex = url.indexOf("uploads/");
+        if (uploadsIndex != -1) {
+            return url.substring(uploadsIndex);
+        }
+
+        // 그 외: .com/ 이후의 경로 추출 시도
+        int comSlashIndex = url.indexOf(".com/");
+        if (comSlashIndex != -1) {
+            String key = url.substring(comSlashIndex + 5);
+            if (!key.isBlank()) {
+                return key;
+            }
+        }
+
+        log.warn("S3 URL에서 키를 추출할 수 없습니다: {}", url);
+        return null;
     }
 
     /**

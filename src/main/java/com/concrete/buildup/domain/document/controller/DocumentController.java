@@ -74,6 +74,56 @@ public class DocumentController {
     }
 
     /**
+     * 안전교육일지 PDF Signed URL 조회
+     *
+     * @param logId 안전교육일지 ID
+     * @return Signed URL 응답
+     */
+    @GetMapping("/safety-education-logs/{logId}")
+    @Operation(
+        summary = "안전교육일지 PDF 조회 (미리보기/다운로드)",
+        description = """
+            안전교육일지 PDF 파일을 조회하기 위한 Signed URL을 발급합니다.
+
+            **사용 방법:**
+            - 발급된 URL을 iframe 또는 PDF 뷰어에서 사용 (미리보기)
+            - 발급된 URL로 직접 다운로드 가능
+            - URL은 15분 후 만료됩니다.
+
+            **상태별 PDF 버전:**
+            - MANAGER_SIGNING_PENDING: 초안 PDF
+            - MANAGER_SIGNED: 관리자 서명 완료 PDF
+            - COMPLETED: 최종 PDF (모든 참석자 서명 완료)
+
+            **S3 경로:**
+            - safety-docs/{siteId}/{date}/SE-{date}-{logId}.pdf
+            - safety-docs/{siteId}/{date}/SE-{date}-{logId}-manager-signed.pdf
+            - safety-docs/{siteId}/{date}/SE-{date}-{logId}-final.pdf
+            """
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "Signed URL 발급 성공",
+            content = @Content(schema = @Schema(implementation = DocumentUrlResponseDto.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404",
+            description = "안전교육일지 또는 문서를 찾을 수 없음"
+        )
+    })
+    public ResponseEntity<ApiResponse<DocumentUrlResponseDto>> getSafetyEducationLogPdf(
+            @Parameter(description = "안전교육일지 ID", required = true)
+            @PathVariable Long logId
+    ) {
+        log.info("안전교육일지 PDF 조회 API 호출: logId={}", logId);
+
+        DocumentUrlResponseDto response = documentService.getSafetyEducationLogPdfUrl(logId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "안전교육일지 PDF URL 발급에 성공했습니다"));
+    }
+
+    /**
      * 급여명세서 PDF Signed URL 조회
      *
      * @param payrollId 급여 ID

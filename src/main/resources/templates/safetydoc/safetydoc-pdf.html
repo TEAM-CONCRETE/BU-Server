@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>안전교육일지</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            font-family: 'KoreanFont', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            margin: 40px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section h2 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .info-table th {
+            width: 25%;
+        }
+        .info-table td {
+            width: 75%;
+        }
+        .two-col th {
+            width: 25%;
+        }
+        .two-col td {
+            width: 25%;
+        }
+        .content-box {
+            border: 1px solid #000;
+            padding: 15px;
+            min-height: 150px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .attendee-table {
+            font-size: 10pt;
+        }
+        .attendee-table th {
+            text-align: center;
+            background-color: #e8e8e8;
+        }
+        .attendee-table td {
+            text-align: center;
+        }
+        .signature-cell {
+            height: 40px;
+            width: 80px;
+        }
+        .footer {
+            margin-top: 30px;
+        }
+        .signature-section {
+            margin-top: 30px;
+            text-align: right;
+        }
+        .signature-box {
+            display: inline-block;
+            text-align: center;
+            margin-left: 30px;
+        }
+        .signature-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .signature-area {
+            border: 1px solid #000;
+            width: 150px;
+            height: 50px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 안전교육일지 헤더 -->
+    <div class="header">
+        <h1>안 전 교 육 일 지</h1>
+    </div>
+
+    <!-- 1. 현장 기본 정보 -->
+    <div class="section">
+        <h2>1. 현장 정보</h2>
+        <table class="info-table">
+            <tr>
+                <th>현장명</th>
+                <td th:text="${site != null and site.siteName != null ? site.siteName : '-'}"></td>
+            </tr>
+            <tr>
+                <th>현장 주소</th>
+                <td th:text="${site != null and site.siteAddress != null ? site.siteAddress : '-'}"></td>
+            </tr>
+            <tr>
+                <th>소속기업</th>
+                <td th:text="${safetyLog != null and safetyLog.corporation != null ? safetyLog.corporation.corpName : '-'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 2. 교육 정보 -->
+    <div class="section">
+        <h2>2. 교육 정보</h2>
+        <table class="two-col">
+            <tr>
+                <th>교육일시</th>
+                <td th:text="${safetyLog != null and safetyLog.createdAt != null ? #temporals.format(safetyLog.createdAt, 'yyyy년 MM월 dd일') : '-'}"></td>
+                <th>교육구분</th>
+                <td th:text="${safetyLog != null and safetyLog.educationType != null ? safetyLog.educationType.description : '-'}"></td>
+            </tr>
+            <tr>
+                <th>교육과목</th>
+                <td colspan="3" th:text="${safetyLog != null and safetyLog.educationSubject != null ? safetyLog.educationSubject : '-'}"></td>
+            </tr>
+            <tr>
+                <th>교육실시자</th>
+                <td th:text="${safetyLog != null and safetyLog.instructorName != null ? safetyLog.instructorName : '-'}"></td>
+                <th>교육장소</th>
+                <td th:text="${safetyLog != null and safetyLog.educationLocation != null ? safetyLog.educationLocation : '-'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 3. 교육 내용 -->
+    <div class="section">
+        <h2>3. 교육 내용</h2>
+        <div class="content-box" th:text="${safetyLog != null and safetyLog.educationContent != null ? safetyLog.educationContent : ''}"></div>
+    </div>
+
+    <!-- 4. 교육 대상자 명단 -->
+    <div class="section">
+        <h2>4. 교육 대상자 명단</h2>
+        <table class="attendee-table">
+            <thead>
+                <tr>
+                    <th style="width: 10%;">순번</th>
+                    <th style="width: 20%;">성명</th>
+                    <th style="width: 15%;">근로자유형</th>
+                    <th style="width: 25%;">연락처</th>
+                    <th style="width: 30%;">서명</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 참석자 목록이 있는 경우 -->
+                <tr th:if="${attendees != null and !attendees.empty}" th:each="attendee, iterStat : ${attendees}">
+                    <td th:text="${iterStat.count}"></td>
+                    <td th:text="${attendee.employee != null and attendee.employee.empName != null ? attendee.employee.empName : '-'}"></td>
+                    <td th:text="${attendee.employee != null and attendee.employee.empType != null ? (attendee.employee.empType == 'DAILY' ? '일용직' : (attendee.employee.empType == 'PERMANENT' ? '상용직' : attendee.employee.empType)) : '-'}"></td>
+                    <td th:text="${attendee.employee != null and attendee.employee.user != null and attendee.employee.user.phone != null ? attendee.employee.user.phone : '-'}"></td>
+                    <td class="signature-cell"></td>
+                </tr>
+                <!-- 참석자 목록이 없는 경우 -->
+                <tr th:if="${attendees == null or attendees.empty}">
+                    <td colspan="5" style="text-align: center; color: #999;">교육 대상자가 없습니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 5. 서명란 -->
+    <div class="section signature-section">
+        <div class="signature-box">
+            <div class="signature-label">작성자 (관리자)</div>
+            <div class="signature-area"></div>
+            <div style="margin-top: 5px;" th:text="${managerName != null ? managerName : ''}"></div>
+        </div>
+    </div>
+
+    <!-- 푸터 -->
+    <div class="footer">
+        <p style="text-align: right; font-size: 10pt;">
+            작성일: <span th:text="${safetyLog != null and safetyLog.createdAt != null ? #temporals.format(safetyLog.createdAt, 'yyyy년 MM월 dd일') : '-'}"></span>
+        </p>
+    </div>
+</body>
+</html>

@@ -10,6 +10,10 @@ import com.concrete.buildup.domain.document.dto.DocumentUrlResponseDto;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.enums.PayStatus;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
+import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
+import com.concrete.buildup.domain.safetydoc.enums.EducationType;
+import com.concrete.buildup.domain.safetydoc.enums.SafetyEducationStatus;
+import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.DocumentErrorCode;
@@ -46,6 +50,9 @@ class DocumentServiceTest {
     @Mock
     private PayrollRepository payrollRepository;
 
+    @Mock
+    private SafetyEducationLogRepository safetyEducationLogRepository;
+
     private DocumentService documentService;
 
     @org.junit.jupiter.api.BeforeEach
@@ -54,7 +61,8 @@ class DocumentServiceTest {
                 Optional.of(s3Service),
                 contractRepository,
                 contractDetailRepository,
-                payrollRepository
+                payrollRepository,
+                safetyEducationLogRepository
         );
     }
 
@@ -364,6 +372,191 @@ class DocumentServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
 
             verify(payrollRepository).findById(payrollId);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+            verify(s3Service, never()).generatePresignedGetUrl(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("안전교육일지 PDF URL 발급")
+    class GetSafetyEducationLogPdfUrl {
+
+        @Test
+        @DisplayName("성공 - MANAGER_SIGNING_PENDING 상태 (초안 PDF)")
+        void success_managerSigningPending() {
+            // given
+            Long logId = 1L;
+            String expectedS3Key = "safety-docs/1/2025-01-24/SE-2025-01-24-1.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1.pdf";
+            String expectedSignedUrl = "https://bucket.s3.amazonaws.com/signed-url";
+
+            SafetyEducationLog log = SafetyEducationLog.builder()
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("안전교육")
+                    .educationContent("내용")
+                    .instructorName("강사")
+                    .educationLocation("장소")
+                    .status(SafetyEducationStatus.MANAGER_SIGNING_PENDING)
+                    .build();
+            log.updatePdf(pdfUrl);
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
+            given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
+
+            // when
+            DocumentUrlResponseDto response = documentService.getSafetyEducationLogPdfUrl(logId);
+
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
+            assertThat(response.getExpiresAt()).isNotNull();
+
+            verify(safetyEducationLogRepository).findById(logId);
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+            verify(s3Service).generatePresignedGetUrl(expectedS3Key);
+        }
+
+        @Test
+        @DisplayName("성공 - MANAGER_SIGNED 상태 (관리자 서명 완료 PDF)")
+        void success_managerSigned() {
+            // given
+            Long logId = 1L;
+            String expectedS3Key = "safety-docs/1/2025-01-24/SE-2025-01-24-1-manager-signed.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1-manager-signed.pdf";
+            String expectedSignedUrl = "https://bucket.s3.amazonaws.com/signed-url";
+
+            SafetyEducationLog log = SafetyEducationLog.builder()
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("안전교육")
+                    .educationContent("내용")
+                    .instructorName("강사")
+                    .educationLocation("장소")
+                    .status(SafetyEducationStatus.MANAGER_SIGNED)
+                    .build();
+            log.updatePdf(pdfUrl);
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
+            given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
+
+            // when
+            DocumentUrlResponseDto response = documentService.getSafetyEducationLogPdfUrl(logId);
+
+            // then
+            assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+        }
+
+        @Test
+        @DisplayName("성공 - COMPLETED 상태 (최종 PDF)")
+        void success_completed() {
+            // given
+            Long logId = 1L;
+            String expectedS3Key = "safety-docs/1/2025-01-24/SE-2025-01-24-1-final.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1-manager-signed.pdf";
+            String finalPdfUrl = "https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1-final.pdf";
+            String expectedSignedUrl = "https://bucket.s3.amazonaws.com/signed-url";
+
+            SafetyEducationLog log = SafetyEducationLog.builder()
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("안전교육")
+                    .educationContent("내용")
+                    .instructorName("강사")
+                    .educationLocation("장소")
+                    .status(SafetyEducationStatus.COMPLETED)
+                    .build();
+            log.updatePdf(pdfUrl);
+            log.updateFinalPdf(finalPdfUrl, "hash123");
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(finalPdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
+            given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
+
+            // when
+            DocumentUrlResponseDto response = documentService.getSafetyEducationLogPdfUrl(logId);
+
+            // then
+            assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
+            // COMPLETED 상태에서는 최종 PDF URL 사용
+            verify(s3Service).extractS3KeyFromUrl(finalPdfUrl);
+            verify(s3Service).doesObjectExist(expectedS3Key);
+        }
+
+        @Test
+        @DisplayName("실패 - 안전교육일지 없음")
+        void fail_logNotFound() {
+            // given
+            Long logId = 999L;
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getSafetyEducationLogPdfUrl(logId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND);
+
+            verify(safetyEducationLogRepository).findById(logId);
+            verify(s3Service, never()).doesObjectExist(anyString());
+        }
+
+        @Test
+        @DisplayName("실패 - PDF URL 없음 (DRAFT 상태)")
+        void fail_noPdfUrl() {
+            // given
+            Long logId = 1L;
+            SafetyEducationLog log = SafetyEducationLog.builder()
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("안전교육")
+                    .educationContent("내용")
+                    .instructorName("강사")
+                    .educationLocation("장소")
+                    .status(SafetyEducationStatus.DRAFT)
+                    .build();
+            // PDF URL이 설정되지 않음
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getSafetyEducationLogPdfUrl(logId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
+
+            verify(s3Service, never()).doesObjectExist(anyString());
+        }
+
+        @Test
+        @DisplayName("실패 - S3 파일 없음")
+        void fail_s3FileNotFound() {
+            // given
+            Long logId = 1L;
+            String expectedS3Key = "safety-docs/1/2025-01-24/SE-2025-01-24-1.pdf";
+            String pdfUrl = "https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1.pdf";
+
+            SafetyEducationLog log = SafetyEducationLog.builder()
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("안전교육")
+                    .educationContent("내용")
+                    .instructorName("강사")
+                    .educationLocation("장소")
+                    .status(SafetyEducationStatus.MANAGER_SIGNING_PENDING)
+                    .build();
+            log.updatePdf(pdfUrl);
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
+            given(s3Service.doesObjectExist(expectedS3Key)).willReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getSafetyEducationLogPdfUrl(logId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
+
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
             verify(s3Service).doesObjectExist(expectedS3Key);
             verify(s3Service, never()).generatePresignedGetUrl(anyString());
         }
