@@ -512,6 +512,12 @@ public class S3Service {
             return url.substring(contractsIndex);
         }
 
+        // work-reports/ 로 시작하는 키 추출
+        int workReportsIndex = url.indexOf("work-reports/");
+        if (workReportsIndex != -1) {
+            return url.substring(workReportsIndex);
+        }
+
         // uploads/ 로 시작하는 키 추출
         int uploadsIndex = url.indexOf("uploads/");
         if (uploadsIndex != -1) {
