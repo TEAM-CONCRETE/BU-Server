@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.workreport.controller;
 
 import com.concrete.buildup.domain.workreport.dto.CreateWorkReportRequest;
 import com.concrete.buildup.domain.workreport.dto.CreateWorkReportResponse;
+import com.concrete.buildup.domain.workreport.dto.WorkReportListResponse;
 import com.concrete.buildup.domain.workreport.service.WorkReportService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.SecurityUtil;
@@ -14,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -105,5 +108,58 @@ public class WorkReportController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "작업일보가 생성되었습니다"));
+    }
+
+    /**
+     * 작업일보 목록 조회 API (현장 관리자용)
+     *
+     * <p>현장에 속한 작업일보 목록을 페이지네이션하여 조회합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param pageable 페이지네이션 정보 (기본값: page=0, size=20)
+     * @return WorkReportListResponse - 작업일보 목록
+     */
+    @Operation(
+            summary = "작업일보 목록 조회 (현장 관리자용)",
+            description = """
+                현장에 속한 작업일보 목록을 조회합니다.
+
+                **조회 정보:**
+                - 작업일보 ID
+                - 작업일자
+                - 작성자 이름
+
+                **정렬:** 최신 작성일순 (내림차순)
+                """
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = WorkReportListResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "현장을 찾을 수 없음"
+            )
+    })
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @GetMapping
+    public ResponseEntity<ApiResponse<WorkReportListResponse>> getWorkReportList(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId,
+            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        log.info("작업일보 목록 조회 API 호출: siteId={}, page={}, size={}",
+                siteId, pageable.getPageNumber(), pageable.getPageSize());
+
+        WorkReportListResponse response = workReportService.getWorkReportList(siteId, pageable);
+
+        log.info("작업일보 목록 조회 완료: siteId={}, totalElements={}", siteId, response.getTotalElements());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "작업일보 목록을 조회했습니다")
+        );
     }
 }

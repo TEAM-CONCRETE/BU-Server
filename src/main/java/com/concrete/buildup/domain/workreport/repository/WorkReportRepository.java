@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
@@ -69,4 +70,18 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
             @Param("siteId") Long siteId,
             @Param("date") LocalDate date,
             Pageable pageable);
+
+    /**
+     * 현장별 작업일보 목록 조회 (페이지네이션 지원, Manager fetch join)
+     *
+     * @param siteId 현장 ID
+     * @param pageable 페이지네이션 정보
+     * @return 작업일보 페이지 (createdAt 내림차순)
+     */
+    @Query("SELECT w FROM WorkReport w " +
+            "JOIN FETCH w.manager m " +
+            "WHERE w.site.id = :siteId " +
+            "AND w.isDeleted = false " +
+            "ORDER BY w.createdAt DESC")
+    Page<WorkReport> findBySiteIdWithManager(@Param("siteId") Long siteId, Pageable pageable);
 }
