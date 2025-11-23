@@ -4,19 +4,35 @@ import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
+import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
+import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentDto;
+import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.workreport.entity.WorkReport;
+import com.concrete.buildup.domain.workreport.repository.WorkReportRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.SiteErrorCode;
 import com.concrete.buildup.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 현장 관리 서비스
@@ -36,6 +52,8 @@ public class SiteService {
     private final UserRepository userRepository;
     private final CorporationRepository corporationRepository;
     private final SecretKeyService secretKeyService;
+    private final SafetyEducationLogRepository safetyEducationLogRepository;
+    private final WorkReportRepository workReportRepository;
 
     /**
      * 현장 등록
@@ -127,5 +145,96 @@ public class SiteService {
         log.info("현장 상세 조회 완료 - siteId: {}, siteName: {}", siteId, site.getSiteName());
 
         return SiteDetailResponse.from(site);
+    }
+
+    /**
+     * 현장의 안전/작업 문서 목록 조회 (기업 관리자용)
+     *
+     * <p>날짜별로 안전교육일지와 작업일보를 통합하여 조회합니다.</p>
+     * <p>페이지네이션을 지원하며, 최신 날짜순으로 정렬됩니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param pageable 페이지네이션 정보
+     * @return 날짜별 안전/작업 문서 목록
+     */
+    public SafetyWorkDocumentListResponse getSafetyWorkDocuments(Long siteId, Pageable pageable) {
+        log.info("안전/작업 문서 목록 조회 - siteId: {}, page: {}, size: {}",
+                siteId, pageable.getPageNumber(), pageable.getPageSize());
+
+        // 현장 존재 여부 확인
+        if (!siteRepository.existsById(siteId)) {
+            throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+        }
+
+        // 두 테이블에서 전체 날짜 목록 조회 (페이지네이션 없이)
+        List<LocalDate> safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId);
+        List<LocalDate> workReportDates = workReportRepository.findDistinctDatesBySiteId(siteId);
+
+        // 날짜 병합 및 정렬
+        Set<LocalDate> allDates = new HashSet<>();
+        allDates.addAll(safetyDates);
+        allDates.addAll(workReportDates);
+
+        List<LocalDate> sortedDates = allDates.stream()
+                .sorted((d1, d2) -> d2.compareTo(d1))  // 내림차순
+                .collect(Collectors.toList());
+
+        // 서비스에서 페이지네이션 적용
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), sortedDates.size());
+
+        List<LocalDate> pagedDates = start < sortedDates.size()
+                ? sortedDates.subList(start, end)
+                : List.of();
+
+        // 각 날짜별 문서 정보 조회
+        List<SafetyWorkDocumentDto> documents = pagedDates.stream()
+                .map(date -> buildDocumentDto(siteId, date))
+                .collect(Collectors.toList());
+
+        // 전체 카운트는 병합된 날짜 수
+        long totalElements = sortedDates.size();
+
+        Page<SafetyWorkDocumentDto> page = new PageImpl<>(documents, pageable, totalElements);
+
+        log.info("안전/작업 문서 목록 조회 완료 - siteId: {}, totalDates: {}", siteId, totalElements);
+
+        return SafetyWorkDocumentListResponse.from(page);
+    }
+
+    private static final Pageable SINGLE_RESULT = PageRequest.of(0, 1);
+
+    /**
+     * 특정 날짜의 안전/작업 문서 DTO 생성
+     */
+    private SafetyWorkDocumentDto buildDocumentDto(Long siteId, LocalDate date) {
+        // 해당 날짜의 안전교육일지 조회 (가장 최근 것 1개)
+        SafetyWorkDocumentDto.SafetyEducationLogSummary safetySummary =
+                safetyEducationLogRepository.findBySiteIdAndDate(siteId, date, SINGLE_RESULT)
+                        .stream()
+                        .findFirst()
+                        .map(safetyLog -> SafetyWorkDocumentDto.SafetyEducationLogSummary.builder()
+                                .logId(safetyLog.getId())
+                                .status(safetyLog.getStatus())
+                                .educationSubject(safetyLog.getEducationSubject())
+                                .build())
+                        .orElse(null);
+
+        // 해당 날짜의 작업일보 조회 (가장 최근 것 1개)
+        SafetyWorkDocumentDto.WorkReportSummary workSummary =
+                workReportRepository.findBySiteIdAndDate(siteId, date, SINGLE_RESULT)
+                        .stream()
+                        .findFirst()
+                        .map(workReport -> SafetyWorkDocumentDto.WorkReportSummary.builder()
+                                .workReportId(workReport.getId())
+                                .sequence(1)
+                                .build())
+                        .orElse(null);
+
+        return SafetyWorkDocumentDto.builder()
+                .date(date)
+                .safetyEducationLog(safetySummary)
+                .workReport(workSummary)
+                .build();
     }
 }

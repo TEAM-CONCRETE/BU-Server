@@ -4,23 +4,34 @@ import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
+import com.concrete.buildup.domain.safetydoc.enums.EducationType;
+import com.concrete.buildup.domain.safetydoc.enums.SafetyEducationStatus;
+import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
+import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.workreport.entity.WorkReport;
+import com.concrete.buildup.domain.workreport.repository.WorkReportRepository;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.AuthErrorCode;
 import com.concrete.buildup.global.exception.errorcode.SiteErrorCode;
 import com.concrete.buildup.global.util.SecurityUtil;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -52,6 +64,12 @@ class SiteServiceTest {
 
     @Mock
     private SecretKeyService secretKeyService;
+
+    @Mock
+    private SafetyEducationLogRepository safetyEducationLogRepository;
+
+    @Mock
+    private WorkReportRepository workReportRepository;
 
     @InjectMocks
     private SiteService siteService;
@@ -207,6 +225,146 @@ class SiteServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", SiteErrorCode.INVALID_DATE_RANGE);
 
             verify(siteRepository, never()).save(any(Site.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("안전/작업 문서 목록 조회")
+    class GetSafetyWorkDocuments {
+
+        @Test
+        @DisplayName("성공 - 안전교육일지와 작업일보가 모두 있는 날짜")
+        void success_bothDocumentsExist() throws Exception {
+            // given
+            Long siteId = 1L;
+            Pageable pageable = PageRequest.of(0, 20);
+            LocalDate date1 = LocalDate.of(2025, 11, 24);
+
+            Corporation corporation = Corporation.builder().corpName("Test Corp").build();
+            setId(corporation, 1L);
+
+            Site site = Site.builder()
+                    .siteName("테스트 현장")
+                    .corporation(corporation)
+                    .build();
+            setId(site, siteId);
+
+            SafetyEducationLog safetyLog = SafetyEducationLog.builder()
+                    .site(site)
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("추락 재해 예방")
+                    .educationContent("테스트")
+                    .instructorName("김안전")
+                    .educationLocation("현장")
+                    .status(SafetyEducationStatus.COMPLETED)
+                    .corporation(corporation)
+                    .build();
+            setId(safetyLog, 1L);
+
+            WorkReport workReport = WorkReport.builder()
+                    .site(site)
+                    .workSections("[{\"sectionName\":\"철근\"}]")
+                    .corporation(corporation)
+                    .build();
+            setId(workReport, 1L);
+
+            given(siteRepository.existsById(siteId)).willReturn(true);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
+            given(safetyEducationLogRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(safetyLog));
+            given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(workReport));
+
+            // when
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getContent()).hasSize(1);
+            assertThat(response.getContent().get(0).getDate()).isEqualTo(date1);
+            assertThat(response.getContent().get(0).getSafetyEducationLog()).isNotNull();
+            assertThat(response.getContent().get(0).getSafetyEducationLog().getLogId()).isEqualTo(1L);
+            assertThat(response.getContent().get(0).getWorkReport()).isNotNull();
+            assertThat(response.getContent().get(0).getWorkReport().getWorkReportId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("성공 - 안전교육일지만 있는 날짜")
+        void success_onlySafetyLog() throws Exception {
+            // given
+            Long siteId = 1L;
+            Pageable pageable = PageRequest.of(0, 20);
+            LocalDate date1 = LocalDate.of(2025, 11, 24);
+
+            Corporation corporation = Corporation.builder().corpName("Test Corp").build();
+            setId(corporation, 1L);
+
+            Site site = Site.builder()
+                    .siteName("테스트 현장")
+                    .corporation(corporation)
+                    .build();
+            setId(site, siteId);
+
+            SafetyEducationLog safetyLog = SafetyEducationLog.builder()
+                    .site(site)
+                    .educationType(EducationType.REGULAR)
+                    .educationSubject("추락 재해 예방")
+                    .educationContent("테스트")
+                    .instructorName("김안전")
+                    .educationLocation("현장")
+                    .status(SafetyEducationStatus.COMPLETED)
+                    .corporation(corporation)
+                    .build();
+            setId(safetyLog, 1L);
+
+            given(siteRepository.existsById(siteId)).willReturn(true);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
+            given(safetyEducationLogRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(safetyLog));
+            given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of());
+
+            // when
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getContent()).hasSize(1);
+            assertThat(response.getContent().get(0).getSafetyEducationLog()).isNotNull();
+            assertThat(response.getContent().get(0).getWorkReport()).isNull();
+        }
+
+        @Test
+        @DisplayName("실패 - 현장이 존재하지 않음")
+        void fail_siteNotFound() {
+            // given
+            Long siteId = 999L;
+            Pageable pageable = PageRequest.of(0, 20);
+
+            given(siteRepository.existsById(siteId)).willReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> siteService.getSafetyWorkDocuments(siteId, pageable))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", SiteErrorCode.SITE_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("성공 - 문서가 없는 경우 빈 목록 반환")
+        void success_noDocuments() {
+            // given
+            Long siteId = 1L;
+            Pageable pageable = PageRequest.of(0, 20);
+
+            given(siteRepository.existsById(siteId)).willReturn(true);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
+
+            // when
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+
+            // then
+            assertThat(response).isNotNull();
+            assertThat(response.getContent()).isEmpty();
+            assertThat(response.getTotalElements()).isZero();
         }
     }
 }
