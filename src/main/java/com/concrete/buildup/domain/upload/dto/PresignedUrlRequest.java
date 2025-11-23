@@ -3,6 +3,7 @@ package com.concrete.buildup.domain.upload.dto;
 import com.concrete.buildup.domain.contract.enums.SignerRole;
 import com.concrete.buildup.domain.upload.enums.ResourceType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -44,4 +45,15 @@ public class PresignedUrlRequest {
             nullable = true
     )
     private Long employeeId;
+
+    /**
+     * SAFETY_DOC 타입이고 EMPLOYEE 역할인 경우 employeeId 필수
+     */
+    @AssertTrue(message = "안전교육일지 참석자 서명 시 employeeId가 필요합니다. (resourceType=SAFETY_DOC, signerRole=EMPLOYEE)")
+    private boolean isSafetyDocEmployeeFieldValid() {
+        if (resourceType == ResourceType.SAFETY_DOC && signerRole == SignerRole.EMPLOYEE) {
+            return employeeId != null;
+        }
+        return true;
+    }
 }

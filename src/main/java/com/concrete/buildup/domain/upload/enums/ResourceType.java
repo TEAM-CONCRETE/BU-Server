@@ -17,11 +17,19 @@ import lombok.RequiredArgsConstructor;
         - `SAFETY_DOC`: 안전교육일지 서명 (관리자/참석자)
 
         ## S3 경로 구조
-        `uploads/{resourceType}/{resourceId}/signatures/{signerType}/{timestamp}.png`
+
+        ### CONTRACT (계약서)
+        `uploads/contracts/{resourceId}/{signerRole}.{ext}`
+
+        예시: `uploads/contracts/123/CORPORATION.png`
+
+        ### SAFETY_DOC (안전교육일지)
+        - 관리자 서명: `uploads/safetydocs/{resourceId}/MANAGER/{timestamp}.png`
+        - 참석자 서명: `uploads/safetydocs/{resourceId}/EMPLOYEE/{employeeId}/{timestamp}.png`
 
         예시:
-        - 계약서: `uploads/contracts/123/signatures/CORPORATION/1699000000000.png`
-        - 안전교육일지: `uploads/safetydocs/1/signatures/MANAGER/1699000000000.png`
+        - 관리자: `uploads/safetydocs/1/MANAGER/1699000000000.png`
+        - 참석자: `uploads/safetydocs/1/EMPLOYEE/100/1699000000000.png`
         """)
 @Getter
 @RequiredArgsConstructor

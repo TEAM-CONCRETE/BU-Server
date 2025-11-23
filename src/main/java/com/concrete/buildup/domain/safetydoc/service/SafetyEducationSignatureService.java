@@ -61,13 +61,15 @@ public class SafetyEducationSignatureService {
             String signedDevice,
             String currentUserId
     ) {
-        // 1. Site 존재 여부 검증
-        Site site = siteRepository.findById(siteId)
-                .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SITE_NOT_FOUND));
-
-        // 2. 안전교육일지 조회 및 상태 검증
+        // 1. 안전교육일지 조회 및 상태 검증
         SafetyEducationLog log = safetyEducationLogRepository.findById(logId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
+
+        // 2. Site 소속 검증 (cross-site signing 방지)
+        if (log.getSite() == null || !log.getSite().getId().equals(siteId)) {
+            throw new BusinessException(SafetyDocErrorCode.SITE_NOT_FOUND, "안전교육일지가 해당 현장에 속하지 않습니다.");
+        }
+        Site site = log.getSite();
 
         if (log.getStatus() != SafetyEducationStatus.MANAGER_SIGNING_PENDING) {
             throw new BusinessException(SafetyDocErrorCode.INVALID_SAFETY_EDUCATION_STATUS);
@@ -129,11 +131,12 @@ public class SafetyEducationSignatureService {
                 scaledHeight
         );
 
-        // 10. 새 PDF S3 업로드
+        // 10. 새 PDF S3 업로드 (log의 실제 siteId 사용)
+        Long actualSiteId = log.getSite().getId();
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
         String newS3Key = String.format("safety-docs/%d/%s/SE-%s-%d-manager-signed.pdf",
-                siteId, dateStr, dateStr, logId);
+                actualSiteId, dateStr, dateStr, logId);
 
         service.uploadPdf(newS3Key, signedPdfBytes);
         String newPdfUrl = service.getPdfUrl(newS3Key);
@@ -183,16 +186,21 @@ public class SafetyEducationSignatureService {
         SafetyEducationLog log = safetyEducationLogRepository.findByIdWithAttendees(logId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
 
+        // 2. Site 소속 검증 (cross-site signing 방지)
+        if (log.getSite() == null || !log.getSite().getId().equals(siteId)) {
+            throw new BusinessException(SafetyDocErrorCode.SITE_NOT_FOUND, "안전교육일지가 해당 현장에 속하지 않습니다.");
+        }
+
         if (log.getStatus() != SafetyEducationStatus.MANAGER_SIGNED) {
             throw new BusinessException(SafetyDocErrorCode.INVALID_SAFETY_EDUCATION_STATUS);
         }
 
-        // 2. 참석자 조회 및 검증
+        // 3. 참석자 조회 및 검증
         SafetyEducationAttendee attendee = attendeeRepository
                 .findBySafetyEducationLogIdAndEmployeeIdAndIsDeletedFalse(logId, employeeId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.EMPLOYEE_NOT_AUTHORIZED));
 
-        // 3. 이미 서명했는지 확인
+        // 4. 이미 서명했는지 확인
         if (attendee.getIsSigned()) {
             throw new BusinessException(SafetyDocErrorCode.ALREADY_SIGNED);
         }
@@ -200,7 +208,7 @@ public class SafetyEducationSignatureService {
         S3Service service = s3Service.orElseThrow(() ->
                 new BusinessException(SafetyDocErrorCode.S3_UPLOAD_FAILED, "S3 서비스가 비활성화되어 있습니다."));
 
-        // 4. 서명 이미지 해시 검증
+        // 5. 서명 이미지 해시 검증
         byte[] signatureImageBytes = service.downloadImage(request.getSignatureS3Key());
         String serverHash = SignatureVerificationUtil.calculateSHA256(
                 new ByteArrayInputStream(signatureImageBytes)
@@ -210,11 +218,11 @@ public class SafetyEducationSignatureService {
             throw new BusinessException(SafetyDocErrorCode.SIGNATURE_HASH_MISMATCH);
         }
 
-        // 5. 참석자 서명 완료 처리 (DB에 서명 이미지 URL 저장)
+        // 6. 참석자 서명 완료 처리 (DB에 서명 이미지 URL 저장)
         attendee.sign(request.getSignatureS3Key());
         attendeeRepository.save(attendee);
 
-        // 6. 서명 로그 저장
+        // 7. 서명 로그 저장
         SafetyEducationSignLog signLog = SafetyEducationSignLog.builder()
                 .safetyEducationLog(log)
                 .signerRole(SignerRole.EMPLOYEE)
@@ -230,7 +238,7 @@ public class SafetyEducationSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 7. 모든 참석자 서명 완료 시 최종 PDF 생성
+        // 8. 모든 참석자 서명 완료 시 최종 PDF 생성
         String pdfUrl = log.getPdfUrl();
         String pdfHash = null;
 
@@ -240,8 +248,8 @@ public class SafetyEducationSignatureService {
         boolean allSigned = allAttendees.stream().allMatch(SafetyEducationAttendee::getIsSigned);
 
         if (allSigned) {
-            // 최종 PDF 생성: 관리자 서명된 PDF에 모든 참석자 서명 스탬핑
-            pdfUrl = generateFinalPdfWithAllSignatures(log, allAttendees, siteId, service);
+            // 최종 PDF 생성: 관리자 서명된 PDF에 모든 참석자 서명 스탬핑 (log의 실제 siteId 사용)
+            pdfUrl = generateFinalPdfWithAllSignatures(log, allAttendees, service);
 
             // 최종 PDF 해시 계산
             String finalS3Key = extractS3KeyFromUrl(pdfUrl);
@@ -270,7 +278,6 @@ public class SafetyEducationSignatureService {
     private String generateFinalPdfWithAllSignatures(
             SafetyEducationLog log,
             List<SafetyEducationAttendee> attendees,
-            Long siteId,
             S3Service service
     ) {
         // 1. 관리자 서명된 PDF 다운로드
@@ -310,11 +317,12 @@ public class SafetyEducationSignatureService {
             }
         }
 
-        // 3. 최종 PDF S3 업로드
+        // 3. 최종 PDF S3 업로드 (log의 실제 siteId 사용)
+        Long actualSiteId = log.getSite().getId();
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
         String finalS3Key = String.format("safety-docs/%d/%s/SE-%s-%d-final.pdf",
-                siteId, dateStr, dateStr, log.getId());
+                actualSiteId, dateStr, dateStr, log.getId());
 
         service.uploadPdf(finalS3Key, currentPdfBytes);
         return service.getPdfUrl(finalS3Key);

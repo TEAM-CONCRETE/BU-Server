@@ -157,7 +157,6 @@ class SafetyEducationSignatureServiceTest {
                     .clientHash("hash")
                     .build();
 
-            given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(safetyEducationLog));
 
             // when & then
@@ -180,7 +179,6 @@ class SafetyEducationSignatureServiceTest {
                     .clientHash("hash")
                     .build();
 
-            given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(safetyEducationLog));
             given(userRepository.findByUserId(currentUserId)).willReturn(Optional.of(user));
             given(managerRepository.findByUserId(user.getId())).willReturn(Optional.of(manager));
@@ -207,7 +205,6 @@ class SafetyEducationSignatureServiceTest {
                     .clientHash("hash")
                     .build();
 
-            given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.empty());
 
             // when & then
@@ -215,6 +212,28 @@ class SafetyEducationSignatureServiceTest {
                     siteId, logId, request, "ip", "device", currentUserId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("실패 - 안전교육일지가 다른 현장 소속")
+        void fail_crossSiteSigning() {
+            // given
+            Long siteId = 999L;  // 다른 현장 ID
+            Long logId = 1L;
+            String currentUserId = "manager01";
+
+            SafetyEducationSignatureRequest request = SafetyEducationSignatureRequest.builder()
+                    .signatureS3Key("uploads/safety-docs/1/MANAGER/12345.png")
+                    .clientHash("hash")
+                    .build();
+
+            given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(safetyEducationLog));
+
+            // when & then
+            assertThatThrownBy(() -> signatureService.processManagerSignature(
+                    siteId, logId, request, "ip", "device", currentUserId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", SafetyDocErrorCode.SITE_NOT_FOUND);
         }
     }
 
@@ -305,6 +324,28 @@ class SafetyEducationSignatureServiceTest {
                     siteId, logId, employeeId, request, "ip", "device"))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", SafetyDocErrorCode.EMPLOYEE_NOT_AUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("실패 - 안전교육일지가 다른 현장 소속")
+        void fail_crossSiteSigning() {
+            // given
+            Long siteId = 999L;  // 다른 현장 ID
+            Long logId = 1L;
+            Long employeeId = 100L;
+
+            SafetyEducationSignatureRequest request = SafetyEducationSignatureRequest.builder()
+                    .signatureS3Key("uploads/safety-docs/1/EMPLOYEE/100/12345.png")
+                    .clientHash("hash")
+                    .build();
+
+            given(safetyEducationLogRepository.findByIdWithAttendees(logId)).willReturn(Optional.of(safetyEducationLog));
+
+            // when & then
+            assertThatThrownBy(() -> signatureService.processAttendeeSignature(
+                    siteId, logId, employeeId, request, "ip", "device"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", SafetyDocErrorCode.SITE_NOT_FOUND);
         }
     }
 }
