@@ -168,16 +168,16 @@ public class DocumentService {
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
 
-        // S3 키 추출
-        String s3Key = extractS3KeyFromUrl(pdfUrl);
+        // S3 서비스 확인
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
+
+        // S3 키 추출 (S3Service 유틸리티 메서드 사용)
+        String s3Key = service.extractS3KeyFromUrl(pdfUrl);
         if (s3Key == null || s3Key.isBlank()) {
             log.warn("안전교육일지 PDF URL에서 S3 키 추출 실패: logId={}, pdfUrl={}", logId, pdfUrl);
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
-
-        // S3 서비스 확인
-        S3Service service = s3Service.orElseThrow(() ->
-                new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR, "S3 서비스가 비활성화되어 있습니다."));
 
         // S3에 파일 존재 여부 확인
         if (!service.doesObjectExist(s3Key)) {
@@ -207,30 +207,6 @@ public class DocumentService {
         }
         // 그 외의 경우 현재 PDF URL 반환
         return log.getPdfUrl();
-    }
-
-    /**
-     * S3 URL에서 키 추출
-     *
-     * @param url S3 URL
-     * @return S3 키
-     */
-    private String extractS3KeyFromUrl(String url) {
-        // 예: https://bucket.s3.amazonaws.com/safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf
-        // -> safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf
-        if (url == null) {
-            return null;
-        }
-        int index = url.indexOf("safety-docs/");
-        if (index == -1) {
-            // 다른 형식의 URL인 경우 마지막 / 이후의 경로 추출 시도
-            int lastSlashIndex = url.indexOf(".com/");
-            if (lastSlashIndex != -1) {
-                return url.substring(lastSlashIndex + 5);
-            }
-            return null;
-        }
-        return url.substring(index);
     }
 
     /**

@@ -401,6 +401,7 @@ class DocumentServiceTest {
             log.updatePdf(pdfUrl);
 
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
             given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
 
@@ -413,6 +414,7 @@ class DocumentServiceTest {
             assertThat(response.getExpiresAt()).isNotNull();
 
             verify(safetyEducationLogRepository).findById(logId);
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
             verify(s3Service).doesObjectExist(expectedS3Key);
             verify(s3Service).generatePresignedGetUrl(expectedS3Key);
         }
@@ -437,6 +439,7 @@ class DocumentServiceTest {
             log.updatePdf(pdfUrl);
 
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
             given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
 
@@ -445,6 +448,7 @@ class DocumentServiceTest {
 
             // then
             assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
             verify(s3Service).doesObjectExist(expectedS3Key);
         }
 
@@ -470,6 +474,7 @@ class DocumentServiceTest {
             log.updateFinalPdf(finalPdfUrl, "hash123");
 
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(finalPdfUrl)).willReturn(expectedS3Key);
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
             given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
 
@@ -479,6 +484,7 @@ class DocumentServiceTest {
             // then
             assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
             // COMPLETED 상태에서는 최종 PDF URL 사용
+            verify(s3Service).extractS3KeyFromUrl(finalPdfUrl);
             verify(s3Service).doesObjectExist(expectedS3Key);
         }
 
@@ -542,6 +548,7 @@ class DocumentServiceTest {
             log.updatePdf(pdfUrl);
 
             given(safetyEducationLogRepository.findById(logId)).willReturn(Optional.of(log));
+            given(s3Service.extractS3KeyFromUrl(pdfUrl)).willReturn(expectedS3Key);
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(false);
 
             // when & then
@@ -549,6 +556,7 @@ class DocumentServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
 
+            verify(s3Service).extractS3KeyFromUrl(pdfUrl);
             verify(s3Service).doesObjectExist(expectedS3Key);
             verify(s3Service, never()).generatePresignedGetUrl(anyString());
         }

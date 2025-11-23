@@ -482,6 +482,56 @@ public class S3Service {
     }
 
     /**
+     * S3 URL에서 S3 키 추출
+     *
+     * <p>S3 URL에서 버킷 이후의 경로(키)를 추출합니다.</p>
+     * <p>지원하는 URL 형식:</p>
+     * <ul>
+     *   <li>https://bucket.s3.amazonaws.com/path/to/file.pdf</li>
+     *   <li>https://bucket.s3.ap-northeast-2.amazonaws.com/path/to/file.pdf</li>
+     * </ul>
+     *
+     * @param url S3 URL
+     * @return S3 키 (null이면 추출 실패)
+     */
+    public String extractS3KeyFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            log.warn("S3 URL이 null 또는 빈 문자열입니다.");
+            return null;
+        }
+
+        // safety-docs/ 로 시작하는 키 추출
+        int safetyDocsIndex = url.indexOf("safety-docs/");
+        if (safetyDocsIndex != -1) {
+            return url.substring(safetyDocsIndex);
+        }
+
+        // contracts/ 로 시작하는 키 추출
+        int contractsIndex = url.indexOf("contracts/");
+        if (contractsIndex != -1) {
+            return url.substring(contractsIndex);
+        }
+
+        // uploads/ 로 시작하는 키 추출
+        int uploadsIndex = url.indexOf("uploads/");
+        if (uploadsIndex != -1) {
+            return url.substring(uploadsIndex);
+        }
+
+        // 그 외: .com/ 이후의 경로 추출 시도
+        int comSlashIndex = url.indexOf(".com/");
+        if (comSlashIndex != -1) {
+            String key = url.substring(comSlashIndex + 5);
+            if (!key.isBlank()) {
+                return key;
+            }
+        }
+
+        log.warn("S3 URL에서 키를 추출할 수 없습니다: {}", url);
+        return null;
+    }
+
+    /**
      * S3에 파일이 존재하는지 확인
      *
      * @param s3Key S3 객체 키

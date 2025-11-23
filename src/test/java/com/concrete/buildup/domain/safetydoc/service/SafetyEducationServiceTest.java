@@ -159,9 +159,7 @@ class SafetyEducationServiceTest {
                     .willReturn(Arrays.asList(employee1, employee2));
             given(pdfService.generateSafetyEducationPdf(any(), any(), any(), any()))
                     .willReturn("PDF_BYTES".getBytes());
-            given(s3Service.getPdfUrl(anyString())).willReturn("https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-2025-01-24-1.pdf");
-            given(safetyEducationLogRepository.countBySiteIdAndCreatedAtBetweenAndIsDeletedFalse(anyLong(), any(), any()))
-                    .willReturn(0L);
+            given(s3Service.getPdfUrl(anyString())).willReturn("https://bucket.s3.amazonaws.com/safety-docs/1/2025-01-24/SE-1.pdf");
             given(safetyEducationLogRepository.save(any(SafetyEducationLog.class)))
                     .willAnswer(invocation -> {
                         SafetyEducationLog log = invocation.getArgument(0);

@@ -296,16 +296,10 @@ public class SafetyEducationService {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
 
-        // 오늘 생성된 안전교육일지 개수 조회 (순번 계산용, 1-based)
-        long todayCount = safetyEducationLogRepository.countBySiteIdAndCreatedAtBetweenAndIsDeletedFalse(
-                site.getId(),
-                LocalDateTime.of(today, LocalTime.MIN),
-                LocalDateTime.of(today, LocalTime.MAX)
-        );
-        int sequenceNumber = (int) todayCount + 1;
-
-        String s3Key = String.format("safety-docs/%d/%s/SE-%s-%d.pdf",
-                site.getId(), dateStr, dateStr, sequenceNumber);
+        // log.getId()를 사용하여 고유한 S3 키 생성 (동시성 문제 방지)
+        // 형식: safety-docs/{siteId}/{date}/SE-{logId}.pdf
+        String s3Key = String.format("safety-docs/%d/%s/SE-%d.pdf",
+                site.getId(), dateStr, log.getId());
 
         service.uploadPdf(s3Key, pdfBytes);
         return service.getPdfUrl(s3Key);

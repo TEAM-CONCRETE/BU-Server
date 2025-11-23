@@ -27,8 +27,8 @@ public class CreateSafetyEducationLogResponse {
     private SafetyEducationStatus status;
 
     @Schema(
-            description = "생성된 초안 PDF URL (S3)",
-            example = "https://bucket.s3.ap-northeast-2.amazonaws.com/safety-docs/1/2024-01-15/SE-2024-01-15-1.pdf"
+            description = "생성된 초안 PDF URL (S3). 파일명은 안전교육일지 ID를 사용하여 고유성 보장",
+            example = "https://bucket.s3.ap-northeast-2.amazonaws.com/safety-docs/1/2024-01-15/SE-1.pdf"
     )
     private String pdfUrl;
 
