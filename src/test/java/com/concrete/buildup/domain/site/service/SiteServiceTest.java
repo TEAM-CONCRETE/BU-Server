@@ -27,8 +27,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
@@ -269,12 +267,9 @@ class SiteServiceTest {
                     .build();
             setId(workReport, 1L);
 
-            Page<LocalDate> safetyDates = new PageImpl<>(List.of(date1), pageable, 1);
-            Page<LocalDate> workDates = new PageImpl<>(List.of(date1), pageable, 1);
-
             given(siteRepository.existsById(siteId)).willReturn(true);
-            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(safetyDates);
-            given(workReportRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(workDates);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
             given(safetyEducationLogRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(safetyLog));
             given(workReportRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(workReport));
 
@@ -320,12 +315,9 @@ class SiteServiceTest {
                     .build();
             setId(safetyLog, 1L);
 
-            Page<LocalDate> safetyDates = new PageImpl<>(List.of(date1), pageable, 1);
-            Page<LocalDate> workDates = new PageImpl<>(List.of(), pageable, 0);
-
             given(siteRepository.existsById(siteId)).willReturn(true);
-            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(safetyDates);
-            given(workReportRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(workDates);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of(date1));
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
             given(safetyEducationLogRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of(safetyLog));
             given(workReportRepository.findBySiteIdAndDate(siteId, date1)).willReturn(List.of());
 
@@ -361,11 +353,9 @@ class SiteServiceTest {
             Long siteId = 1L;
             Pageable pageable = PageRequest.of(0, 20);
 
-            Page<LocalDate> emptyDates = new PageImpl<>(List.of(), pageable, 0);
-
             given(siteRepository.existsById(siteId)).willReturn(true);
-            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(emptyDates);
-            given(workReportRepository.findDistinctDatesBySiteId(siteId, pageable)).willReturn(emptyDates);
+            given(safetyEducationLogRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
+            given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
 
             // when
             SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);

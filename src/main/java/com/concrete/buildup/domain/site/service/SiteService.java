@@ -165,20 +165,20 @@ public class SiteService {
             throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
         }
 
-        // 두 테이블에서 날짜 목록 조회
-        Page<LocalDate> safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId, pageable);
-        Page<LocalDate> workReportDates = workReportRepository.findDistinctDatesBySiteId(siteId, pageable);
+        // 두 테이블에서 전체 날짜 목록 조회 (페이지네이션 없이)
+        List<LocalDate> safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId);
+        List<LocalDate> workReportDates = workReportRepository.findDistinctDatesBySiteId(siteId);
 
         // 날짜 병합 및 정렬
         Set<LocalDate> allDates = new HashSet<>();
-        allDates.addAll(safetyDates.getContent());
-        allDates.addAll(workReportDates.getContent());
+        allDates.addAll(safetyDates);
+        allDates.addAll(workReportDates);
 
         List<LocalDate> sortedDates = allDates.stream()
                 .sorted((d1, d2) -> d2.compareTo(d1))  // 내림차순
                 .collect(Collectors.toList());
 
-        // 페이지네이션 적용
+        // 서비스에서 페이지네이션 적용
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), sortedDates.size());
 
@@ -191,9 +191,8 @@ public class SiteService {
                 .map(date -> buildDocumentDto(siteId, date))
                 .collect(Collectors.toList());
 
-        // 전체 카운트 계산 (중복 제거된 날짜 수)
-        long totalElements = allDates.size();
-        int totalPages = (int) Math.ceil((double) totalElements / pageable.getPageSize());
+        // 전체 카운트는 병합된 날짜 수
+        long totalElements = sortedDates.size();
 
         Page<SafetyWorkDocumentDto> page = new PageImpl<>(documents, pageable, totalElements);
 
