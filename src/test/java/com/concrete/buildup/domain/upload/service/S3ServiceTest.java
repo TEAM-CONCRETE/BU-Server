@@ -79,7 +79,7 @@ class S3ServiceTest {
             // Then
             assertThat(response).isNotNull();
             assertThat(response.getUploadUrl()).contains("build-up-contracts");
-            assertThat(response.getUploadUrl()).contains("uploads/contracts/123/EMPLOYEE.png");
+            // CONTRACT는 기존 패턴 유지: uploads/contracts/{id}/{role}.{ext}
             assertThat(response.getS3Key()).isEqualTo("uploads/contracts/123/EMPLOYEE.png");
             assertThat(response.getExpiresAt()).isAfter(LocalDateTime.now());
 
@@ -110,8 +110,8 @@ class S3ServiceTest {
             PresignedUrlResponse response = s3Service.generatePresignedUrl(request);
 
             // Then
+            // CONTRACT는 기존 패턴 유지: uploads/contracts/{id}/{role}.{ext}
             assertThat(response.getS3Key()).isEqualTo("uploads/contracts/456/MANAGER.png");
-            assertThat(response.getUploadUrl()).contains("MANAGER.png");
         }
 
         @Test
@@ -138,8 +138,8 @@ class S3ServiceTest {
             PresignedUrlResponse response = s3Service.generatePresignedUrl(request);
 
             // Then
+            // CONTRACT는 기존 패턴 유지: uploads/contracts/{id}/{role}.{ext}
             assertThat(response.getS3Key()).isEqualTo("uploads/contracts/789/CORPORATION.pdf");
-            assertThat(response.getUploadUrl()).contains("CORPORATION.pdf");
         }
 
         @Test

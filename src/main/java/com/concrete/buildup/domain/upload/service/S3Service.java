@@ -148,8 +148,9 @@ public class S3Service {
      * S3 키 생성
      *
      * 파일명 규칙:
-     * - 기본: uploads/{resourceType}/{resourceId}/{signerRole}/{timestamp}.{ext}
-     * - 안전교육일지 참석자: uploads/{resourceType}/{resourceId}/{signerRole}/{employeeId}/{timestamp}.{ext}
+     * - CONTRACT: uploads/{resourceType}/{resourceId}/{signerRole}.{ext} (기존 패턴 유지)
+     * - SAFETY_DOC 관리자: uploads/{resourceType}/{resourceId}/{signerRole}/{timestamp}.{ext}
+     * - SAFETY_DOC 참석자: uploads/{resourceType}/{resourceId}/{signerRole}/{employeeId}/{timestamp}.{ext}
      *
      * @param resourceType 리소스 타입 (CONTRACT, WORK_REPORT, SAFETY_DOC)
      * @param resourceId 리소스 ID
@@ -159,6 +160,15 @@ public class S3Service {
      * @return S3 객체 키
      */
     private String buildS3Key(ResourceType resourceType, String resourceId, SignerRole signerRole, String fileExtension, Long employeeId) {
+        // CONTRACT는 기존 패턴 유지 (다른 팀원 작업과의 호환성)
+        if (resourceType == ResourceType.CONTRACT) {
+            return String.format("uploads/%s/%s/%s.%s",
+                    resourceType.getFolderName(),
+                    resourceId,
+                    signerRole.name(),
+                    fileExtension);
+        }
+
         long timestamp = System.currentTimeMillis();
 
         // 안전교육일지 참석자(EMPLOYEE) 서명인 경우 employeeId로 구분
@@ -172,7 +182,7 @@ public class S3Service {
                     fileExtension);
         }
 
-        // 기본 경로 (타임스탬프로 덮어쓰기 방지)
+        // SAFETY_DOC 관리자 및 기타 경로 (타임스탬프로 덮어쓰기 방지)
         return String.format("uploads/%s/%s/%s/%d.%s",
                 resourceType.getFolderName(),
                 resourceId,
