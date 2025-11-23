@@ -1,8 +1,11 @@
 package com.concrete.buildup.domain.safetydoc.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -51,6 +54,7 @@ public class SafetyEducationSignatureRequest {
             requiredMode = Schema.RequiredMode.REQUIRED
     )
     @NotNull(message = "서명 좌표 정보는 필수입니다.")
+    @Valid
     private SignatureCoordinatesDto coordinates;
 
     @Schema(description = "서명 좌표 정보 (클라이언트 뷰포트 기준)")
@@ -62,38 +66,56 @@ public class SafetyEducationSignatureRequest {
 
         @Schema(
                 description = "서명 위치 X 좌표 (클라이언트 뷰포트 기준, 좌측 상단이 원점)",
-                example = "400.0"
+                example = "400.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "X 좌표는 필수입니다.")
+        @PositiveOrZero(message = "X 좌표는 0 이상이어야 합니다.")
         private Double x;
 
         @Schema(
                 description = "서명 위치 Y 좌표 (클라이언트 뷰포트 기준, 좌측 상단이 원점)",
-                example = "750.0"
+                example = "750.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "Y 좌표는 필수입니다.")
+        @PositiveOrZero(message = "Y 좌표는 0 이상이어야 합니다.")
         private Double y;
 
         @Schema(
                 description = "서명 이미지 너비 (px)",
-                example = "150.0"
+                example = "150.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "서명 너비는 필수입니다.")
+        @Positive(message = "서명 너비는 0보다 커야 합니다.")
         private Double width;
 
         @Schema(
                 description = "서명 이미지 높이 (px)",
-                example = "50.0"
+                example = "50.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "서명 높이는 필수입니다.")
+        @Positive(message = "서명 높이는 0보다 커야 합니다.")
         private Double height;
 
         @Schema(
                 description = "클라이언트 뷰포트 너비 (PDF 좌표 변환에 사용)",
-                example = "595.0"
+                example = "595.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "뷰포트 너비는 필수입니다.")
+        @Positive(message = "뷰포트 너비는 0보다 커야 합니다.")
         private Double viewWidth;
 
         @Schema(
                 description = "클라이언트 뷰포트 높이 (PDF 좌표 변환에 사용)",
-                example = "842.0"
+                example = "842.0",
+                requiredMode = Schema.RequiredMode.REQUIRED
         )
+        @NotNull(message = "뷰포트 높이는 필수입니다.")
+        @Positive(message = "뷰포트 높이는 0보다 커야 합니다.")
         private Double viewHeight;
     }
 }

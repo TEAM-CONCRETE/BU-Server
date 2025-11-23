@@ -31,8 +31,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -151,6 +153,11 @@ public class SafetyEducationService {
         SafetyEducationLog log = safetyEducationLogRepository.findByIdWithAttendees(logId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
 
+        // Site 소속 검증 (cross-site access 방지)
+        if (log.getSite() == null || !log.getSite().getId().equals(siteId)) {
+            throw new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND);
+        }
+
         // 참석자 정보 변환
         List<SafetyEducationAttendee> attendees = attendeeRepository.findBySafetyEducationLogIdWithEmployee(logId);
         List<SafetyEducationLogDetailResponse.AttendeeDto> attendeeDtos = attendees.stream()
@@ -191,10 +198,20 @@ public class SafetyEducationService {
                 siteId, empType, null, PageRequest.of(0, 1000)
         );
 
-        // 각 근로자의 안전교육 이수 여부 확인
+        // N+1 해결: 오늘 완료된 안전교육에서 서명한 참석자 ID를 한 번에 조회
+        LocalDate today = LocalDate.now();
+        Set<Long> signedEmployeeIds = new HashSet<>(
+                attendeeRepository.findSignedEmployeeIdsBySiteIdAndDateRange(
+                        siteId,
+                        LocalDateTime.of(today, LocalTime.MIN),
+                        LocalDateTime.of(today, LocalTime.MAX)
+                )
+        );
+
+        // 각 근로자의 안전교육 이수 여부 확인 (lookup 사용)
         List<EmployeeForSafetyEducationDto> items = employeePage.getContent().stream()
                 .map(emp -> {
-                    boolean hasSafetyEducation = checkHasSafetyEducation(emp.getEmployeeId(), siteId);
+                    boolean hasSafetyEducation = signedEmployeeIds.contains(emp.getEmployeeId());
                     return EmployeeForSafetyEducationDto.fromDto(emp, hasSafetyEducation);
                 })
                 .collect(Collectors.toList());
@@ -230,8 +247,13 @@ public class SafetyEducationService {
         validateManagerAuthorization(site, currentUserId);
 
         // 안전교육일지 조회
-        safetyEducationLogRepository.findById(logId)
+        SafetyEducationLog log = safetyEducationLogRepository.findById(logId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND));
+
+        // Site 소속 검증 (cross-site access 방지)
+        if (log.getSite() == null || !log.getSite().getId().equals(siteId)) {
+            throw new BusinessException(SafetyDocErrorCode.SAFETY_EDUCATION_LOG_NOT_FOUND);
+        }
 
         // 참석자 서명 현황 조회
         List<SafetyEducationAttendee> attendees = attendeeRepository.findBySafetyEducationLogIdWithEmployee(logId);
@@ -274,13 +296,13 @@ public class SafetyEducationService {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
 
-        // 오늘 생성된 안전교육일지 개수 조회 (순번 계산용)
+        // 오늘 생성된 안전교육일지 개수 조회 (순번 계산용, 1-based)
         long todayCount = safetyEducationLogRepository.countBySiteIdAndCreatedAtBetweenAndIsDeletedFalse(
                 site.getId(),
                 LocalDateTime.of(today, LocalTime.MIN),
                 LocalDateTime.of(today, LocalTime.MAX)
         );
-        int sequenceNumber = (int) todayCount;
+        int sequenceNumber = (int) todayCount + 1;
 
         String s3Key = String.format("safety-docs/%d/%s/SE-%s-%d.pdf",
                 site.getId(), dateStr, dateStr, sequenceNumber);
@@ -301,14 +323,4 @@ public class SafetyEducationService {
         }
     }
 
-    private boolean checkHasSafetyEducation(Long employeeId, Long siteId) {
-        // 해당 현장에서 완료된 안전교육에 참석 이력이 있는지 확인
-        List<SafetyEducationLog> completedLogs = safetyEducationLogRepository
-                .findBySiteIdAndStatusAndIsDeletedFalse(siteId, SafetyEducationStatus.COMPLETED);
-
-        return completedLogs.stream()
-                .flatMap(log -> log.getAttendees().stream())
-                .anyMatch(attendee ->
-                        attendee.getEmployee().getId().equals(employeeId) && attendee.getIsSigned());
-    }
 }

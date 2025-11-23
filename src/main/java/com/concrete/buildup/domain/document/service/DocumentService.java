@@ -170,6 +170,10 @@ public class DocumentService {
 
         // S3 키 추출
         String s3Key = extractS3KeyFromUrl(pdfUrl);
+        if (s3Key == null || s3Key.isBlank()) {
+            log.warn("안전교육일지 PDF URL에서 S3 키 추출 실패: logId={}, pdfUrl={}", logId, pdfUrl);
+            throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
+        }
 
         // S3 서비스 확인
         S3Service service = s3Service.orElseThrow(() ->

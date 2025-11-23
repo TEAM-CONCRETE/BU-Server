@@ -31,4 +31,21 @@ public interface SafetyEducationAttendeeRepository extends JpaRepository<SafetyE
     @Query("SELECT COUNT(a) FROM SafetyEducationAttendee a " +
             "WHERE a.safetyEducationLog.id = :logId AND a.isDeleted = false")
     long countTotalAttendees(@Param("logId") Long logId);
+
+    /**
+     * 오늘 완료된 안전교육에서 서명한 참석자의 employeeId 목록 조회
+     * N+1 문제 해결을 위한 배치 조회
+     */
+    @Query("SELECT DISTINCT a.employee.id FROM SafetyEducationAttendee a " +
+            "WHERE a.safetyEducationLog.site.id = :siteId " +
+            "AND a.safetyEducationLog.status = 'COMPLETED' " +
+            "AND a.safetyEducationLog.createdAt BETWEEN :startDate AND :endDate " +
+            "AND a.isSigned = true " +
+            "AND a.isDeleted = false " +
+            "AND a.safetyEducationLog.isDeleted = false")
+    List<Long> findSignedEmployeeIdsBySiteIdAndDateRange(
+            @Param("siteId") Long siteId,
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate
+    );
 }

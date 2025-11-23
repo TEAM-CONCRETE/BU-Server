@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 @Schema(description = "안전교육일지 상세 응답")
@@ -125,6 +126,9 @@ public class SafetyEducationLogDetailResponse {
             List<AttendeeDto> attendees,
             int signedCount
     ) {
+        // null 방어: attendees가 null인 경우 빈 리스트로 처리
+        List<AttendeeDto> safeAttendees = attendees != null ? attendees : Collections.emptyList();
+
         return SafetyEducationLogDetailResponse.builder()
                 .id(log.getId())
                 .siteId(log.getSite().getId())
@@ -141,8 +145,8 @@ public class SafetyEducationLogDetailResponse {
                 .pdfUrl(log.getPdfUrl())
                 .finalPdfUrl(log.getFinalPdfUrl())
                 .pdfGeneratedAt(log.getPdfGeneratedAt())
-                .attendees(attendees)
-                .totalAttendeeCount(attendees.size())
+                .attendees(safeAttendees)
+                .totalAttendeeCount(safeAttendees.size())
                 .signedAttendeeCount(signedCount)
                 .createdAt(log.getCreatedAt())
                 .build();

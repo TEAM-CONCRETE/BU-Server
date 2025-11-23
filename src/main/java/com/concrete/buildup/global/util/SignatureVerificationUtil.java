@@ -201,8 +201,12 @@ public class SignatureVerificationUtil {
             return false;
         }
 
-        // 대소문자 무시하고 비교
-        boolean isMatch = expectedHash.equalsIgnoreCase(actualHash);
+        // 상수 시간 비교 (타이밍 공격 방지)
+        // 16진수 문자열을 바이트 배열로 변환 후 MessageDigest.isEqual() 사용
+        byte[] expectedBytes = hexToBytes(expectedHash.toLowerCase());
+        byte[] actualBytes = hexToBytes(actualHash.toLowerCase());
+
+        boolean isMatch = MessageDigest.isEqual(expectedBytes, actualBytes);
 
         if (isMatch) {
             log.info("서명 해시 검증 성공");
@@ -213,6 +217,22 @@ public class SignatureVerificationUtil {
         }
 
         return isMatch;
+    }
+
+    /**
+     * 16진수 문자열을 바이트 배열로 변환합니다.
+     *
+     * @param hex 16진수 문자열 (소문자로 정규화된 것으로 가정)
+     * @return 바이트 배열
+     */
+    private static byte[] hexToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                    + Character.digit(hex.charAt(i + 1), 16));
+        }
+        return data;
     }
 
     /**
