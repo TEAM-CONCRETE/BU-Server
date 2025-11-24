@@ -17,6 +17,7 @@ import com.concrete.buildup.domain.employee.dto.MyHomeResponse;
 import com.concrete.buildup.domain.employee.dto.MyHomeResponse.*;
 import com.concrete.buildup.domain.employee.dto.MyPayrollListResponse;
 import com.concrete.buildup.domain.employee.dto.MyPayrollListResponse.MyPayrollSummary;
+import com.concrete.buildup.domain.employee.dto.MyPayrollPdfResponse;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.entity.PayslipItem;
 import com.concrete.buildup.domain.payroll.enums.ItemType;
@@ -26,6 +27,7 @@ import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationAttendee;
 import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationAttendeeRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
+import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.EmployeeErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class EmployeeMyService {
     private final PayrollRepository payrollRepository;
     private final PayslipItemRepository payslipItemRepository;
     private final SafetyEducationAttendeeRepository safetyEducationAttendeeRepository;
+    private final Optional<S3Service> s3Service;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -510,5 +513,60 @@ public class EmployeeMyService {
                 })
                 .map(PayslipItem::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * 급여명세서 PDF 미리보기 URL 조회
+     *
+     * <p>특정 급여의 PDF 미리보기 URL을 생성합니다.</p>
+     * <p>본인의 급여만 조회할 수 있도록 권한을 검증합니다.</p>
+     *
+     * @param currentUserId JWT에서 추출한 로그인 ID
+     * @param payrollId 급여 ID
+     * @return PDF 미리보기 URL 응답
+     */
+    public MyPayrollPdfResponse getMyPayrollPdf(String currentUserId, Long payrollId) {
+        log.info("급여명세서 PDF 조회: userId={}, payrollId={}", currentUserId, payrollId);
+
+        // 1. userId(로그인 ID)로 User 조회
+        User user = userRepository.findByUserId(currentUserId)
+                .orElseThrow(() -> new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_FOUND));
+
+        // 2. User로 Employee 조회
+        Employee employee = employeeRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_FOUND));
+
+        Long employeeId = employee.getId();
+
+        // 3. 급여 조회
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new BusinessException(EmployeeErrorCode.PAYROLL_NOT_FOUND));
+
+        // 4. 본인 급여인지 권한 검증
+        if (!payroll.getEmployeeId().equals(employeeId)) {
+            log.warn("권한 없음: 요청자 employeeId={}, 급여 소유자 employeeId={}",
+                    employeeId, payroll.getEmployeeId());
+            throw new BusinessException(EmployeeErrorCode.PAYROLL_ACCESS_DENIED);
+        }
+
+        // 5. PDF가 존재하는지 확인
+        String s3Key = payroll.getS3Key();
+        if (s3Key == null || s3Key.isEmpty()) {
+            throw new BusinessException(EmployeeErrorCode.PAYROLL_PDF_NOT_FOUND);
+        }
+
+        // 6. S3 Presigned URL 생성
+        S3Service service = s3Service.orElseThrow(() ->
+                new BusinessException(EmployeeErrorCode.S3_SERVICE_UNAVAILABLE));
+
+        String pdfUrl = service.generatePresignedGetUrl(s3Key);
+
+        log.info("급여명세서 PDF URL 생성 완료: payrollId={}", payrollId);
+
+        return MyPayrollPdfResponse.builder()
+                .payrollId(payrollId)
+                .pdfUrl(pdfUrl)
+                .expiresAt(LocalDateTime.now().plusMinutes(15))
+                .build();
     }
 }
