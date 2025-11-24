@@ -266,7 +266,7 @@ public class EmployeeMyService {
         if (!managerIds.isEmpty()) {
             // Manager ID로 Site 조회
             for (Long managerId : managerIds) {
-                siteRepository.findByIdWithManager(managerId)
+                siteRepository.findByManagerId(managerId)
                         .ifPresent(site -> siteByManagerId.put(managerId, site));
             }
         }
