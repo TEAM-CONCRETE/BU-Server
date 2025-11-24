@@ -48,4 +48,17 @@ public interface SafetyEducationAttendeeRepository extends JpaRepository<SafetyE
             @Param("startDate") java.time.LocalDateTime startDate,
             @Param("endDate") java.time.LocalDateTime endDate
     );
+
+    /**
+     * 근로자의 미서명 안전교육일지 참석 목록 조회
+     * N+1 방지를 위해 SafetyEducationLog와 Site를 함께 조회
+     */
+    @Query("SELECT a FROM SafetyEducationAttendee a " +
+            "JOIN FETCH a.safetyEducationLog sel " +
+            "JOIN FETCH sel.site " +
+            "WHERE a.employee.id = :employeeId " +
+            "AND a.isSigned = false " +
+            "AND a.isDeleted = false " +
+            "AND sel.isDeleted = false")
+    List<SafetyEducationAttendee> findByEmployeeIdAndIsSignedFalse(@Param("employeeId") Long employeeId);
 }

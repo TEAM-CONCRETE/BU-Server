@@ -8,8 +8,17 @@ import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.contract.entity.Contract;
+import com.concrete.buildup.domain.contract.enums.ContractState;
+import com.concrete.buildup.domain.contract.repository.ContractRepository;
 import com.concrete.buildup.domain.employee.dto.MyAttendanceListResponse;
 import com.concrete.buildup.domain.employee.dto.MyAttendanceListResponse.MyAttendanceSummary;
+import com.concrete.buildup.domain.employee.dto.MyHomeResponse;
+import com.concrete.buildup.domain.employee.dto.MyHomeResponse.*;
+import com.concrete.buildup.domain.payroll.entity.Payroll;
+import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
+import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationAttendee;
+import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationAttendeeRepository;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.global.exception.BusinessException;
@@ -47,6 +56,9 @@ public class EmployeeMyService {
     private final EmployeeRepository employeeRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final SiteRepository siteRepository;
+    private final ContractRepository contractRepository;
+    private final PayrollRepository payrollRepository;
+    private final SafetyEducationAttendeeRepository safetyEducationAttendeeRepository;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -188,5 +200,174 @@ public class EmployeeMyService {
         LocalTime checkInTime = checkIn.getTimestamp().toLocalTime();
         LocalTime standardTime = LocalTime.of(9, 5); // 9시 5분 기준 (5분 유예)
         return checkInTime.isAfter(standardTime);
+    }
+
+    /**
+     * 홈 화면 정보 조회
+     *
+     * <p>근로자 홈 화면에 표시할 정보를 조회합니다.</p>
+     * <ul>
+     *   <li>미결 전자계약 (근로계약서 미서명, 안전교육일지 미서명)</li>
+     *   <li>최근 급여 내역</li>
+     *   <li>금일 근태 정보</li>
+     * </ul>
+     *
+     * @param currentUserId JWT에서 추출한 로그인 ID
+     * @return 홈 화면 정보
+     */
+    public MyHomeResponse getMyHome(String currentUserId) {
+        log.info("홈 화면 정보 조회: userId={}", currentUserId);
+
+        // 1. userId(로그인 ID)로 User 조회
+        User user = userRepository.findByUserId(currentUserId)
+                .orElseThrow(() -> new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_FOUND));
+
+        // 2. User로 Employee 조회
+        Employee employee = employeeRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new BusinessException(EmployeeErrorCode.EMPLOYEE_NOT_FOUND));
+
+        Long employeeId = employee.getId();
+
+        // 3. 미결 전자계약 조회
+        PendingContractsInfo pendingContracts = getPendingContracts(employeeId);
+
+        // 4. 최근 급여 조회
+        RecentSalaryInfo recentSalary = getRecentSalary(employeeId);
+
+        // 5. 금일 근태 조회
+        TodayAttendanceInfo todayAttendance = getTodayAttendance(employeeId);
+
+        log.info("홈 화면 정보 조회 완료: employeeId={}, pendingCount={}",
+                employeeId, pendingContracts.getCount());
+
+        return MyHomeResponse.builder()
+                .pendingContracts(pendingContracts)
+                .recentSalary(recentSalary)
+                .todayAttendance(todayAttendance)
+                .build();
+    }
+
+    /**
+     * 미결 전자계약 조회
+     */
+    private PendingContractsInfo getPendingContracts(Long employeeId) {
+        List<PendingContractItem> items = new ArrayList<>();
+
+        // 1. 미서명 근로계약서 조회 (EMPLOYEE_SIGNING_PENDING 상태)
+        List<Contract> pendingContracts = contractRepository
+                .findByEmployeeIdAndContractState(employeeId, ContractState.EMPLOYEE_SIGNING_PENDING);
+
+        // Site 정보 일괄 조회
+        Set<Long> managerIds = pendingContracts.stream()
+                .map(Contract::getManagerId)
+                .collect(Collectors.toSet());
+
+        Map<Long, Site> siteByManagerId = new HashMap<>();
+        if (!managerIds.isEmpty()) {
+            // Manager ID로 Site 조회
+            for (Long managerId : managerIds) {
+                siteRepository.findByManagerId(managerId)
+                        .ifPresent(site -> siteByManagerId.put(managerId, site));
+            }
+        }
+
+        for (Contract contract : pendingContracts) {
+            Site site = siteByManagerId.get(contract.getManagerId());
+            items.add(PendingContractItem.builder()
+                    .type("CONTRACT")
+                    .contractId(contract.getId())
+                    .siteId(site != null ? site.getId() : null)
+                    .siteName(site != null ? site.getSiteName() : "알 수 없음")
+                    .build());
+        }
+
+        // 2. 미서명 안전교육일지 조회
+        List<SafetyEducationAttendee> unsignedAttendees = safetyEducationAttendeeRepository
+                .findByEmployeeIdAndIsSignedFalse(employeeId);
+
+        for (SafetyEducationAttendee attendee : unsignedAttendees) {
+            Site site = attendee.getSafetyEducationLog().getSite();
+            items.add(PendingContractItem.builder()
+                    .type("SAFETY_EDUCATION")
+                    .safetyLogId(attendee.getSafetyEducationLog().getId())
+                    .siteId(site.getId())
+                    .siteName(site.getSiteName())
+                    .build());
+        }
+
+        return PendingContractsInfo.builder()
+                .count(items.size())
+                .items(items)
+                .build();
+    }
+
+    /**
+     * 최근 급여 조회
+     */
+    private RecentSalaryInfo getRecentSalary(Long employeeId) {
+        List<Payroll> payrolls = payrollRepository.findByEmployeeIdOrderBySearchDateDesc(employeeId);
+
+        if (payrolls.isEmpty()) {
+            return null;
+        }
+
+        Payroll latestPayroll = payrolls.get(0);
+        Site site = siteRepository.findById(latestPayroll.getSiteId()).orElse(null);
+
+        return RecentSalaryInfo.builder()
+                .payrollId(latestPayroll.getId())
+                .siteId(latestPayroll.getSiteId())
+                .siteName(site != null ? site.getSiteName() : "알 수 없음")
+                .payDate(latestPayroll.getSearchDate())
+                .netPay(latestPayroll.getTotalPay())
+                .build();
+    }
+
+    /**
+     * 금일 근태 조회
+     */
+    private TodayAttendanceInfo getTodayAttendance(Long employeeId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+
+        List<AttendanceRecord> todayRecords = attendanceRecordRepository
+                .findByEmployeeIdAndTimestampBetween(employeeId, startOfDay, endOfDay);
+
+        // CONFIRMED 상태만 필터링
+        List<AttendanceRecord> confirmedRecords = todayRecords.stream()
+                .filter(r -> r.getState() == AttendanceState.CONFIRMED)
+                .toList();
+
+        if (confirmedRecords.isEmpty()) {
+            return null;
+        }
+
+        // 출근/퇴근 기록 찾기
+        AttendanceRecord checkIn = confirmedRecords.stream()
+                .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_IN)
+                .findFirst()
+                .orElse(null);
+
+        AttendanceRecord checkOut = confirmedRecords.stream()
+                .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_OUT)
+                .findFirst()
+                .orElse(null);
+
+        if (checkIn == null) {
+            return null;
+        }
+
+        Site site = siteRepository.findById(checkIn.getSiteId()).orElse(null);
+        String status = checkOut != null ? "COMPLETED" : "WORKING";
+
+        return TodayAttendanceInfo.builder()
+                .siteId(checkIn.getSiteId())
+                .siteName(site != null ? site.getSiteName() : "알 수 없음")
+                .checkInTime(checkIn.getTimestamp().format(TIME_FORMATTER))
+                .checkOutTime(checkOut != null ? checkOut.getTimestamp().format(TIME_FORMATTER) : null)
+                .status(status)
+                .isLate(determineIsLate(checkIn))
+                .build();
     }
 }

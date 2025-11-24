@@ -73,4 +73,15 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      */
     @Query("SELECT s FROM Site s LEFT JOIN FETCH s.manager WHERE s.id = :siteId")
     Optional<Site> findByIdWithManager(@Param("siteId") Long siteId);
+
+    /**
+     * Manager ID로 현장 조회
+     *
+     * <p>Manager 엔티티의 ID로 해당 관리자가 담당하는 현장을 조회합니다.</p>
+     *
+     * @param managerId Manager 엔티티 ID
+     * @return 현장 정보
+     */
+    @Query("SELECT s FROM Site s WHERE s.manager.id = :managerId")
+    Optional<Site> findByManagerId(@Param("managerId") Long managerId);
 }
