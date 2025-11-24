@@ -20,13 +20,19 @@ public enum EmployeeErrorCode implements BaseErrorCode {
     INVALID_PAGE_NUMBER(HttpStatus.BAD_REQUEST, 2001, "페이지 번호는 1 이상이어야 합니다."),
     INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, 2002, "페이지 크기는 1 이상 100 이하여야 합니다."),
 
+    // 403 Forbidden
+    PAYROLL_ACCESS_DENIED(HttpStatus.FORBIDDEN, 2005, "본인의 급여 내역만 조회할 수 있습니다."),
+
     // 404 Not Found
     EMPLOYEE_NOT_FOUND(HttpStatus.NOT_FOUND, 2003, "사원을 찾을 수 없습니다."),
     EMPLOYEE_NOT_IN_SITE(HttpStatus.NOT_FOUND, 2004, "해당 현장에 소속된 사원이 아닙니다."),
+    PAYROLL_NOT_FOUND(HttpStatus.NOT_FOUND, 2006, "급여 내역을 찾을 수 없습니다."),
+    PAYROLL_PDF_NOT_FOUND(HttpStatus.NOT_FOUND, 2007, "급여명세서 PDF가 아직 생성되지 않았습니다."),
 
     // 500 Internal Server Error
     DATA_CONVERSION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, 2500, "데이터 변환 중 오류가 발생했습니다."),
-    RESIDENT_NUM_PROCESSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, 2501, "주민등록번호 처리 중 오류가 발생했습니다.");
+    RESIDENT_NUM_PROCESSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, 2501, "주민등록번호 처리 중 오류가 발생했습니다."),
+    S3_SERVICE_UNAVAILABLE(HttpStatus.INTERNAL_SERVER_ERROR, 2502, "파일 서비스를 사용할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final int codeNumber;

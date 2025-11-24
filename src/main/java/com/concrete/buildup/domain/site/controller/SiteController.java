@@ -4,6 +4,7 @@ import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
+import com.concrete.buildup.domain.site.dto.SiteListResponse;
 import com.concrete.buildup.domain.site.service.SiteService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.MaskingUtil;
@@ -72,6 +73,74 @@ public class SiteController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "현장이 성공적으로 등록되었습니다"));
+    }
+
+    /**
+     * 기업 관리자의 현장 목록 조회 API
+     *
+     * <p>현재 로그인한 기업 관리자가 담당하는 모든 현장 목록을 조회합니다.</p>
+     * <p>왼쪽 사이드바에 현장 목록을 표시하는 데 사용됩니다.</p>
+     *
+     * @return SiteListResponse - 현장 목록
+     */
+    @Operation(
+            summary = "기업 관리자의 현장 목록 조회",
+            description = "현재 로그인한 기업 관리자가 담당하는 모든 현장 목록을 조회합니다. " +
+                    "왼쪽 사이드바에 현장 목록을 표시하는 데 사용됩니다. " +
+                    "각 현장의 ID, 이름, 주소, 관리자 이름을 반환합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "success": true,
+                                      "message": "현장 목록을 성공적으로 조회했습니다",
+                                      "data": {
+                                        "sites": [
+                                          {
+                                            "siteId": 1,
+                                            "siteName": "강남 오피스텔 신축현장",
+                                            "siteAddress": "서울특별시 강남구 역삼동 123-45",
+                                            "managerName": "이강남"
+                                          },
+                                          {
+                                            "siteId": 2,
+                                            "siteName": "송파 아파트 리모델링",
+                                            "siteAddress": "서울특별시 송파구 잠실동 456-78",
+                                            "managerName": "박송파"
+                                          }
+                                        ],
+                                        "totalCount": 2
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 사용자"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "기업 정보를 찾을 수 없음"
+            )
+    })
+    @GetMapping
+    @PreAuthorize("hasRole('CORPORATION')")
+    public ResponseEntity<ApiResponse<SiteListResponse>> getMySites() {
+        log.info("기업 현장 목록 조회 API 호출");
+
+        SiteListResponse response = siteService.getMySites();
+
+        log.info("기업 현장 목록 조회 완료: totalCount={}", response.getTotalCount());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "현장 목록을 성공적으로 조회했습니다")
+        );
     }
 
     /**

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -84,4 +85,16 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      */
     @Query("SELECT s FROM Site s WHERE s.manager.id = :managerId")
     Optional<Site> findByManagerId(@Param("managerId") Long managerId);
+
+    /**
+     * 기업 ID로 현장 목록 조회
+     *
+     * <p>해당 기업이 담당하는 모든 현장을 조회합니다.</p>
+     * <p>Manager를 함께 조회하여 N+1 문제를 방지합니다.</p>
+     *
+     * @param corporationId 기업 ID
+     * @return 현장 목록
+     */
+    @Query("SELECT s FROM Site s LEFT JOIN FETCH s.manager WHERE s.corporation.id = :corporationId AND s.isDeleted = false ORDER BY s.createdAt DESC")
+    List<Site> findByCorporationIdWithManager(@Param("corporationId") Long corporationId);
 }

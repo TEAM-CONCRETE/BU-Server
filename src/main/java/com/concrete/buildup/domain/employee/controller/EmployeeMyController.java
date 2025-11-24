@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.employee.controller;
 
 import com.concrete.buildup.domain.employee.dto.MyAttendanceListResponse;
 import com.concrete.buildup.domain.employee.dto.MyHomeResponse;
+import com.concrete.buildup.domain.employee.dto.MyPayrollListResponse;
 import com.concrete.buildup.domain.employee.service.EmployeeMyService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.SecurityUtil;
@@ -162,4 +163,70 @@ public class EmployeeMyController {
                 ApiResponse.success(response, "홈 화면 정보를 조회했습니다")
         );
     }
+
+    /**
+     * 본인 급여 내역 조회 API
+     *
+     * <p>로그인한 근로자 본인의 급여 내역을 조회합니다.</p>
+     *
+     * @param pageable 페이지네이션 정보 (기본값: page=0, size=20)
+     * @return MyPayrollListResponse - 급여 내역 목록
+     */
+    @Operation(
+            summary = "본인 급여 내역 조회",
+            description = """
+                로그인한 근로자 본인의 급여 내역을 조회합니다.
+
+                **조회 정보:**
+                - 현장명
+                - 급여 대상 연/월
+                - 급여 주기 (DAILY: 일급, WEEKLY: 주급, MONTHLY: 월급)
+                - 지급 기준일
+                - 총 지급액
+                - 지급 상태 (PENDING: 대기, PAID: 지급완료, CANCELLED: 취소)
+                - 급여명세서 PDF 존재 여부
+
+                **정렬:** 지급 기준일 최신순 (내림차순)
+                """
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = MyPayrollListResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "권한 없음 (EMPLOYEE 역할 필요)"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "근로자 정보를 찾을 수 없음"
+            )
+    })
+    @PreAuthorize("hasRole('EMPLOYEE')")
+    @GetMapping("/payroll")
+    public ResponseEntity<ApiResponse<MyPayrollListResponse>> getMyPayrollList(
+            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        log.info("본인 급여 내역 조회 API 호출: page={}, size={}",
+                pageable.getPageNumber(), pageable.getPageSize());
+
+        // JWT에서 userId 추출
+        String currentUserId = SecurityUtil.getCurrentUserId();
+
+        MyPayrollListResponse response = employeeMyService.getMyPayrollList(currentUserId, pageable);
+
+        log.info("본인 급여 내역 조회 완료: totalElements={}", response.getTotalElements());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "급여 내역을 조회했습니다")
+        );
+    }
+
 }
