@@ -3,7 +3,6 @@ package com.concrete.buildup.domain.employee.controller;
 import com.concrete.buildup.domain.employee.dto.MyAttendanceListResponse;
 import com.concrete.buildup.domain.employee.dto.MyHomeResponse;
 import com.concrete.buildup.domain.employee.dto.MyPayrollListResponse;
-import com.concrete.buildup.domain.employee.dto.MyPayrollPdfResponse;
 import com.concrete.buildup.domain.employee.service.EmployeeMyService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.SecurityUtil;
@@ -20,7 +19,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -231,64 +229,4 @@ public class EmployeeMyController {
         );
     }
 
-    /**
-     * 급여명세서 PDF 미리보기 API
-     *
-     * <p>로그인한 근로자 본인의 급여명세서 PDF 미리보기 URL을 조회합니다.</p>
-     *
-     * @param payrollId 급여 ID
-     * @return MyPayrollPdfResponse - PDF 미리보기 URL
-     */
-    @Operation(
-            summary = "급여명세서 PDF 미리보기",
-            description = """
-                로그인한 근로자 본인의 급여명세서 PDF 미리보기 URL을 조회합니다.
-
-                **조회 정보:**
-                - PDF 미리보기 URL (15분간 유효)
-                - URL 만료 시각
-
-                **주의사항:**
-                - 본인의 급여명세서만 조회할 수 있습니다.
-                - PDF가 생성되지 않은 급여는 조회할 수 없습니다.
-                """
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    description = "조회 성공",
-                    content = @Content(schema = @Schema(implementation = MyPayrollPdfResponse.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "인증 실패"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "권한 없음 (본인의 급여만 조회 가능)"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404",
-                    description = "급여 내역 또는 PDF를 찾을 수 없음"
-            )
-    })
-    @PreAuthorize("hasRole('EMPLOYEE')")
-    @GetMapping("/payroll/{payrollId}/pdf")
-    public ResponseEntity<ApiResponse<MyPayrollPdfResponse>> getMyPayrollPdf(
-            @Parameter(description = "급여 ID", required = true, example = "1")
-            @PathVariable Long payrollId
-    ) {
-        log.info("급여명세서 PDF 미리보기 API 호출: payrollId={}", payrollId);
-
-        // JWT에서 userId 추출
-        String currentUserId = SecurityUtil.getCurrentUserId();
-
-        MyPayrollPdfResponse response = employeeMyService.getMyPayrollPdf(currentUserId, payrollId);
-
-        log.info("급여명세서 PDF URL 발급 완료: payrollId={}", payrollId);
-
-        return ResponseEntity.ok(
-                ApiResponse.success(response, "급여명세서 PDF URL을 발급했습니다")
-        );
-    }
 }
