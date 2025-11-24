@@ -11,6 +11,7 @@ import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
+import com.concrete.buildup.domain.site.dto.SiteListResponse;
 import com.concrete.buildup.domain.site.entity.Site;
 import com.concrete.buildup.domain.site.repository.SiteRepository;
 import com.concrete.buildup.domain.workreport.entity.WorkReport;
@@ -120,6 +121,34 @@ public class SiteService {
             secretKeyPair.getManagerSecretKey(),
             secretKeyPair.getEmployeeSecretKey()
         );
+    }
+
+    /**
+     * 기업 관리자의 현장 목록 조회
+     *
+     * <p>현재 로그인한 기업 관리자가 담당하는 모든 현장 목록을 조회합니다.</p>
+     * <p>왼쪽 사이드바에 현장 목록을 표시하는 데 사용됩니다.</p>
+     *
+     * @return 현장 목록 DTO
+     * @throws BusinessException 사용자 또는 기업 정보를 찾을 수 없는 경우
+     */
+    public SiteListResponse getMySites() {
+        // 1. 현재 인증된 사용자 조회
+        String currentUserId = SecurityUtil.getCurrentUserId();
+        User user = userRepository.findByUserId(currentUserId)
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+
+        // 2. 사용자의 기업 정보 조회
+        Corporation corporation = corporationRepository.findByUserId(user.getId())
+            .orElseThrow(() -> new BusinessException(SiteErrorCode.CORPORATION_NOT_FOUND));
+
+        // 3. 기업이 담당하는 현장 목록 조회
+        List<Site> sites = siteRepository.findByCorporationIdWithManager(corporation.getId());
+
+        log.info("기업 현장 목록 조회 완료 - corporationId: {}, siteCount: {}",
+            corporation.getId(), sites.size());
+
+        return SiteListResponse.from(sites);
     }
 
     /**
