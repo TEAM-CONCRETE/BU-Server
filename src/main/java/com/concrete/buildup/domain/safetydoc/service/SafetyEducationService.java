@@ -189,6 +189,7 @@ public class SafetyEducationService {
                         .employeeId(a.getEmployee().getId())
                         .empName(a.getEmployee().getEmpName())
                         .empType(a.getEmployee().getEmpType())
+                        .phone(a.getEmployee().getUser() != null ? a.getEmployee().getUser().getPhone() : null)
                         .isSigned(a.getIsSigned())
                         .signedAt(a.getSignedAt())
                         .build())
