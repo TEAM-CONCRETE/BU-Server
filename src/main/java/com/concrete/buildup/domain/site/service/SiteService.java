@@ -207,9 +207,11 @@ public class SiteService {
         List<LocalDate> workReportDates;
 
         if (year != null && month != null) {
-            // 연도/월 필터링
-            safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, year, month);
-            workReportDates = workReportRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, year, month);
+            // 연도/월 필터링 - LocalDateTime 범위로 변환
+            java.time.LocalDateTime startDate = java.time.LocalDateTime.of(year, month, 1, 0, 0);
+            java.time.LocalDateTime endDate = startDate.plusMonths(1);
+            safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, startDate, endDate);
+            workReportDates = workReportRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, startDate, endDate);
         } else {
             // 전체 조회
             safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId);

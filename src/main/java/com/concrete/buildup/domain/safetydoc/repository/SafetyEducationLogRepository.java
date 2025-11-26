@@ -55,14 +55,14 @@ public interface SafetyEducationLogRepository extends JpaRepository<SafetyEducat
      */
     @Query("SELECT DISTINCT CAST(s.createdAt AS LocalDate) FROM SafetyEducationLog s " +
             "WHERE s.site.id = :siteId " +
-            "AND YEAR(s.createdAt) = :year " +
-            "AND MONTH(s.createdAt) = :month " +
+            "AND s.createdAt >= :startDate " +
+            "AND s.createdAt < :endDate " +
             "AND s.isDeleted = false " +
             "ORDER BY CAST(s.createdAt AS LocalDate) DESC")
     List<LocalDate> findDistinctDatesBySiteIdAndYearMonth(
             @Param("siteId") Long siteId,
-            @Param("year") int year,
-            @Param("month") int month);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 
     /**
      * 현장별, 날짜별 안전교육일지 조회 (페이지네이션 지원)
@@ -86,18 +86,18 @@ public interface SafetyEducationLogRepository extends JpaRepository<SafetyEducat
      * 현장별 안전교육일지 목록 조회 (연도/월 필터링)
      *
      * @param siteId 현장 ID
-     * @param year 연도
-     * @param month 월 (1-12)
+     * @param startDate 시작 날짜 (해당 월의 1일 00:00:00)
+     * @param endDate 종료 날짜 (다음 월의 1일 00:00:00)
      * @return 안전교육일지 목록 (createdAt 내림차순)
      */
     @Query("SELECT s FROM SafetyEducationLog s " +
             "WHERE s.site.id = :siteId " +
-            "AND YEAR(s.createdAt) = :year " +
-            "AND MONTH(s.createdAt) = :month " +
+            "AND s.createdAt >= :startDate " +
+            "AND s.createdAt < :endDate " +
             "AND s.isDeleted = false " +
             "ORDER BY s.createdAt DESC")
     List<SafetyEducationLog> findBySiteIdAndYearMonth(
             @Param("siteId") Long siteId,
-            @Param("year") int year,
-            @Param("month") int month);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

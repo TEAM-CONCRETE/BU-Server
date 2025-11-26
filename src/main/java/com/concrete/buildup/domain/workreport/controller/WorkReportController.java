@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -155,7 +157,7 @@ public class WorkReportController {
             @Parameter(description = "연도 (선택)", example = "2025")
             @RequestParam(required = false) Integer year,
             @Parameter(description = "월 (1-12, 선택)", example = "11")
-            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) @Min(value = 1, message = "월은 1 이상이어야 합니다") @Max(value = 12, message = "월은 12 이하여야 합니다") Integer month,
             @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
             @PageableDefault(size = 20) Pageable pageable
     ) {

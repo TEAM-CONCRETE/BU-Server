@@ -147,8 +147,10 @@ public class SafetyEducationService {
         // 안전교육일지 목록 조회
         List<SafetyEducationLog> logs;
         if (year != null && month != null) {
-            // 연도/월 필터링
-            logs = safetyEducationLogRepository.findBySiteIdAndYearMonth(siteId, year, month);
+            // 연도/월 필터링 - LocalDateTime 범위로 변환
+            LocalDateTime startDate = LocalDateTime.of(year, month, 1, 0, 0);
+            LocalDateTime endDate = startDate.plusMonths(1);
+            logs = safetyEducationLogRepository.findBySiteIdAndYearMonth(siteId, startDate, endDate);
         } else {
             // 전체 조회
             logs = safetyEducationLogRepository.findBySiteIdAndIsDeletedFalseOrderByCreatedAtDesc(siteId);

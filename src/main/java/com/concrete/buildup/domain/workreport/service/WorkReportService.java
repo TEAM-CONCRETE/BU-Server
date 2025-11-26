@@ -255,8 +255,10 @@ public class WorkReportService {
         // 작업일보 목록 조회 (Manager fetch join)
         Page<WorkReport> workReportPage;
         if (year != null && month != null) {
-            // 연도/월 필터링
-            workReportPage = workReportRepository.findBySiteIdWithManagerByYearMonth(siteId, year, month, pageable);
+            // 연도/월 필터링 - LocalDateTime 범위로 변환
+            LocalDateTime startDate = LocalDateTime.of(year, month, 1, 0, 0);
+            LocalDateTime endDate = startDate.plusMonths(1);
+            workReportPage = workReportRepository.findBySiteIdWithManagerByYearMonth(siteId, startDate, endDate, pageable);
         } else {
             // 전체 조회
             workReportPage = workReportRepository.findBySiteIdWithManager(siteId, pageable);
