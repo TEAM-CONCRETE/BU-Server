@@ -34,12 +34,13 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `attendance_records` | 얼굴 인식 출퇴근 기록 | employee, site |
 | `payrolls` | 급여 정보 | employee, contract, corporation |
 | `payslip_items` | 급여 명세 항목 | payrolls → items |
-| `safety_docs` | 안전교육 문서 | site, manager |
-| `safety_doc_attendees` | 안전교육 참석자 | safety_docs, employees |
-| `safety_sign_logs` | 안전교육 서명 이력 | 1:1 with attendees |
+| `safety_education_logs` | 안전교육일지 | site, manager, corporation |
+| `safety_education_attendees` | 안전교육 참석자 | safety_education_logs, employees |
+| `safety_education_sign_logs` | 안전교육 서명 이력 | safety_education_logs |
 | `work_reports` | 작업일보 | site, manager, corporation |
-| `work_report_employees` | 작업일보 투입 인력 | work_reports, employees |
 | `work_report_materials` | 작업일보 자재 사용 | work_reports |
+
+**참고:** `work_report_employees` 테이블은 현재 사용되지 않음 (공정 정보가 work_sections JSON에 포함됨)
 
 ---
 
@@ -700,40 +701,12 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 **관계:**
 - N:1 → sites
 - N:1 → managers
+- N:1 → corporations
 - 1:N ← work_report_materials
 
 ---
 
-### 18. work_report_employees (작업일보 투입 인력)
-
-**설명:** 작업일보별 투입된 근로자 정보
-
-**컬럼:**
-
-| 컬럼명 | 타입 | 제약조건 | 설명 |
-|--------|------|----------|------|
-| `id` | BIGINT | PK, AUTO_INCREMENT | 레코드 ID |
-| `work_report_id` | BIGINT | FK, NOT NULL | 작업일보 ID |
-| `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
-| `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
-| `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
-| `work_hours` | DECIMAL(6,2) | NULL | 투입 시간 |
-| `role_in_section` | VARCHAR(50) | NULL | 담당 역할 (용접공, 목수 등) |
-| `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
-
-**인덱스:**
-- PRIMARY KEY: `id`
-- INDEX: `work_report_id`, `employee_id`
-- FOREIGN KEY: `work_report_id` REFERENCES `work_reports(id)`
-- FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
-
-**관계:**
-- N:1 → work_reports
-- N:1 → employees
-
----
-
-### 19. work_report_materials (작업일보 자재)
+### 18. work_report_materials (작업일보 자재)
 
 **설명:** 작업일보별 자재 투입 기록
 
@@ -750,10 +723,13 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `material_sum` | DECIMAL(10,2) | NULL | 누적 투입량 |
 | `note` | VARCHAR(255) | NULL | 비고 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |
+| `updated_at` | DATETIME | DEFAULT now() | 수정 일시 |
+| `is_deleted` | BOOLEAN | DEFAULT false | 삭제 여부 (Soft Delete) |
 
 **인덱스:**
 - PRIMARY KEY: `id`
 - INDEX: `work_report_id`
+- INDEX: `material_name`
 - FOREIGN KEY: `work_report_id` REFERENCES `work_reports(id)`
 
 **관계:**
@@ -798,7 +774,6 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 - `users` ↔ `managers` (user_id)
 - `users` ↔ `corporations` (user_id)
 - `contracts` ↔ `contract_details` (contract_id)
-- `safety_doc_attendees` ↔ `safety_sign_logs` (attendee_id)
 
 ### 1:N 관계
 - `roles` → `users`
@@ -813,10 +788,10 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 - `employees` → `payrolls`
 - `payrolls` → `payslip_items`
 - `payrolls` → `attendances`
-- `sites` → `safety_docs`
-- `safety_docs` → `safety_doc_attendees`
+- `sites` → `safety_education_logs`
+- `safety_education_logs` → `safety_education_attendees`
+- `safety_education_logs` → `safety_education_sign_logs`
 - `sites` → `work_reports`
-- `work_reports` → `work_report_employees`
 - `work_reports` → `work_report_materials`
 
 ### N:M 관계
@@ -865,13 +840,9 @@ CREATE INDEX idx_signing_sessions_expires
 -- 급여 지급 상태별 조회
 CREATE INDEX idx_payrolls_status ON payrolls(pay_status);
 
--- 안전교육 상태별 조회
-CREATE INDEX idx_safety_docs_status 
-ON safety_docs(safetydoc_status);
-
--- 작업일보 상태별 조회
-CREATE INDEX idx_work_reports_status 
-ON work_reports(work_report_status);
+-- 안전교육일지 상태별 조회
+CREATE INDEX idx_safety_education_logs_status
+ON safety_education_logs(status);
 ```
 
 ---
@@ -901,5 +872,8 @@ ON work_reports(work_report_status);
 | 2025-11-20 | work_reports 테이블 work_date, work_report_title 컬럼 제거 (작업일자 대신 작성일(created_at) 사용, S3 경로에 순번 추가하여 같은 날짜 여러 작업일보 생성 가능) | 김세원 |
 | 2025-11-21 | work_reports 테이블 컬럼 재구조화: work_section, work_section_employee_num, work_report_context 제거 → work_sections(TEXT) 추가로 여러 공정 정보를 JSON 배열로 저장 | 김세원 |
 | 2025-11-26 | attendances 테이블 payroll_id 컬럼 추가 (급여명세서 상세 조회를 위한 급여-근태 연관관계 설정, FK 제약조건 및 인덱스 추가) | Claude |
+| 2025-11-27 | ERD 문서 대규모 업데이트: 안전교육 관련 테이블명 수정 (safety_docs → safety_education_logs, safety_doc_attendees → safety_education_attendees, safety_sign_logs → safety_education_sign_logs), work_report_employees 테이블 제거 (work_sections JSON으로 통합), work_report_materials에 is_deleted, updated_at 컬럼 추가 | 김세원 |
+| 2025-11-27 | work_reports 테이블 스키마 정리 (구버전 컬럼 제거를 위한 마이그레이션 파일 생성: cleanup-work-reports-schema-20250127.sql) | 김세원 |
+| 2025-11-27 | users 테이블 구조 변경: secret_key 컬럼 제거, site_id 컬럼 추가 (현장별 근로자 조회 가능, 보안 강화: 시크릿키는 일회용으로만 사용하고 저장하지 않음) | 김세원 |
 
 ---
