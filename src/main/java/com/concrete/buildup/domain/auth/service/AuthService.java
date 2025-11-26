@@ -550,11 +550,11 @@ public class AuthService {
         String userName = getUserNameByRole(user);
         log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
 
-        // 8. 역할별 추가 ID 조회 (employeeId, siteId)
+        // 8. 역할별 추가 ID 조회 (employeeId, managerId, siteId)
         // N+1 문제 방지를 위해 최적화된 쿼리 사용
         Long employeeId = null;
         Long managerId = null;
-        Long siteId = null;
+        Long siteId = user.getSiteId();  // User 엔티티에서 직접 가져오기 (근로자/관리자 공통)
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
@@ -562,16 +562,14 @@ public class AuthService {
             employeeId = employeeRepository.findByUserId(user.getId())
                     .map(Employee::getId)
                     .orElse(null);
-            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}", user.getUserId(), employeeId);
+            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}",
+                      user.getUserId(), employeeId, siteId);
         } else if ("ROLE_MANAGER".equals(roleName)) {
-            // Manager 조회 및 Site 조회
+            // Manager 조회
             Manager manager = managerRepository.findByUserId(user.getId()).orElse(null);
             if (manager != null) {
                 managerId = manager.getId();
-                siteId = siteRepository.findByManager(manager)
-                        .map(Site::getId)
-                        .orElse(null);
-                log.debug("현장 관리자 ID 및 현장 ID 조회 완료: userId={}, managerId={}, siteId={}",
+                log.debug("현장 관리자 ID 조회 완료: userId={}, managerId={}, siteId={}",
                           user.getUserId(), managerId, siteId);
             }
         }
@@ -581,10 +579,11 @@ public class AuthService {
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
+                .profileCompleted(user.getProfileCompleted())  // 프로필 완성 여부
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .employeeId(employeeId)  // 근로자인 경우만 값이 있음
                 .managerId(managerId)    // 현장 관리자인 경우만 값이 있음
-                .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
+                .siteId(siteId)          // 근로자/관리자인 경우 값이 있음 (User.siteId)
                 .build();
 
         // 8. LoginResult 생성 (accessToken, refreshToken 포함, 평문)
@@ -828,22 +827,20 @@ public class AuthService {
         // 11. 역할별 추가 ID 조회 (employeeId, managerId, siteId)
         Long employeeId = null;
         Long managerId = null;
-        Long siteId = null;
+        Long siteId = user.getSiteId();  // User 엔티티에서 직접 가져오기 (근로자/관리자 공통)
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
             employeeId = employeeRepository.findByUser(user)
                     .map(Employee::getId)
                     .orElse(null);
-            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}", user.getUserId(), employeeId);
+            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}",
+                      user.getUserId(), employeeId, siteId);
         } else if ("ROLE_MANAGER".equals(roleName)) {
             Manager manager = managerRepository.findByUser(user).orElse(null);
             if (manager != null) {
                 managerId = manager.getId();
-                siteId = siteRepository.findByManager(manager)
-                        .map(Site::getId)
-                        .orElse(null);
-                log.debug("현장 관리자 ID 및 현장 ID 조회 완료: userId={}, managerId={}, siteId={}",
+                log.debug("현장 관리자 ID 조회 완료: userId={}, managerId={}, siteId={}",
                           user.getUserId(), managerId, siteId);
             }
         }
@@ -853,10 +850,11 @@ public class AuthService {
                 .userId(user.getUserId())
                 .userName(userName)
                 .role(user.getRole().getRoleName())
+                .profileCompleted(user.getProfileCompleted())  // 프로필 완성 여부
                 .expiresIn(accessTokenExpiration / 1000)  // 초 단위로 변환
                 .employeeId(employeeId)  // 근로자인 경우만 값이 있음
                 .managerId(managerId)    // 현장 관리자인 경우만 값이 있음
-                .siteId(siteId)          // 현장 관리자인 경우만 값이 있음
+                .siteId(siteId)          // 근로자/관리자인 경우 값이 있음 (User.siteId)
                 .build();
 
         // 11. LoginResult 생성 (accessToken, refreshToken 포함, 평문)
