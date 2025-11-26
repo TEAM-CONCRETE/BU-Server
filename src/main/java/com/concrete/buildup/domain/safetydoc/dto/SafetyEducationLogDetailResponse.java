@@ -110,6 +110,9 @@ public class SafetyEducationLogDetailResponse {
         )
         private String empType;
 
+        @Schema(description = "연락처", example = "010-1234-5678")
+        private String phone;
+
         @Schema(description = "서명 완료 여부", example = "true")
         private Boolean isSigned;
 

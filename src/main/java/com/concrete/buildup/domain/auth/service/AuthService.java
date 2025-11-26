@@ -30,6 +30,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -554,21 +555,26 @@ public class AuthService {
         // N+1 문제 방지를 위해 최적화된 쿼리 사용
         Long employeeId = null;
         Long managerId = null;
-        Long siteId = user.getSiteId();  // User 엔티티에서 직접 가져오기 (근로자/관리자 공통)
+        Long siteId = null;
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
-            // User ID로 직접 조회 (이미 User 로드됨)
+            // 근로자: User ID로 직접 조회
             employeeId = employeeRepository.findByUserId(user.getId())
                     .map(Employee::getId)
                     .orElse(null);
+            siteId = user.getSiteId();  // 근로자는 User 테이블의 site_id 사용
             log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}",
                       user.getUserId(), employeeId, siteId);
         } else if ("ROLE_MANAGER".equals(roleName)) {
-            // Manager 조회
+            // 관리자: Manager 조회 후 관리하는 Site 조회
             Manager manager = managerRepository.findByUserId(user.getId()).orElse(null);
             if (manager != null) {
                 managerId = manager.getId();
+                // Manager가 관리하는 Site 조회
+                siteId = siteRepository.findByManagerId(managerId)
+                        .map(Site::getId)
+                        .orElse(null);
                 log.debug("현장 관리자 ID 조회 완료: userId={}, managerId={}, siteId={}",
                           user.getUserId(), managerId, siteId);
             }
@@ -825,21 +831,29 @@ public class AuthService {
         log.debug("사용자 이름 조회 완료: userId={}, userName={}", user.getUserId(), userName);
 
         // 11. 역할별 추가 ID 조회 (employeeId, managerId, siteId)
+        // N+1 문제 방지를 위해 최적화된 쿼리 사용
         Long employeeId = null;
         Long managerId = null;
-        Long siteId = user.getSiteId();  // User 엔티티에서 직접 가져오기 (근로자/관리자 공통)
+        Long siteId = null;
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
+            // 근로자: User로 직접 조회
             employeeId = employeeRepository.findByUser(user)
                     .map(Employee::getId)
                     .orElse(null);
+            siteId = user.getSiteId();  // 근로자는 User 테이블의 site_id 사용
             log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}",
                       user.getUserId(), employeeId, siteId);
         } else if ("ROLE_MANAGER".equals(roleName)) {
+            // 관리자: Manager 조회 후 관리하는 Site 조회
             Manager manager = managerRepository.findByUser(user).orElse(null);
             if (manager != null) {
                 managerId = manager.getId();
+                // Manager가 관리하는 Site 조회
+                siteId = siteRepository.findByManagerId(managerId)
+                        .map(Site::getId)
+                        .orElse(null);
                 log.debug("현장 관리자 ID 조회 완료: userId={}, managerId={}, siteId={}",
                           user.getUserId(), managerId, siteId);
             }
