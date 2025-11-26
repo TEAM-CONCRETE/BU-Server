@@ -16,7 +16,7 @@ public interface SafetyEducationAttendeeRepository extends JpaRepository<SafetyE
 
     @Query("SELECT a FROM SafetyEducationAttendee a " +
             "JOIN FETCH a.employee e " +
-            "JOIN FETCH e.user " +
+            "LEFT JOIN FETCH e.user " +
             "WHERE a.safetyEducationLog.id = :logId AND a.isDeleted = false")
     List<SafetyEducationAttendee> findBySafetyEducationLogIdWithEmployee(@Param("logId") Long logId);
 
