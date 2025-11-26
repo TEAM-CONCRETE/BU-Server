@@ -21,6 +21,7 @@ public enum ContractErrorCode implements BaseErrorCode {
     EMPLOYEE_NOT_FOUND(HttpStatus.NOT_FOUND, 4002, "근로자를 찾을 수 없습니다."),
     CORPORATION_NOT_FOUND(HttpStatus.NOT_FOUND, 4003, "기업을 찾을 수 없습니다."),
     MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, 4004, "관리자를 찾을 수 없습니다."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, 4015, "사용자를 찾을 수 없습니다."),
     SITE_NOT_FOUND(HttpStatus.NOT_FOUND, 4006, "현장을 찾을 수 없습니다."),
     CONTRACT_DETAIL_NOT_FOUND(HttpStatus.NOT_FOUND, 4012, "계약 상세 정보를 찾을 수 없습니다."),
 
