@@ -235,14 +235,17 @@ public class WorkReportService {
      *
      * <p>현장에 속한 작업일보 목록을 페이지네이션하여 조회합니다.</p>
      * <p>작업일자, 작성자 이름을 포함하여 반환합니다.</p>
+     * <p>연도/월 필터링 옵션을 지원합니다.</p>
      *
      * @param siteId 현장 ID
+     * @param year 연도 (선택)
+     * @param month 월 (선택, 1-12)
      * @param pageable 페이지네이션 정보
      * @return 작업일보 목록 응답
      */
-    public WorkReportListResponse getWorkReportList(Long siteId, Pageable pageable) {
-        log.info("작업일보 목록 조회: siteId={}, page={}, size={}",
-                siteId, pageable.getPageNumber(), pageable.getPageSize());
+    public WorkReportListResponse getWorkReportList(Long siteId, Integer year, Integer month, Pageable pageable) {
+        log.info("작업일보 목록 조회: siteId={}, year={}, month={}, page={}, size={}",
+                siteId, year, month, pageable.getPageNumber(), pageable.getPageSize());
 
         // 현장 존재 여부 확인
         if (!siteRepository.existsById(siteId)) {
@@ -250,7 +253,16 @@ public class WorkReportService {
         }
 
         // 작업일보 목록 조회 (Manager fetch join)
-        Page<WorkReport> workReportPage = workReportRepository.findBySiteIdWithManager(siteId, pageable);
+        Page<WorkReport> workReportPage;
+        if (year != null && month != null) {
+            // 연도/월 필터링 - LocalDateTime 범위로 변환
+            LocalDateTime startDate = LocalDateTime.of(year, month, 1, 0, 0);
+            LocalDateTime endDate = startDate.plusMonths(1);
+            workReportPage = workReportRepository.findBySiteIdWithManagerByYearMonth(siteId, startDate, endDate, pageable);
+        } else {
+            // 전체 조회
+            workReportPage = workReportRepository.findBySiteIdWithManager(siteId, pageable);
+        }
 
         // DTO 변환
         Page<WorkReportListResponse.WorkReportSummary> summaryPage = workReportPage.map(workReport ->

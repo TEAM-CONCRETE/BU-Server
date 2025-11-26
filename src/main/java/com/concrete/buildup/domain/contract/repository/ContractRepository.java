@@ -128,6 +128,16 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
     Optional<Contract> findByIdWithDetails(@Param("contractId") Long contractId);
 
     /**
+     * 계약 ID 목록으로 계약 + 상세 정보 일괄 조회 (Fetch Join)
+     * N+1 문제 방지를 위해 ContractDetail을 함께 조회
+     *
+     * @param contractIds 계약 ID 목록
+     * @return 계약 + 상세 정보 목록
+     */
+    @Query("SELECT c FROM Contract c LEFT JOIN FETCH c.contractDetail WHERE c.id IN :contractIds")
+    List<Contract> findByIdInWithDetails(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * 근로자 ID로 계약 목록 + 상세 정보 조회 (Fetch Join, 페이징)
      * N+1 문제 방지를 위해 ContractDetail을 함께 조회
      *

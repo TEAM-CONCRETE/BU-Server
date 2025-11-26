@@ -181,14 +181,21 @@ public class SiteService {
      *
      * <p>날짜별로 안전교육일지와 작업일보를 통합하여 조회합니다.</p>
      * <p>페이지네이션을 지원하며, 최신 날짜순으로 정렬됩니다.</p>
+     * <p>연도/월 필터링 옵션을 지원합니다.</p>
      *
      * @param siteId 현장 ID
+     * @param year 연도 (선택)
+     * @param month 월 (선택, 1-12)
      * @param pageable 페이지네이션 정보
      * @return 날짜별 안전/작업 문서 목록
      */
-    public SafetyWorkDocumentListResponse getSafetyWorkDocuments(Long siteId, Pageable pageable) {
-        log.info("안전/작업 문서 목록 조회 - siteId: {}, page: {}, size: {}",
-                siteId, pageable.getPageNumber(), pageable.getPageSize());
+    public SafetyWorkDocumentListResponse getSafetyWorkDocuments(
+            Long siteId,
+            Integer year,
+            Integer month,
+            Pageable pageable) {
+        log.info("안전/작업 문서 목록 조회 - siteId: {}, year: {}, month: {}, page: {}, size: {}",
+                siteId, year, month, pageable.getPageNumber(), pageable.getPageSize());
 
         // 현장 존재 여부 확인
         if (!siteRepository.existsById(siteId)) {
@@ -196,8 +203,20 @@ public class SiteService {
         }
 
         // 두 테이블에서 전체 날짜 목록 조회 (페이지네이션 없이)
-        List<LocalDate> safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId);
-        List<LocalDate> workReportDates = workReportRepository.findDistinctDatesBySiteId(siteId);
+        List<LocalDate> safetyDates;
+        List<LocalDate> workReportDates;
+
+        if (year != null && month != null) {
+            // 연도/월 필터링 - LocalDateTime 범위로 변환
+            java.time.LocalDateTime startDate = java.time.LocalDateTime.of(year, month, 1, 0, 0);
+            java.time.LocalDateTime endDate = startDate.plusMonths(1);
+            safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, startDate, endDate);
+            workReportDates = workReportRepository.findDistinctDatesBySiteIdAndYearMonth(siteId, startDate, endDate);
+        } else {
+            // 전체 조회
+            safetyDates = safetyEducationLogRepository.findDistinctDatesBySiteId(siteId);
+            workReportDates = workReportRepository.findDistinctDatesBySiteId(siteId);
+        }
 
         // 날짜 병합 및 정렬
         Set<LocalDate> allDates = new HashSet<>();

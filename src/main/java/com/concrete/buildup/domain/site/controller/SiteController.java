@@ -1,10 +1,12 @@
 package com.concrete.buildup.domain.site.controller;
 
+import com.concrete.buildup.domain.site.dto.DashboardResponse;
 import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
 import com.concrete.buildup.domain.site.dto.SiteListResponse;
+import com.concrete.buildup.domain.site.service.DashboardService;
 import com.concrete.buildup.domain.site.service.SiteService;
 import com.concrete.buildup.global.common.ApiResponse;
 import com.concrete.buildup.global.util.MaskingUtil;
@@ -15,9 +17,12 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,10 +41,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/v1/sites")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Site", description = "현장 관리 API")
 public class SiteController {
 
     private final SiteService siteService;
+    private final DashboardService dashboardService;
 
     /**
      * 현장 등록 API
@@ -194,6 +201,10 @@ public class SiteController {
                     - 날짜별 작업일보 (ID, 순번)
 
                     **정렬:** 최신 날짜순 (내림차순)
+
+                    **필터링:**
+                    - year와 month를 함께 제공하면 해당 연도/월의 데이터만 조회됩니다.
+                    - 예: year=2025&month=11 → 2025년 11월 데이터만 조회
                     """
     )
     @ApiResponses({
@@ -250,18 +261,125 @@ public class SiteController {
     public ResponseEntity<ApiResponse<SafetyWorkDocumentListResponse>> getSafetyWorkDocuments(
             @Parameter(description = "현장 ID", required = true, example = "1")
             @PathVariable Long siteId,
+            @Parameter(description = "연도 (선택)", example = "2025")
+            @RequestParam(required = false) Integer year,
+            @Parameter(description = "월 (1-12, 선택)", example = "11")
+            @RequestParam(required = false) @Min(value = 1, message = "월은 1 이상이어야 합니다") @Max(value = 12, message = "월은 12 이하여야 합니다") Integer month,
             @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        log.info("안전/작업 문서 목록 조회 API 호출: siteId={}, page={}, size={}",
-                siteId, pageable.getPageNumber(), pageable.getPageSize());
+        log.info("안전/작업 문서 목록 조회 API 호출: siteId={}, year={}, month={}, page={}, size={}",
+                siteId, year, month, pageable.getPageNumber(), pageable.getPageSize());
 
-        SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+        SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, year, month, pageable);
 
         log.info("안전/작업 문서 목록 조회 완료: siteId={}, totalElements={}", siteId, response.getTotalElements());
 
         return ResponseEntity.ok(
                 ApiResponse.success(response, "안전/작업 문서 목록을 조회했습니다.")
+        );
+    }
+
+    /**
+     * 현장 대시보드 조회 API
+     *
+     * <p>기업 관리자와 현장 관리자가 현장의 대시보드 정보를 조회합니다.</p>
+     * <p>현장 기본 정보, 인원 현황, 안전 현황, 노무 현황을 포함합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return DashboardResponse - 대시보드 정보
+     */
+    @Operation(
+            summary = "현장 대시보드 조회",
+            description = """
+                    현장의 대시보드 정보를 조회합니다.
+
+                    **포함 정보:**
+                    - 현장 기본 정보: 현장명, 주소, 발주처, 공사 기간, 진행률, 관리자 이름
+                    - 인원 현황: 총 근로자 수, 상용직/일용직 수, 금일 출근 인원, 금일 지각 인원
+                    - 안전 현황: 안전율, 금일 안전 경고, 교육 미이수 인원, 안전점검 완료 건수
+                    - 노무 현황: 미결 전자계약 수, 미결 계약 목록 (근로계약서, 안전교육일지)
+
+                    **사용 시나리오:**
+                    - 기업 관리자: 왼쪽 사이드바에서 현장 선택 후 대시보드 확인
+                    - 현장 관리자: 자신이 담당하는 현장의 대시보드 확인
+                    """
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "success": true,
+                                      "message": "대시보드 정보를 성공적으로 조회했습니다.",
+                                      "data": {
+                                        "siteInfo": {
+                                          "siteId": 1,
+                                          "siteName": "강남 오피스텔 신축현장",
+                                          "siteAddress": "서울특별시 강남구 역삼동 123-45",
+                                          "clientName": "서울시설공단",
+                                          "startDate": "2025-01-01",
+                                          "endDate": "2025-12-31",
+                                          "progressRate": 45.5,
+                                          "managerName": "김현장"
+                                        },
+                                        "workforceStatus": {
+                                          "totalWorkers": 50,
+                                          "permanentWorkers": 30,
+                                          "dailyWorkers": 20,
+                                          "todayAttendance": 45,
+                                          "todayLateCount": 3
+                                        },
+                                        "safetyStatus": {
+                                          "safetyRate": 92.5,
+                                          "todayWarnings": 2,
+                                          "incompletedEducation": 5,
+                                          "completedInspections": 10
+                                        },
+                                        "laborStatus": {
+                                          "totalPendingContracts": 3,
+                                          "pendingContracts": [
+                                            {
+                                              "contractId": 101,
+                                              "contractType": "근로계약서",
+                                              "targetName": "김철수",
+                                              "contractState": "MANAGER_SIGNING_PENDING"
+                                            },
+                                            {
+                                              "contractId": 15,
+                                              "contractType": "안전교육일지",
+                                              "targetName": "추락 재해 예방 교육",
+                                              "contractState": "MANAGER_SIGNING_PENDING"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "현장을 찾을 수 없음"
+            )
+    })
+    @GetMapping("/{siteId}/dashboard")
+    @PreAuthorize("hasAnyRole('MANAGER', 'CORPORATION')")
+    public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
+            @Parameter(description = "현장 ID", required = true, example = "1")
+            @PathVariable Long siteId
+    ) {
+        log.info("대시보드 조회 API 호출: siteId={}", siteId);
+
+        DashboardResponse response = dashboardService.getDashboard(siteId);
+
+        log.info("대시보드 조회 완료: siteId={}", siteId);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "대시보드 정보를 성공적으로 조회했습니다.")
         );
     }
 }

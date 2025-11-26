@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -54,6 +55,20 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
     List<LocalDate> findDistinctDatesBySiteId(@Param("siteId") Long siteId);
 
     /**
+     * 현장별 작업일보가 있는 날짜 목록 조회 (연도/월 필터링, 중복 제거)
+     */
+    @Query("SELECT DISTINCT CAST(w.createdAt AS LocalDate) FROM WorkReport w " +
+            "WHERE w.site.id = :siteId " +
+            "AND w.createdAt >= :startDate " +
+            "AND w.createdAt < :endDate " +
+            "AND w.isDeleted = false " +
+            "ORDER BY CAST(w.createdAt AS LocalDate) DESC")
+    List<LocalDate> findDistinctDatesBySiteIdAndYearMonth(
+            @Param("siteId") Long siteId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    /**
      * 현장별, 날짜별 작업일보 조회 (페이지네이션 지원)
      *
      * @param siteId 현장 ID
@@ -84,4 +99,26 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
             "AND w.isDeleted = false " +
             "ORDER BY w.createdAt DESC")
     Page<WorkReport> findBySiteIdWithManager(@Param("siteId") Long siteId, Pageable pageable);
+
+    /**
+     * 현장별 작업일보 목록 조회 (연도/월 필터링, 페이지네이션 지원, Manager fetch join)
+     *
+     * @param siteId 현장 ID
+     * @param startDate 시작 날짜 (해당 월의 1일 00:00:00)
+     * @param endDate 종료 날짜 (다음 월의 1일 00:00:00)
+     * @param pageable 페이지네이션 정보
+     * @return 작업일보 페이지 (createdAt 내림차순)
+     */
+    @Query("SELECT w FROM WorkReport w " +
+            "JOIN FETCH w.manager m " +
+            "WHERE w.site.id = :siteId " +
+            "AND w.createdAt >= :startDate " +
+            "AND w.createdAt < :endDate " +
+            "AND w.isDeleted = false " +
+            "ORDER BY w.createdAt DESC")
+    Page<WorkReport> findBySiteIdWithManagerByYearMonth(
+            @Param("siteId") Long siteId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable);
 }

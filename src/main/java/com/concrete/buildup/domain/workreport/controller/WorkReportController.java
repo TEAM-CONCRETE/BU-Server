@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -130,6 +132,10 @@ public class WorkReportController {
                 - 작성자 이름
 
                 **정렬:** 최신 작성일순 (내림차순)
+
+                **필터링:**
+                - year와 month를 함께 제공하면 해당 연도/월의 데이터만 조회됩니다.
+                - 예: year=2025&month=11 → 2025년 11월 데이터만 조회
                 """
     )
     @ApiResponses({
@@ -148,13 +154,17 @@ public class WorkReportController {
     public ResponseEntity<ApiResponse<WorkReportListResponse>> getWorkReportList(
             @Parameter(description = "현장 ID", required = true, example = "1")
             @PathVariable Long siteId,
+            @Parameter(description = "연도 (선택)", example = "2025")
+            @RequestParam(required = false) Integer year,
+            @Parameter(description = "월 (1-12, 선택)", example = "11")
+            @RequestParam(required = false) @Min(value = 1, message = "월은 1 이상이어야 합니다") @Max(value = 12, message = "월은 12 이하여야 합니다") Integer month,
             @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        log.info("작업일보 목록 조회 API 호출: siteId={}, page={}, size={}",
-                siteId, pageable.getPageNumber(), pageable.getPageSize());
+        log.info("작업일보 목록 조회 API 호출: siteId={}, year={}, month={}, page={}, size={}",
+                siteId, year, month, pageable.getPageNumber(), pageable.getPageSize());
 
-        WorkReportListResponse response = workReportService.getWorkReportList(siteId, pageable);
+        WorkReportListResponse response = workReportService.getWorkReportList(siteId, year, month, pageable);
 
         log.info("작업일보 목록 조회 완료: siteId={}, totalElements={}", siteId, response.getTotalElements());
 

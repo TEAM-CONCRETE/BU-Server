@@ -275,7 +275,7 @@ class SiteServiceTest {
             given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of(workReport));
 
             // when
-            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, null, null, pageable);
 
             // then
             assertThat(response).isNotNull();
@@ -323,7 +323,7 @@ class SiteServiceTest {
             given(workReportRepository.findBySiteIdAndDate(eq(siteId), eq(date1), any(Pageable.class))).willReturn(List.of());
 
             // when
-            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, null, null, pageable);
 
             // then
             assertThat(response).isNotNull();
@@ -342,7 +342,7 @@ class SiteServiceTest {
             given(siteRepository.existsById(siteId)).willReturn(false);
 
             // when & then
-            assertThatThrownBy(() -> siteService.getSafetyWorkDocuments(siteId, pageable))
+            assertThatThrownBy(() -> siteService.getSafetyWorkDocuments(siteId, null, null, pageable))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", SiteErrorCode.SITE_NOT_FOUND);
         }
@@ -359,7 +359,7 @@ class SiteServiceTest {
             given(workReportRepository.findDistinctDatesBySiteId(siteId)).willReturn(List.of());
 
             // when
-            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, pageable);
+            SafetyWorkDocumentListResponse response = siteService.getSafetyWorkDocuments(siteId, null, null, pageable);
 
             // then
             assertThat(response).isNotNull();
