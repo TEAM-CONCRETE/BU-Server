@@ -141,6 +141,10 @@ public class SafetyEducationController {
 
                     ## 정렬
                     - 최신순 정렬 (생성일시 기준 내림차순)
+
+                    ## 필터링
+                    - year와 month를 함께 제공하면 해당 연도/월의 데이터만 조회됩니다.
+                    - 예: year=2025&month=11 → 2025년 11월 데이터만 조회
                     """
     )
     @ApiResponses({
@@ -175,10 +179,14 @@ public class SafetyEducationController {
     public ResponseEntity<ApiResponse<List<SafetyEducationLogListResponse>>> getSafetyEducationLogs(
             @Parameter(description = "현장 ID", required = true, example = "1")
             @PathVariable Long siteId,
+            @Parameter(description = "연도 (선택)", example = "2025")
+            @RequestParam(required = false) Integer year,
+            @Parameter(description = "월 (1-12, 선택)", example = "11")
+            @RequestParam(required = false) Integer month,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         List<SafetyEducationLogListResponse> response = safetyEducationService.getSafetyEducationLogs(
-                siteId, userDetails.getUsername()
+                siteId, year, month, userDetails.getUsername()
         );
         return ResponseEntity.ok(ApiResponse.success(response, "안전교육일지 목록을 조회했습니다."));
     }
