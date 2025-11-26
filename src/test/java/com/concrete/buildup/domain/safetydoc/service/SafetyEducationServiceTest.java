@@ -323,7 +323,7 @@ class SafetyEducationServiceTest {
             given(attendeeRepository.countSignedAttendees(2L)).willReturn(1L);
 
             // when
-            List<SafetyEducationLogListResponse> result = safetyEducationService.getSafetyEducationLogs(siteId, currentUserId);
+            List<SafetyEducationLogListResponse> result = safetyEducationService.getSafetyEducationLogs(siteId, null, null, currentUserId);
 
             // then
             assertThat(result).hasSize(2);
