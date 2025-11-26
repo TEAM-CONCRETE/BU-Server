@@ -237,7 +237,8 @@ public class PdfService {
                     // Windows
                     "C:/Windows/Fonts/malgun.ttf",
                     "C:/Windows/Fonts/gulim.ttc",
-                    // Linux (Ubuntu)
+                    // Linux (Ubuntu/Alpine)
+                    "/usr/share/fonts/truetype/nanum/NanumGothic-Regular.ttf",
                     "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
                     "/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf"
             };
