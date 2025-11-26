@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL COMMENT '암호화된 비밀번호',
     phone VARCHAR(20) COMMENT '전화번호',
     email VARCHAR(100) COMMENT '이메일',
-    secret_key VARCHAR(100) COMMENT '비밀 키 (레거시, 더 이상 사용 안 함)',
     role_id BIGINT COMMENT '역할 ID (계약 시 할당)',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시각',
