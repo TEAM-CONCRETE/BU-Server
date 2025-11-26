@@ -114,4 +114,14 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
      * @return 근무일지 페이지
      */
     Page<Attendance> findByPayrollId(Long payrollId, Pageable pageable);
+
+    /**
+     * 급여 ID로 근무일지 개수 조회
+     *
+     * <p>총 근무일수 계산을 위해 사용됩니다.</p>
+     *
+     * @param payrollId 급여 ID
+     * @return 근무일지 개수
+     */
+    long countByPayrollId(Long payrollId);
 }
