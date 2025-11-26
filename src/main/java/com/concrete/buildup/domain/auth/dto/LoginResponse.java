@@ -32,11 +32,17 @@ public class LoginResponse {
     @Schema(description = "사용자 역할", example = "ROLE_EMPLOYEE")
     private String role;
 
+    @Schema(description = "프로필 완성 여부 (Phase1 회원가입 구분용)", example = "true")
+    private Boolean profileCompleted;
+
     @Schema(description = "Access Token 만료 시간 (초)", example = "3600")
     private Long expiresIn;
 
     @Schema(description = "근로자 ID (ROLE_EMPLOYEE인 경우만)", example = "1")
     private Long employeeId;
+
+    @Schema(description = "현장 관리자 ID (ROLE_MANAGER인 경우만)", example = "1")
+    private Long managerId;
 
     @Schema(description = "현장 ID (ROLE_MANAGER인 경우만)", example = "1")
     private Long siteId;
