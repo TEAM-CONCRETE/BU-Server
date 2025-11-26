@@ -54,6 +54,20 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
     List<LocalDate> findDistinctDatesBySiteId(@Param("siteId") Long siteId);
 
     /**
+     * 현장별 작업일보가 있는 날짜 목록 조회 (연도/월 필터링, 중복 제거)
+     */
+    @Query("SELECT DISTINCT CAST(w.createdAt AS LocalDate) FROM WorkReport w " +
+            "WHERE w.site.id = :siteId " +
+            "AND YEAR(w.createdAt) = :year " +
+            "AND MONTH(w.createdAt) = :month " +
+            "AND w.isDeleted = false " +
+            "ORDER BY CAST(w.createdAt AS LocalDate) DESC")
+    List<LocalDate> findDistinctDatesBySiteIdAndYearMonth(
+            @Param("siteId") Long siteId,
+            @Param("year") int year,
+            @Param("month") int month);
+
+    /**
      * 현장별, 날짜별 작업일보 조회 (페이지네이션 지원)
      *
      * @param siteId 현장 ID
@@ -84,4 +98,26 @@ public interface WorkReportRepository extends JpaRepository<WorkReport, Long> {
             "AND w.isDeleted = false " +
             "ORDER BY w.createdAt DESC")
     Page<WorkReport> findBySiteIdWithManager(@Param("siteId") Long siteId, Pageable pageable);
+
+    /**
+     * 현장별 작업일보 목록 조회 (연도/월 필터링, 페이지네이션 지원, Manager fetch join)
+     *
+     * @param siteId 현장 ID
+     * @param year 연도
+     * @param month 월 (1-12)
+     * @param pageable 페이지네이션 정보
+     * @return 작업일보 페이지 (createdAt 내림차순)
+     */
+    @Query("SELECT w FROM WorkReport w " +
+            "JOIN FETCH w.manager m " +
+            "WHERE w.site.id = :siteId " +
+            "AND YEAR(w.createdAt) = :year " +
+            "AND MONTH(w.createdAt) = :month " +
+            "AND w.isDeleted = false " +
+            "ORDER BY w.createdAt DESC")
+    Page<WorkReport> findBySiteIdWithManagerByYearMonth(
+            @Param("siteId") Long siteId,
+            @Param("year") int year,
+            @Param("month") int month,
+            Pageable pageable);
 }
