@@ -82,8 +82,8 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `password` | VARCHAR(255) | NOT NULL | 비밀번호 (해시) |
 | `phone` | VARCHAR(20) | NULL | 전화번호 |
 | `email` | VARCHAR(100) | NULL | 이메일 |
-| `secret_key` | VARCHAR(100) | NULL | 인증용 시크릿키 |
 | `role_id` | BIGINT | FK, NULLABLE | 역할 (계약 시 할당) |
+| `site_id` | BIGINT | NULL | 소속 현장 ID (근로자/관리자만, 기업은 NULL) |
 | `refresh_token` | VARCHAR(500) | NULL | Refresh Token (JWT) |
 | `refresh_token_expires_at` | DATETIME | NULL | Refresh Token 만료 시간 |
 | `created_at` | DATETIME | DEFAULT now() | 생성 일시 |

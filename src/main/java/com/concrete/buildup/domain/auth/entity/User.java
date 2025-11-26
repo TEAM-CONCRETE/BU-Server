@@ -48,18 +48,20 @@ public class User extends BaseEntity {
     private String email;
 
     /**
-     * 인증용 시크릿키
-     */
-    @Column(name = "secret_key", length = 100)
-    private String secretKey;
-
-    /**
      * 역할 (계약 시 할당)
      * N:1 관계
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     private Role role;
+
+    /**
+     * 소속 현장 ID
+     * 근로자와 현장 관리자는 하나의 현장에만 소속
+     * 기업은 NULL (여러 현장 관리)
+     */
+    @Column(name = "site_id")
+    private Long siteId;
 
     /**
      * 프로필 완성 토큰 (2단계 근로자 정보 입력용)
@@ -104,6 +106,13 @@ public class User extends BaseEntity {
      */
     public void assignRole(Role role) {
         this.role = role;
+    }
+
+    /**
+     * 현장 할당
+     */
+    public void assignSite(Long siteId) {
+        this.siteId = siteId;
     }
 
     /**

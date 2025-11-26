@@ -133,7 +133,7 @@ class AuthServiceTest {
                 .phone("010-1234-5678")
                 .email("employee@test.com")
                 .role(employeeRole)
-                .secretKey(secretKey)
+                .siteId(1L)
                 .build();
 
         Employee employee = Employee.builder()
@@ -152,7 +152,7 @@ class AuthServiceTest {
 
         given(userRepository.findByUserIdWithRole(userId)).willReturn(Optional.of(user));
         given(employeeRepository.findByUser(user)).willReturn(Optional.of(employee));
-        given(siteRepository.findByEmployeeSecretKey(secretKey)).willReturn(Optional.of(site));
+        given(siteRepository.findById(1L)).willReturn(Optional.of(site));
 
         // when
         UserInfoResponse response = authService.getMyInfo(userId);
@@ -175,7 +175,7 @@ class AuthServiceTest {
 
         verify(userRepository).findByUserIdWithRole(userId);
         verify(employeeRepository).findByUser(user);
-        verify(siteRepository).findByEmployeeSecretKey(secretKey);
+        verify(siteRepository).findById(1L);
     }
 
     @Test
@@ -189,12 +189,17 @@ class AuthServiceTest {
                 .roleName("ROLE_MANAGER")
                 .build();
 
+        Site site = Site.builder()
+                .siteName("OO현장")
+                .siteAddress("서울시 강남구")
+                .build();
+
         User user = User.builder()
                 .userId(userId)
                 .phone("010-1111-2222")
                 .email("manager@test.com")
                 .role(managerRole)
-                .secretKey(secretKey)
+                .siteId(2L)
                 .build();
 
         Manager manager = Manager.builder()
@@ -202,14 +207,9 @@ class AuthServiceTest {
                 .managerName("김관리")
                 .build();
 
-        Site site = Site.builder()
-                .siteName("OO현장")
-                .siteAddress("서울시 강남구")
-                .build();
-
         given(userRepository.findByUserIdWithRole(userId)).willReturn(Optional.of(user));
         given(managerRepository.findByUser(user)).willReturn(Optional.of(manager));
-        given(siteRepository.findByManagerSecretKey(secretKey)).willReturn(Optional.of(site));
+        given(siteRepository.findById(2L)).willReturn(Optional.of(site));
 
         // when
         UserInfoResponse response = authService.getMyInfo(userId);
@@ -228,7 +228,7 @@ class AuthServiceTest {
 
         verify(userRepository).findByUserIdWithRole(userId);
         verify(managerRepository).findByUser(user);
-        verify(siteRepository).findByManagerSecretKey(secretKey);
+        verify(siteRepository).findById(2L);
     }
 
     @Test

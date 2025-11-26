@@ -121,7 +121,6 @@ public class AuthService {
                 .password(encodedPassword)
                 .phone(request.getPhone())
                 .email(request.getEmail())
-                .secretKey(request.getSecretKey())
                 .role(employeeRole)
                 .build();
 
@@ -144,7 +143,7 @@ public class AuthService {
                 savedEmployee.getId(), savedEmployee.getEmpName());
 
         // 7. Response 생성
-        SignUpResponse response = buildSignUpResponse(savedUser, savedEmployee, request.getSecretKey());
+        SignUpResponse response = buildSignUpResponse(savedUser, savedEmployee, savedUser.getSiteId());
 
         log.info("근로자 회원가입 완료: userId={}, employeeId={}", savedUser.getUserId(), savedEmployee.getId());
 
@@ -207,8 +206,8 @@ public class AuthService {
                 .password(encodedPassword)
                 .phone(null)  // 2단계에서 입력
                 .email(null)  // 2단계에서 입력
-                .secretKey(request.getSecretKey())
                 .role(employeeRole)
+                .siteId(site != null ? site.getId() : null)  // 현장 ID 저장 (secretKey 대신)
                 .profileCompleted(false)  // 아직 프로필 미완성
                 .build();
 
@@ -310,7 +309,7 @@ public class AuthService {
         log.debug("프로필 완성 처리: userId={}", user.getUserId());
 
         // 6. Response 생성
-        SignUpResponse response = buildSignUpResponse(user, employee, user.getSecretKey());
+        SignUpResponse response = buildSignUpResponse(user, employee, user.getSiteId());
 
         log.info("근로자 상세 정보 입력 완료: userId={}, employeeId={}", user.getUserId(), employee.getId());
 
@@ -352,13 +351,7 @@ public class AuthService {
             throw new BusinessException(SiteErrorCode.SECRET_KEY_NOT_FOUND_OR_EXPIRED);
         }
 
-        // 5. 시크릿키 점유 확인
-        if (userRepository.existsBySecretKey(request.getSecretKey())) {
-            log.warn("이미 사용 중인 시크릿키: secretKey={}", request.getSecretKey());
-            throw new BusinessException(SiteErrorCode.SECRET_KEY_ALREADY_USED);
-        }
-
-        // 6. 역할 조회 (MANAGER)
+        // 5. 역할 조회 (MANAGER)
         Role managerRole = roleRepository.findByRoleName("ROLE_MANAGER")
                 .orElseThrow(() -> {
                     log.error("ROLE_MANAGER 역할을 찾을 수 없습니다");
@@ -374,8 +367,8 @@ public class AuthService {
                 .password(encodedPassword)
                 .phone(request.getPhone())
                 .email(null)
-                .secretKey(request.getSecretKey())
                 .role(managerRole)
+                .siteId(site.getId())  // 현장 ID 저장 (secretKey 대신)
                 .profileCompleted(true)  // 현장 관리자는 프로필 완성 상태로 시작
                 .build();
 
@@ -405,10 +398,10 @@ public class AuthService {
      *
      * @param user 생성된 사용자
      * @param employee 생성된 근로자
-     * @param secretKey 시크릿키 (nullable)
+     * @param siteId 현장 ID (nullable)
      * @return SignUpResponse
      */
-    private SignUpResponse buildSignUpResponse(User user, Employee employee, String secretKey) {
+    private SignUpResponse buildSignUpResponse(User user, Employee employee, Long siteId) {
         // User 정보
         SignUpResponse.UserInfo userInfo = SignUpResponse.UserInfo.builder()
                 .id(user.getId())
@@ -432,10 +425,20 @@ public class AuthService {
                 .email(user.getEmail() != null && !user.getEmail().isBlank())  // 이메일이 있으면 검증 필요
                 .build();
 
-        // 시크릿키 처리 결과 (현재는 null, 추후 현장 연동 기능 구현 시 확장)
+        // 현장 연동 정보
+        SignUpResponse.SiteInfo siteInfo = null;
+        if (siteId != null) {
+            siteInfo = siteRepository.findById(siteId)
+                    .map(site -> SignUpResponse.SiteInfo.builder()
+                            .siteId(site.getId())
+                            .siteName(site.getSiteName())
+                            .build())
+                    .orElse(null);
+        }
+
         SignUpResponse.LinkingInfo linkingInfo = SignUpResponse.LinkingInfo.builder()
-                .secretKeyUsed(secretKey != null && !secretKey.isBlank())
-                .siteLinked(null)  // 추후 현장 연동 구현 시 설정
+                .secretKeyUsed(siteId != null)
+                .siteLinked(siteInfo)
                 .build();
 
         return SignUpResponse.builder()
@@ -630,10 +633,10 @@ public class AuthService {
 
                 name = employee.getEmpName();
 
-                // 현장 정보 조회 (secretKey로)
+                // 현장 정보 조회 (siteId로)
                 UserInfoResponse.SiteInfo siteInfo = null;
-                if (user.getSecretKey() != null && !user.getSecretKey().isBlank()) {
-                    siteInfo = siteRepository.findByEmployeeSecretKey(user.getSecretKey())
+                if (user.getSiteId() != null) {
+                    siteInfo = siteRepository.findById(user.getSiteId())
                             .map(site -> {
                                 log.debug("현장 정보 조회 성공: siteId={}, siteName={}", site.getId(), site.getSiteName());
                                 return UserInfoResponse.SiteInfo.builder()
@@ -666,10 +669,10 @@ public class AuthService {
 
                 name = manager.getManagerName();
 
-                // 현장 정보 조회 (secretKey로)
+                // 현장 정보 조회 (siteId로)
                 UserInfoResponse.SiteInfo managerSiteInfo = null;
-                if (user.getSecretKey() != null && !user.getSecretKey().isBlank()) {
-                    managerSiteInfo = siteRepository.findByManagerSecretKey(user.getSecretKey())
+                if (user.getSiteId() != null) {
+                    managerSiteInfo = siteRepository.findById(user.getSiteId())
                             .map(site -> UserInfoResponse.SiteInfo.builder()
                                     .siteId(site.getId())
                                     .siteName(site.getSiteName())
