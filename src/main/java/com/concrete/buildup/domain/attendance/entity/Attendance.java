@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_contract_id", columnList = "contract_id"),
         @Index(name = "idx_employee_id", columnList = "employee_id"),
         @Index(name = "idx_site_id", columnList = "site_id"),
+        @Index(name = "idx_payroll_id", columnList = "payroll_id"),
         @Index(name = "idx_search_date", columnList = "search_date"),
         @Index(name = "idx_employee_search_date", columnList = "employee_id, search_date")
     }
@@ -42,6 +43,14 @@ public class Attendance extends BaseEntity {
 
     @Column(name = "site_id", nullable = false)
     private Long siteId;
+
+    /**
+     * 급여 ID
+     * 급여 생성 시 해당 근태 기록과 연결됩니다.
+     * NULL 가능: 급여가 아직 생성되지 않은 경우
+     */
+    @Column(name = "payroll_id")
+    private Long payrollId;
 
     @Column(name = "search_date", nullable = false)
     private LocalDate searchDate;
