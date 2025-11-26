@@ -25,9 +25,6 @@ public class PayrollDetailResponse {
     @Schema(description = "급여 집계 정보")
     private PayrollSummaryDto summary;
 
-    @Schema(description = "급여항목 리스트")
-    private List<PayslipItemDto> items;
-
     @Schema(description = "근무일지 리스트 (페이징)")
     private PagedAttendances attendances;
 

@@ -6,10 +6,8 @@ import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.enums.PayPeriod;
 import com.concrete.buildup.domain.payroll.dto.*;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
-import com.concrete.buildup.domain.payroll.entity.PayslipItem;
 import com.concrete.buildup.domain.payroll.enums.PayStatus;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
-import com.concrete.buildup.domain.payroll.repository.PayslipItemRepository;
 import com.concrete.buildup.domain.payroll.util.ResidentNoMasker;
 import com.concrete.buildup.global.exception.ResourceNotFoundException;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
@@ -43,7 +41,6 @@ public class PayrollService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yy.MM.dd");
 
     private final PayrollRepository payrollRepository;
-    private final PayslipItemRepository payslipItemRepository;
     private final AttendanceRepository attendanceRepository;
 
     /**
@@ -158,13 +155,7 @@ public class PayrollService {
                 .totalWorkDays((int) totalWorkDays)
                 .build();
 
-        // 4. 급여항목 조회
-        List<PayslipItem> payslipItems = payslipItemRepository.findByPayrollId(payrollId);
-        List<PayslipItemDto> items = payslipItems.stream()
-                .map(this::toPayslipItemDto)
-                .collect(Collectors.toList());
-
-        // 5. 근무일지 조회 (페이징)
+        // 4. 근무일지 조회 (페이징)
         Page<Attendance> attendancePage = attendanceRepository.findByPayrollId(payrollId, pageable);
         List<AttendanceItemDto> attendanceItems = attendancePage.getContent().stream()
                 .map(this::toAttendanceItemDto)
@@ -178,30 +169,13 @@ public class PayrollService {
                 .size(attendancePage.getSize())
                 .build();
 
-        log.debug("급여명세서 상세 조회 완료 - payrollId: {}, 급여항목: {}건, 근무일지: {}건",
-                payrollId, items.size(), attendanceItems.size());
+        log.debug("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
+                payrollId, attendanceItems.size());
 
         return PayrollDetailResponse.builder()
                 .header(header)
                 .summary(summary)
-                .items(items)
                 .attendances(pagedAttendances)
-                .build();
-    }
-
-    /**
-     * PayslipItem 엔티티를 PayslipItemDto로 변환
-     *
-     * @param item 급여항목 엔티티
-     * @return 급여항목 DTO
-     */
-    private PayslipItemDto toPayslipItemDto(PayslipItem item) {
-        return PayslipItemDto.builder()
-                .itemId(item.getId())
-                .itemName(item.getItemName())
-                .itemType(item.getItemType().name())
-                .amount(item.getAmount())
-                .effectiveDate(item.getEffectiveDate() != null ? item.getEffectiveDate().toString() : null)
                 .build();
     }
 

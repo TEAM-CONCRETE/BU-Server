@@ -278,8 +278,8 @@ public class PayrollController {
                 PageRequest.of(page - 1, size)
         );
 
-        log.info("급여명세서 상세 조회 완료 - payrollId: {}, 급여항목: {}건, 근무일지: {}건",
-                payrollId, response.getItems().size(), response.getAttendances().getContent().size());
+        log.info("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
+                payrollId, response.getAttendances().getContent().size());
 
         return ResponseEntity.ok(response);
     }
