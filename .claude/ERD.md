@@ -399,6 +399,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 | `contract_id` | BIGINT | FK, NOT NULL | 계약 ID |
 | `employee_id` | BIGINT | FK, NOT NULL | 근로자 ID |
 | `site_id` | BIGINT | FK, NOT NULL | 현장 ID |
+| `payroll_id` | BIGINT | FK, NULL | 급여 ID (급여 생성 시 연결) |
 | `search_date` | DATE | NOT NULL | 근무일자 (yyyy-mm-dd) |
 | `emp_type` | VARCHAR(30) | NULL | 근로자 유형 |
 | `emp_name` | VARCHAR(50) | NULL | 근로자 이름 |
@@ -416,17 +417,19 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 
 **인덱스:**
 - PRIMARY KEY: `id`
-- INDEX: `contract_id`, `employee_id`, `site_id`
+- INDEX: `contract_id`, `employee_id`, `site_id`, `payroll_id`
 - INDEX: `search_date`
 - INDEX: `(employee_id, search_date)` - 복합 인덱스
 - FOREIGN KEY: `contract_id` REFERENCES `contracts(id)`
 - FOREIGN KEY: `employee_id` REFERENCES `employees(id)`
 - FOREIGN KEY: `site_id` REFERENCES `sites(id)`
+- FOREIGN KEY: `payroll_id` REFERENCES `payrolls(id)` ON DELETE SET NULL
 
 **관계:**
 - N:1 → contracts
 - N:1 → employees
 - N:1 → sites
+- N:1 → payrolls
 
 ---
 
@@ -809,6 +812,7 @@ Build-Up Platform 데이터베이스 구조 설계 문서입니다.
 - `sites` → `attendances`
 - `employees` → `payrolls`
 - `payrolls` → `payslip_items`
+- `payrolls` → `attendances`
 - `sites` → `safety_docs`
 - `safety_docs` → `safety_doc_attendees`
 - `sites` → `work_reports`
@@ -896,5 +900,6 @@ ON work_reports(work_report_status);
 | 2025-11-19 | work_reports 테이블 스키마 수정 (즉시 PDF 생성 방식으로 변경: corporation_id, work_report_title, work_report_created_at, work_report_started_at, work_report_ended_at, work_report_status 제거, work_date, pdf_url, pdf_generated_at, is_deleted 추가, work_report_context를 공정별 작업 내용으로 변경) | 김세원 |
 | 2025-11-20 | work_reports 테이블 work_date, work_report_title 컬럼 제거 (작업일자 대신 작성일(created_at) 사용, S3 경로에 순번 추가하여 같은 날짜 여러 작업일보 생성 가능) | 김세원 |
 | 2025-11-21 | work_reports 테이블 컬럼 재구조화: work_section, work_section_employee_num, work_report_context 제거 → work_sections(TEXT) 추가로 여러 공정 정보를 JSON 배열로 저장 | 김세원 |
+| 2025-11-26 | attendances 테이블 payroll_id 컬럼 추가 (급여명세서 상세 조회를 위한 급여-근태 연관관계 설정, FK 제약조건 및 인덱스 추가) | Claude |
 
 ---
