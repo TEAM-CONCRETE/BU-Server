@@ -121,7 +121,22 @@ public class SafetyEducationService {
                 .build();
     }
 
-    public List<SafetyEducationLogListResponse> getSafetyEducationLogs(Long siteId, String currentUserId) {
+    /**
+     * 현장별 안전교육일지 목록 조회
+     *
+     * <p>연도/월 필터링 옵션을 지원합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param year 연도 (선택)
+     * @param month 월 (선택, 1-12)
+     * @param currentUserId 현재 로그인한 사용자 ID
+     * @return 안전교육일지 목록
+     */
+    public List<SafetyEducationLogListResponse> getSafetyEducationLogs(
+            Long siteId,
+            Integer year,
+            Integer month,
+            String currentUserId) {
         // Site 존재 여부 검증
         Site site = siteRepository.findById(siteId)
                 .orElseThrow(() -> new BusinessException(SafetyDocErrorCode.SITE_NOT_FOUND));
@@ -129,8 +144,15 @@ public class SafetyEducationService {
         // 권한 검증
         validateManagerAuthorization(site, currentUserId);
 
-        List<SafetyEducationLog> logs = safetyEducationLogRepository
-                .findBySiteIdAndIsDeletedFalseOrderByCreatedAtDesc(siteId);
+        // 안전교육일지 목록 조회
+        List<SafetyEducationLog> logs;
+        if (year != null && month != null) {
+            // 연도/월 필터링
+            logs = safetyEducationLogRepository.findBySiteIdAndYearMonth(siteId, year, month);
+        } else {
+            // 전체 조회
+            logs = safetyEducationLogRepository.findBySiteIdAndIsDeletedFalseOrderByCreatedAtDesc(siteId);
+        }
 
         return logs.stream()
                 .map(log -> {
