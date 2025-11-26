@@ -301,12 +301,20 @@ public class ContractService {
         // ========== 2. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
         List<Long> employeeIdsByType = null;
         if (condition.getEmpType() != null) {
-            List<Employee> employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+            List<Employee> employeesByType;
+            
+            // UNCONTRACTED인 경우 emp_type이 NULL인 근로자 조회
+            if (condition.getEmpType() == EmpType.UNCONTRACTED) {
+                employeesByType = employeeRepository.findByEmpTypeIsNull();
+                log.debug("미계약 근로자 필터링: count={}", employeesByType.size());
+            } else {
+                employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+                log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeesByType.size());
+            }
+            
             employeeIdsByType = employeesByType.stream()
                     .map(Employee::getId)
                     .toList();
-
-            log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeeIdsByType.size());
 
             // empType에 해당하는 근로자가 없으면 빈 목록 반환
             if (employeeIdsByType.isEmpty()) {

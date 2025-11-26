@@ -13,8 +13,13 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum
-EmpType {
+public enum EmpType {
+
+    /**
+     * 미계약 - 아직 근로계약을 체결하지 않은 근로자
+     * DB에서 emp_type이 NULL인 경우를 필터링할 때 사용
+     */
+    UNCONTRACTED("미계약"),
 
     /**
      * 일용직 - 일 단위로 고용되는 단기 근로자
