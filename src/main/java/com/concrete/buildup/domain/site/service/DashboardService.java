@@ -263,31 +263,23 @@ public class DashboardService {
      * workStartTime + 5분 이후 출근한 인원
      */
     private int calculateTodayLateCount(List<AttendanceRecord> attendanceRecords, List<Contract> contracts) {
-        // Contract의 employeeId -> Contract 매핑
-        Map<Long, Contract> contractMap = contracts.stream()
-            .collect(Collectors.toMap(
-                Contract::getEmployeeId,
-                contract -> contract,
-                (existing, replacement) -> existing // 중복 시 기존 값 유지
-            ));
-
-        // ContractDetail을 포함한 Contract를 조회
+        // ContractDetail을 포함한 Contract를 일괄 조회 (N+1 문제 해결)
         List<Long> contractIds = contracts.stream()
             .map(Contract::getId)
+            .distinct()
             .collect(Collectors.toList());
 
         if (contractIds.isEmpty()) {
             return 0;
         }
 
-        Map<Long, Contract> contractWithDetailsMap = contractIds.stream()
-            .map(id -> contractRepository.findByIdWithDetails(id))
-            .filter(opt -> opt.isPresent())
-            .map(opt -> opt.get())
+        // 일괄 조회로 N+1 문제 해결
+        Map<Long, Contract> contractWithDetailsMap = contractRepository.findByIdInWithDetails(contractIds)
+            .stream()
             .collect(Collectors.toMap(
                 Contract::getEmployeeId,
                 contract -> contract,
-                (existing, replacement) -> existing
+                (existing, replacement) -> existing // 중복 시 기존 값 유지
             ));
 
         int lateCount = 0;
