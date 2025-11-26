@@ -687,9 +687,7 @@ class ContractServiceTest {
                 .build();
 
         return CreateContractRequest.builder()
-                .employeeId(employeeId)
-                .corporationId(corporationId)
-                .managerId(managerId)
+                .employeeUserId("test_employee") // 테스트용 userId
                 .empType(EmpType.PERMANENT)
                 .role("현장 관리자")
                 .employeeStartDate(LocalDate.of(2024, 1, 1))
