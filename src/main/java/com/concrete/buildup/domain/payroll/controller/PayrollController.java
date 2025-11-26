@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.payroll.controller;
 
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.enums.PayPeriod;
+import com.concrete.buildup.domain.payroll.dto.PayrollDetailResponse;
 import com.concrete.buildup.domain.payroll.dto.SalaryHistorySummaryResponse;
 import com.concrete.buildup.domain.payroll.service.PayrollService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -240,6 +241,45 @@ public class PayrollController {
 
         log.info("일용직 일급 급여 내역 조회 완료 - totalCount: {}, unpaidCount: {}",
                 response.getTotalCount(), response.getUnpaidCount());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 급여명세서 상세 조회
+     *
+     * <p>급여 ID로 급여명세서의 전체 정보를 조회합니다.</p>
+     *
+     * @param payrollId 급여 ID (필수)
+     * @param page 근무일지 페이지 번호 (기본값: 1)
+     * @param size 근무일지 페이지 크기 (기본값: 10)
+     * @return 급여명세서 상세 정보
+     */
+    @Operation(
+            summary = "급여명세서 상세 조회",
+            description = "급여 ID로 급여명세서의 전체 정보를 조회합니다. " +
+                    "헤더 정보, 집계 정보, 급여항목 리스트, 근무일지 리스트(페이징)를 반환합니다."
+    )
+    @GetMapping("/{payrollId}")
+    public ResponseEntity<PayrollDetailResponse> getPayrollDetail(
+            @Parameter(description = "급여 ID", required = true, example = "1")
+            @PathVariable @Min(1) Long payrollId,
+
+            @Parameter(description = "근무일지 페이지 번호 (1부터 시작)", example = "1")
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+
+            @Parameter(description = "근무일지 페이지 크기", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size
+    ) {
+        log.info("급여명세서 상세 조회 - payrollId: {}, page: {}, size: {}", payrollId, page, size);
+
+        PayrollDetailResponse response = payrollService.getPayrollDetail(
+                payrollId,
+                PageRequest.of(page - 1, size)
+        );
+
+        log.info("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
+                payrollId, response.getAttendances().getContent().size());
 
         return ResponseEntity.ok(response);
     }

@@ -3,9 +3,11 @@ package com.concrete.buildup.domain.contract.service;
 import com.concrete.buildup.domain.auth.entity.Corporation;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Manager;
+import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.CorporationRepository;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
+import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.ContractDetailRequest;
 import com.concrete.buildup.domain.contract.dto.ContractListResponse;
 import com.concrete.buildup.domain.contract.dto.ContractSearchCondition;
@@ -53,6 +55,7 @@ public class ContractService {
 
     private final ContractRepository contractRepository;
     private final ContractDetailRepository contractDetailRepository;
+    private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final CorporationRepository corporationRepository;
     private final ManagerRepository managerRepository;
@@ -90,12 +93,11 @@ public class ContractService {
      */
     @Transactional
     public CreateContractResponse createContract(Long siteId, CreateContractRequest request) {
-        log.info("계약 생성 시작: siteId={}, employeeId={}, corporationId={}, empType={}",
-                siteId, request.getEmployeeId(), request.getCorporationId(), request.getEmpType());
+        log.info("계약 생성 시작: siteId={}, employeeUserId={}, empType={}",
+                siteId, request.getEmployeeUserId(), request.getEmpType());
 
-        // ========== 1. 존재 여부 검증 ==========
+        // ========== 1. Site 조회 및 Corporation, Manager 정보 획득 ==========
 
-        // 1-0. Site 존재 여부 검증
         Site site = siteRepository.findById(siteId)
                 .orElseThrow(() -> {
                     log.warn("현장을 찾을 수 없음: siteId={}", siteId);
@@ -103,40 +105,39 @@ public class ContractService {
                 });
         log.debug("현장 조회 성공: siteId={}", site.getId());
 
-        // 1-1. Employee 존재 여부 검증
-        Employee employee = employeeRepository.findById(request.getEmployeeId())
+        // 1-1. Site에서 Corporation 정보 획득
+        Corporation corporation = site.getCorporation();
+        if (corporation == null) {
+            log.warn("현장에 기업 정보가 없음: siteId={}", siteId);
+            throw new BusinessException(ContractErrorCode.CORPORATION_NOT_FOUND);
+        }
+        log.debug("기업 조회 성공: corporationId={}", corporation.getId());
+
+        // 1-2. Site에서 Manager 정보 획득
+        Manager manager = site.getManager();
+        if (manager == null) {
+            log.warn("현장에 관리자 정보가 없음: siteId={}", siteId);
+            throw new BusinessException(ContractErrorCode.MANAGER_NOT_FOUND);
+        }
+        log.debug("관리자 조회 성공: managerId={}", manager.getId());
+
+        // ========== 2. employeeUserId로 Employee 조회 ==========
+
+        // 2-1. User 조회 (userId = 로그인 ID)
+        User employeeUser = userRepository.findByUserId(request.getEmployeeUserId())
                 .orElseThrow(() -> {
-                    log.warn("근로자를 찾을 수 없음: employeeId={}", request.getEmployeeId());
+                    log.warn("근로자 User를 찾을 수 없음: employeeUserId={}", request.getEmployeeUserId());
+                    return new BusinessException(ContractErrorCode.EMPLOYEE_NOT_FOUND);
+                });
+        log.debug("근로자 User 조회 성공: userId={}", employeeUser.getId());
+
+        // 2-2. Employee 조회 (User -> Employee 1:1 관계)
+        Employee employee = employeeRepository.findByUserId(employeeUser.getId())
+                .orElseThrow(() -> {
+                    log.warn("근로자 정보를 찾을 수 없음: userId={}", employeeUser.getId());
                     return new BusinessException(ContractErrorCode.EMPLOYEE_NOT_FOUND);
                 });
         log.debug("근로자 조회 성공: employeeId={}", employee.getId());
-
-        // 1-2. Corporation 존재 여부 검증
-        Corporation corporation = corporationRepository.findById(request.getCorporationId())
-                .orElseThrow(() -> {
-                    log.warn("기업을 찾을 수 없음: corporationId={}", request.getCorporationId());
-                    return new BusinessException(ContractErrorCode.CORPORATION_NOT_FOUND);
-                });
-        log.debug("기업 조회 성공: corporationId={}", corporation.getId());
-
-        // 1-3. Manager 존재 여부 검증 및 권한 검증 (Optional)
-        Manager manager = null;
-        if (request.getManagerId() != null) {
-            manager = managerRepository.findById(request.getManagerId())
-                    .orElseThrow(() -> {
-                        log.warn("관리자를 찾을 수 없음: managerId={}", request.getManagerId());
-                        return new BusinessException(ContractErrorCode.MANAGER_NOT_FOUND);
-                    });
-            log.debug("관리자 조회 성공: managerId={}", manager.getId());
-
-            // 1-4. Manager가 해당 Site의 관리자인지 권한 검증
-            if (site.getManager() == null || !site.getManager().getId().equals(manager.getId())) {
-                log.warn("관리자가 해당 현장의 관리자가 아님: managerId={}, siteId={}, siteManagerId={}",
-                        manager.getId(), siteId, site.getManager() != null ? site.getManager().getId() : null);
-                throw new BusinessException(ContractErrorCode.MANAGER_NOT_AUTHORIZED);
-            }
-            log.debug("관리자 권한 검증 성공: managerId={}, siteId={}", manager.getId(), siteId);
-        }
 
         // ========== 2. 근로자 emp_type 검증 및 설정 ==========
 
@@ -300,12 +301,20 @@ public class ContractService {
         // ========== 2. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
         List<Long> employeeIdsByType = null;
         if (condition.getEmpType() != null) {
-            List<Employee> employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+            List<Employee> employeesByType;
+            
+            // UNCONTRACTED인 경우 emp_type이 NULL인 근로자 조회
+            if (condition.getEmpType() == EmpType.UNCONTRACTED) {
+                employeesByType = employeeRepository.findByEmpTypeIsNull();
+                log.debug("미계약 근로자 필터링: count={}", employeesByType.size());
+            } else {
+                employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
+                log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeesByType.size());
+            }
+            
             employeeIdsByType = employeesByType.stream()
                     .map(Employee::getId)
                     .toList();
-
-            log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeeIdsByType.size());
 
             // empType에 해당하는 근로자가 없으면 빈 목록 반환
             if (employeeIdsByType.isEmpty()) {

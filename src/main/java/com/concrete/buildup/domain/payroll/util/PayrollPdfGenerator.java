@@ -170,6 +170,7 @@ public class PayrollPdfGenerator {
     private String getEmpTypeText(com.concrete.buildup.domain.contract.enums.EmpType empType) {
         if (empType == null) return "-";
         return switch (empType) {
+            case UNCONTRACTED -> "미계약";
             case PERMANENT -> "상용직";
             case DAILY -> "일용직";
         };

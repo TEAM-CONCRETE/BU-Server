@@ -39,6 +39,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByEmpType(String empType);
 
     /**
+     * 미계약 근로자 목록 조회 (emp_type이 NULL인 근로자)
+     *
+     * @return 미계약 근로자 목록
+     */
+    List<Employee> findByEmpTypeIsNull();
+
+    /**
      * 근로자 이름으로 근로자 목록 조회 (Like 검색)
      *
      * @param empName 근로자 이름

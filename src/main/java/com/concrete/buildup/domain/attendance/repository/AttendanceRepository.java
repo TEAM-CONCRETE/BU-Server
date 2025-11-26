@@ -103,4 +103,25 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     default List<Attendance> findNormalAttendancesForPayroll(Long employeeId, LocalDate startDate, LocalDate endDate) {
         return findByEmployeeIdAndSearchDateBetween(employeeId, startDate, endDate);
     }
+
+    /**
+     * 급여 ID로 근무일지 조회 (페이징)
+     *
+     * <p>급여명세서 상세 조회 시 해당 급여에 포함된 근무일지를 조회합니다.</p>
+     *
+     * @param payrollId 급여 ID
+     * @param pageable 페이징 정보
+     * @return 근무일지 페이지
+     */
+    Page<Attendance> findByPayrollId(Long payrollId, Pageable pageable);
+
+    /**
+     * 급여 ID로 근무일지 개수 조회
+     *
+     * <p>총 근무일수 계산을 위해 사용됩니다.</p>
+     *
+     * @param payrollId 급여 ID
+     * @return 근무일지 개수
+     */
+    long countByPayrollId(Long payrollId);
 }

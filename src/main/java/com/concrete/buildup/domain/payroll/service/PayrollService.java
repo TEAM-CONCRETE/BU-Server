@@ -1,13 +1,16 @@
 package com.concrete.buildup.domain.payroll.service;
 
+import com.concrete.buildup.domain.attendance.entity.Attendance;
+import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.contract.enums.PayPeriod;
-import com.concrete.buildup.domain.payroll.dto.SalaryHistoryItemResponse;
-import com.concrete.buildup.domain.payroll.dto.SalaryHistorySummaryResponse;
+import com.concrete.buildup.domain.payroll.dto.*;
 import com.concrete.buildup.domain.payroll.entity.Payroll;
 import com.concrete.buildup.domain.payroll.enums.PayStatus;
 import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.payroll.util.ResidentNoMasker;
+import com.concrete.buildup.global.exception.ResourceNotFoundException;
+import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -38,6 +41,7 @@ public class PayrollService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yy.MM.dd");
 
     private final PayrollRepository payrollRepository;
+    private final AttendanceRepository attendanceRepository;
 
     /**
      * 현장별 기간별 급여 내역 조회 (상용직/일용직 공통)
@@ -112,6 +116,83 @@ public class PayrollService {
                 .paid(payroll.getPayStatus() == PayStatus.PAID)
                 .payslipAvailable(payroll.getS3Key() != null && !payroll.getS3Key().isEmpty())
                 .payCycle(payroll.getPayCycle())
+                .build();
+    }
+
+    /**
+     * 급여명세서 상세 조회
+     *
+     * <p>급여 ID로 급여명세서의 전체 정보를 조회합니다.</p>
+     *
+     * @param payrollId 급여 ID
+     * @param pageable 근무일지 페이징 정보
+     * @return 급여명세서 상세 정보
+     */
+    public PayrollDetailResponse getPayrollDetail(Long payrollId, Pageable pageable) {
+        log.debug("급여명세서 상세 조회 - payrollId: {}", payrollId);
+
+        // 1. 급여 조회
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new ResourceNotFoundException(CommonErrorCode.RESOURCE_NOT_FOUND));
+
+        // 2. 헤더 정보 생성
+        PayrollHeaderDto header = PayrollHeaderDto.builder()
+                .payrollId(payroll.getId())
+                .employeeName(payroll.getEmpName())
+                .residentNum(ResidentNoMasker.mask(payroll.getResidentNum()))
+                .payDueDate(payroll.getPayDueDate() != null ? payroll.getPayDueDate().toString() : null)
+                .totalPay(payroll.getTotalPay())
+                .noneTaxIncome(payroll.getNoneTaxIncome())
+                .build();
+
+        // 3. 집계 정보 생성
+        // 근무일수는 해당 급여에 연결된 근태 기록 수로 계산
+        long totalWorkDays = attendanceRepository.countByPayrollId(payrollId);
+
+        PayrollSummaryDto summary = PayrollSummaryDto.builder()
+                .totalWorkHour(payroll.getTotalWorkHour())
+                .totalPay(payroll.getTotalPay())
+                .totalWorkDays((int) totalWorkDays)
+                .build();
+
+        // 4. 근무일지 조회 (페이징)
+        Page<Attendance> attendancePage = attendanceRepository.findByPayrollId(payrollId, pageable);
+        List<AttendanceItemDto> attendanceItems = attendancePage.getContent().stream()
+                .map(this::toAttendanceItemDto)
+                .collect(Collectors.toList());
+
+        PayrollDetailResponse.PagedAttendances pagedAttendances = PayrollDetailResponse.PagedAttendances.builder()
+                .content(attendanceItems)
+                .totalElements(attendancePage.getTotalElements())
+                .totalPages(attendancePage.getTotalPages())
+                .currentPage(attendancePage.getNumber())
+                .size(attendancePage.getSize())
+                .build();
+
+        log.debug("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
+                payrollId, attendanceItems.size());
+
+        return PayrollDetailResponse.builder()
+                .header(header)
+                .summary(summary)
+                .attendances(pagedAttendances)
+                .build();
+    }
+
+    /**
+     * Attendance 엔티티를 AttendanceItemDto로 변환
+     *
+     * @param attendance 근태 엔티티
+     * @return 근무일지 DTO
+     */
+    private AttendanceItemDto toAttendanceItemDto(Attendance attendance) {
+        return AttendanceItemDto.builder()
+                .searchDate(attendance.getSearchDate() != null ? attendance.getSearchDate().toString() : null)
+                .totalWorkHour(attendance.getTotalWorkHour())
+                .nightWorkHour(attendance.getNightWorkHour())
+                .additionalWorkHour(attendance.getAdditionalWorkHour())
+                .holidayWorkHour(attendance.getHolidayWorkHour())
+                .allowanceAmount(BigDecimal.ZERO) // TODO: 수당 금액 계산 로직 필요
                 .build();
     }
 

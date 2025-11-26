@@ -29,16 +29,9 @@ public class CreateContractRequest {
 
     // ========== 기본 정보 ==========
 
-    @NotNull(message = "근로자 ID는 필수입니다")
-    @Schema(description = "근로자 ID", example = "1", required = true)
-    private Long employeeId;
-
-    @NotNull(message = "기업 ID는 필수입니다")
-    @Schema(description = "기업 ID", example = "1", required = true)
-    private Long corporationId;
-
-    @Schema(description = "관리자 ID", example = "1")
-    private Long managerId;
+    @NotNull(message = "근로자 User ID는 필수입니다")
+    @Schema(description = "근로자의 로그인 ID (User 테이블의 user_id)", example = "emp_daily1", required = true)
+    private String employeeUserId;
 
     @Schema(description = "계약 시 역할", example = "현장 관리자")
     private String role;

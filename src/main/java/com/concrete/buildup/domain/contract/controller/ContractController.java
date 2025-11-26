@@ -116,8 +116,8 @@ public class ContractController {
             @PathVariable Long siteId,
             @Valid @RequestBody CreateContractRequest request
     ) {
-        log.info("상용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
-                siteId, request.getEmployeeId(), request.getCorporationId());
+        log.info("상용직 계약 생성 API 호출: siteId={}, employeeUserId={}",
+                siteId, request.getEmployeeUserId());
 
         // empType 검증: /regular 엔드포인트는 PERMANENT만 허용
         if (request.getEmpType() != EmpType.PERMANENT) {
@@ -163,8 +163,8 @@ public class ContractController {
             @PathVariable Long siteId,
             @Valid @RequestBody CreateContractRequest request
     ) {
-        log.info("일용직 계약 생성 API 호출: siteId={}, employeeId={}, corporationId={}",
-                siteId, request.getEmployeeId(), request.getCorporationId());
+        log.info("일용직 계약 생성 API 호출: siteId={}, employeeUserId={}",
+                siteId, request.getEmployeeUserId());
 
         // empType 검증: /daily 엔드포인트는 DAILY만 허용
         if (request.getEmpType() != EmpType.DAILY) {
