@@ -38,6 +38,9 @@ public class LoginResponse {
     @Schema(description = "근로자 ID (ROLE_EMPLOYEE인 경우만)", example = "1")
     private Long employeeId;
 
+    @Schema(description = "현장 관리자 ID (ROLE_MANAGER인 경우만)", example = "1")
+    private Long managerId;
+
     @Schema(description = "현장 ID (ROLE_MANAGER인 경우만)", example = "1")
     private Long siteId;
 }
