@@ -677,7 +677,7 @@ class ContractServiceTest {
     // ========== getContracts 테스트 ==========
 
     @Test
-    @DisplayName("계약 목록 조회 성공 - 필터링 없음")
+    @DisplayName("계약 목록 조회 성공 - 필터링 없음 (모든 유형 조회)")
     void getContracts_Success_NoFilter() {
         // given
         Long siteId = 1L;
@@ -690,6 +690,10 @@ class ContractServiceTest {
                 .size(20)
                 .build();
 
+        // 미계약 근로자
+        Employee uncontractedEmployee = createEmployeeWithResidentNum(3L, "박미계약", "990303-3456789", null);
+        
+        // 계약된 근로자
         Employee employee1 = createEmployeeWithResidentNum(1L, "홍길동", "950101-1234567", "PERMANENT");
         Employee employee2 = createEmployeeWithResidentNum(2L, "김철수", "880215-2345678", "DAILY");
 
@@ -699,13 +703,16 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1, contract2));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        // 미계약 근로자 조회 (getAllEmployeesWithContracts에서 호출)
+        given(employeeRepository.findUncontractedBySiteId(siteId)).willReturn(List.of(uncontractedEmployee));
+        // 계약된 근로자 조회 - findByDynamicConditions 사용 (필터 조건 적용)
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
-                eq(null),
-                eq(null),
-                eq(null),
-                eq(null),
-                eq(null),
+                eq(null),  // employeeId
+                eq(null),  // employeeIdsByType
+                eq(null),  // status
+                eq(null),  // from
+                eq(null),  // to
                 any(Pageable.class)
         )).willReturn(contractPage);
         given(employeeRepository.findAllByIdInWithUser(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
@@ -715,16 +722,29 @@ class ContractServiceTest {
 
         // then
         assertThat(response).isNotNull();
-        assertThat(response.getItems()).hasSize(2);
+        // 미계약 1명 + 계약 2명 = 3명
+        assertThat(response.getItems()).hasSize(3);
         assertThat(response.getPageInfo().getCurrentPage()).isEqualTo(1);
-        assertThat(response.getPageInfo().getTotalElements()).isEqualTo(2);
+        assertThat(response.getPageInfo().getTotalElements()).isEqualTo(3);
 
-        // 주민번호 마스킹 검증
-        ContractSummaryDto firstItem = response.getItems().get(0);
-        assertThat(firstItem.getEmployeeResidentNumber()).isEqualTo("950101-1******");
-        assertThat(firstItem.getEmployeeName()).isEqualTo("홍길동");
+        // 정렬: UNCONTRACTED 먼저 → from 오름차순 → to 오름차순
+        // 미계약 근로자가 먼저 나옴
+        ContractSummaryDto uncontractedItem = response.getItems().get(0);
+        assertThat(uncontractedItem.getEmployeeName()).isEqualTo("박미계약");
+        assertThat(uncontractedItem.getEmpType()).isEqualTo(EmpType.UNCONTRACTED);
+        assertThat(uncontractedItem.getContractId()).isNull();
+
+        // 그 다음 from이 빠른 순 (2024-01-01 < 2024-03-01)
+        ContractSummaryDto secondItem = response.getItems().get(1);
+        assertThat(secondItem.getEmployeeName()).isEqualTo("홍길동");
+        assertThat(secondItem.getEmployeeStartDate()).isEqualTo(LocalDate.of(2024, 1, 1));
+
+        ContractSummaryDto thirdItem = response.getItems().get(2);
+        assertThat(thirdItem.getEmployeeName()).isEqualTo("김철수");
+        assertThat(thirdItem.getEmployeeStartDate()).isEqualTo(LocalDate.of(2024, 3, 1));
 
         verify(siteRepository).findById(siteId);
+        verify(employeeRepository).findUncontractedBySiteId(siteId);
         verify(contractRepository).findByDynamicConditions(
                 eq(managerId),
                 eq(null),
@@ -734,11 +754,10 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         );
-        verify(employeeRepository).findAllByIdInWithUser(List.of(1L, 2L));
     }
 
     @Test
-    @DisplayName("계약 목록 조회 성공 - employeeId 필터")
+    @DisplayName("계약 목록 조회 성공 - employeeId 필터 (empType과 함께)")
     void getContracts_Success_FilterByEmployeeId() {
         // given
         Long siteId = 1L;
@@ -746,7 +765,9 @@ class ContractServiceTest {
         Manager manager = createManager(managerId, "김관리");
         Site site = createSite(siteId, "테스트현장", manager);
 
+        // employeeId 필터는 계약된 근로자를 조회하므로 empType 지정
         ContractSearchCondition condition = ContractSearchCondition.builder()
+                .empType(EmpType.PERMANENT)
                 .employeeId(1L)
                 .page(1)
                 .size(20)
@@ -759,10 +780,12 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        // empType 필터를 위해 Employee 조회 (siteId 기반)
+        given(employeeRepository.findByEmpTypeAndSiteId("PERMANENT", siteId)).willReturn(List.of(employee1));
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
                 eq(1L),
-                eq(null),
+                eq(List.of(1L)),
                 eq(null),
                 eq(null),
                 eq(null),
@@ -827,7 +850,7 @@ class ContractServiceTest {
     }
 
     @Test
-    @DisplayName("계약 목록 조회 성공 - status 필터")
+    @DisplayName("계약 목록 조회 성공 - status 필터 (empType과 함께)")
     void getContracts_Success_FilterByStatus() {
         // given
         Long siteId = 1L;
@@ -835,7 +858,9 @@ class ContractServiceTest {
         Manager manager = createManager(managerId, "김관리");
         Site site = createSite(siteId, "테스트현장", manager);
 
+        // status 필터는 계약된 근로자에게만 의미 있으므로 empType 지정
         ContractSearchCondition condition = ContractSearchCondition.builder()
+                .empType(EmpType.PERMANENT)
                 .status(ContractState.FULLY_SIGNED)
                 .page(1)
                 .size(20)
@@ -848,10 +873,12 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        // empType 필터를 위해 Employee 조회 (siteId 기반)
+        given(employeeRepository.findByEmpTypeAndSiteId("PERMANENT", siteId)).willReturn(List.of(employee1));
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
                 eq(null),
-                eq(null),
+                eq(List.of(1L)),
                 eq(ContractState.FULLY_SIGNED),
                 eq(null),
                 eq(null),
@@ -869,7 +896,7 @@ class ContractServiceTest {
     }
 
     @Test
-    @DisplayName("계약 목록 조회 성공 - 날짜 범위 필터")
+    @DisplayName("계약 목록 조회 성공 - 날짜 범위 필터 (empType과 함께)")
     void getContracts_Success_FilterByDateRange() {
         // given
         Long siteId = 1L;
@@ -880,7 +907,9 @@ class ContractServiceTest {
         LocalDate from = LocalDate.of(2024, 2, 1);
         LocalDate to = LocalDate.of(2024, 4, 1);
 
+        // 날짜 필터는 계약된 근로자에게만 의미 있으므로 empType 지정
         ContractSearchCondition condition = ContractSearchCondition.builder()
+                .empType(EmpType.DAILY)
                 .from(from)
                 .to(to)
                 .page(1)
@@ -894,10 +923,12 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract2));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
+        // empType 필터를 위해 Employee 조회 (siteId 기반)
+        given(employeeRepository.findByEmpTypeAndSiteId("DAILY", siteId)).willReturn(List.of(employee2));
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
                 eq(null),
-                eq(null),
+                eq(List.of(2L)),
                 eq(null),
                 eq(from),
                 eq(to),

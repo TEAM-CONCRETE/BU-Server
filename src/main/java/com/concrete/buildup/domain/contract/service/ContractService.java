@@ -34,6 +34,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -298,7 +299,12 @@ public class ContractService {
                     .build();
         }
 
-        // ========== 2. UNCONTRACTED 근로자 별도 처리 ==========
+        // ========== 2. empType 분기 처리 ==========
+        // empType이 NULL이면 모든 유형(UNCONTRACTED + DAILY + PERMANENT) 조회
+        if (condition.getEmpType() == null) {
+            return getAllEmployeesWithContracts(siteId, managerId, condition);
+        }
+
         // UNCONTRACTED 근로자는 Contract 테이블에 레코드가 없으므로, Employee 기반으로 직접 조회
         if (condition.getEmpType() == EmpType.UNCONTRACTED) {
             return getUncontractedEmployees(siteId, condition);
@@ -306,22 +312,20 @@ public class ContractService {
 
         // ========== 3. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
         List<Long> employeeIdsByType = null;
-        if (condition.getEmpType() != null) {
-            // 계약된 근로자는 User.siteId 기준으로 현장 필터링
-            List<Employee> employeesByType = employeeRepository.findByEmpTypeAndSiteId(
-                    condition.getEmpType().name(), siteId);
-            log.debug("empType 필터링 완료 (siteId={}): empType={}, count={}",
-                    siteId, condition.getEmpType(), employeesByType.size());
-            
-            employeeIdsByType = employeesByType.stream()
-                    .map(Employee::getId)
-                    .toList();
+        // 계약된 근로자는 User.siteId 기준으로 현장 필터링
+        List<Employee> employeesByType = employeeRepository.findByEmpTypeAndSiteId(
+                condition.getEmpType().name(), siteId);
+        log.debug("empType 필터링 완료 (siteId={}): empType={}, count={}",
+                siteId, condition.getEmpType(), employeesByType.size());
+        
+        employeeIdsByType = employeesByType.stream()
+                .map(Employee::getId)
+                .toList();
 
-            // empType에 해당하는 근로자가 없으면 빈 목록 반환
-            if (employeeIdsByType.isEmpty()) {
-                log.info("해당 empType의 근로자가 없음: siteId={}, empType={}", siteId, condition.getEmpType());
-                return buildEmptyResponse(condition);
-            }
+        // empType에 해당하는 근로자가 없으면 빈 목록 반환
+        if (employeeIdsByType.isEmpty()) {
+            log.info("해당 empType의 근로자가 없음: siteId={}, empType={}", siteId, condition.getEmpType());
+            return buildEmptyResponse(condition);
         }
 
         // ========== 4. 동적 조건으로 Contract 조회 (페이징) ==========
@@ -437,6 +441,135 @@ public class ContractService {
 
         return ContractListResponse.builder()
                 .items(items)
+                .pageInfo(pageInfo)
+                .build();
+    }
+
+    /**
+     * 모든 유형의 근로자 조회 (UNCONTRACTED + DAILY + PERMANENT)
+     *
+     * <p>empType 파라미터가 없을 때, 계약된 근로자와 미계약 근로자를 모두 조회합니다.</p>
+     * <p>필터 조건(employeeId, status, from, to)을 적용하고, 두 데이터 소스를 합쳐서 수동 페이징 처리합니다.</p>
+     * <p>정렬 순서: UNCONTRACTED 먼저 → from(시작일) 오름차순 → to(종료일) 오름차순</p>
+     *
+     * @param siteId 현장 ID
+     * @param managerId 관리자 ID
+     * @param condition 검색 조건
+     * @return ContractListResponse - 전체 근로자 목록 + 페이징 정보
+     */
+    private ContractListResponse getAllEmployeesWithContracts(Long siteId, Long managerId, ContractSearchCondition condition) {
+        log.info("전체 근로자 목록 조회 (UNCONTRACTED + 계약된 근로자): siteId={}, condition={}", siteId, condition);
+
+        List<ContractSummaryDto> allItems = new java.util.ArrayList<>();
+
+        // ========== 1. 미계약 근로자(UNCONTRACTED) 조회 ==========
+        // 미계약 근로자는 status, from, to 필터가 적용되지 않음 (계약이 없으므로)
+        // employeeId 필터만 적용
+        List<Employee> uncontractedEmployees = employeeRepository.findUncontractedBySiteId(siteId);
+        log.debug("미계약 근로자 조회: siteId={}, count={}", siteId, uncontractedEmployees.size());
+
+        // employeeId 필터 적용 (미계약 근로자)
+        if (condition.getEmployeeId() != null) {
+            uncontractedEmployees = uncontractedEmployees.stream()
+                    .filter(e -> e.getId().equals(condition.getEmployeeId()))
+                    .toList();
+        }
+
+        // 미계약 근로자 DTO 변환
+        List<ContractSummaryDto> uncontractedItems = uncontractedEmployees.stream()
+                .map(this::toUncontractedSummaryDto)
+                .toList();
+        allItems.addAll(uncontractedItems);
+
+        // ========== 2. 계약된 근로자(DAILY + PERMANENT) 조회 ==========
+        // 필터 조건(employeeId, status, from, to)을 적용하여 조회
+        Page<Contract> contractPage = contractRepository.findByDynamicConditions(
+                managerId,
+                condition.getEmployeeId(),
+                null, // employeeIdsByType - 전체 조회이므로 null
+                condition.getStatus(),
+                condition.getFrom(),
+                condition.getTo(),
+                Pageable.unpaged()
+        );
+        List<Contract> contracts = contractPage.getContent();
+        log.debug("계약된 근로자 조회 (필터 적용): managerId={}, count={}", managerId, contracts.size());
+
+        if (!contracts.isEmpty()) {
+            // Employee 일괄 조회 (N+1 방지)
+            List<Long> employeeIds = contracts.stream()
+                    .map(Contract::getEmployeeId)
+                    .distinct()
+                    .toList();
+
+            Map<Long, Employee> employeeMap = employeeRepository.findAllByIdInWithUser(employeeIds).stream()
+                    .collect(Collectors.toMap(Employee::getId, e -> e));
+
+            // 계약된 근로자 DTO 변환
+            List<ContractSummaryDto> contractedItems = contracts.stream()
+                    .map(contract -> toSummaryDto(contract, employeeMap.get(contract.getEmployeeId())))
+                    .toList();
+            allItems.addAll(contractedItems);
+        }
+
+        log.info("전체 근로자 조회 완료 (필터 적용 후): totalCount={}", allItems.size());
+
+        // ========== 3. 정렬: UNCONTRACTED 먼저 → from 오름차순 → to 오름차순 ==========
+        allItems.sort((a, b) -> {
+            // 1순위: UNCONTRACTED(empType == UNCONTRACTED)가 먼저
+            boolean aIsUncontracted = a.getEmpType() == EmpType.UNCONTRACTED;
+            boolean bIsUncontracted = b.getEmpType() == EmpType.UNCONTRACTED;
+            if (aIsUncontracted && !bIsUncontracted) return -1;
+            if (!aIsUncontracted && bIsUncontracted) return 1;
+
+            // 2순위: from(employeeStartDate) 오름차순 (null은 맨 뒤)
+            LocalDate aFrom = a.getEmployeeStartDate();
+            LocalDate bFrom = b.getEmployeeStartDate();
+            if (aFrom == null && bFrom == null) return 0;
+            if (aFrom == null) return 1;
+            if (bFrom == null) return -1;
+            int fromCompare = aFrom.compareTo(bFrom);
+            if (fromCompare != 0) return fromCompare;
+
+            // 3순위: to(employeeEndDate) 오름차순 (null은 맨 뒤)
+            LocalDate aTo = a.getEmployeeEndDate();
+            LocalDate bTo = b.getEmployeeEndDate();
+            if (aTo == null && bTo == null) return 0;
+            if (aTo == null) return 1;
+            if (bTo == null) return -1;
+            return aTo.compareTo(bTo);
+        });
+
+        // ========== 4. 수동 페이징 처리 ==========
+        int pageIndex = condition.getPageIndex();
+        int pageSize = condition.getSize();
+        int totalElements = allItems.size();
+        int totalPages = (int) Math.ceil((double) totalElements / pageSize);
+
+        int startIndex = pageIndex * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, totalElements);
+
+        // 범위 벗어나면 빈 목록 반환
+        if (startIndex >= totalElements) {
+            return buildEmptyResponse(condition);
+        }
+
+        List<ContractSummaryDto> pagedItems = allItems.subList(startIndex, endIndex);
+
+        // PageInfo 생성
+        ContractListResponse.PageInfo pageInfo = ContractListResponse.PageInfo.builder()
+                .currentPage(condition.getPage())
+                .pageSize(pageSize)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .hasNext(pageIndex < totalPages - 1)
+                .hasPrevious(pageIndex > 0)
+                .build();
+
+        log.info("전체 근로자 목록 조회 완료: pagedItemCount={}", pagedItems.size());
+
+        return ContractListResponse.builder()
+                .items(pagedItems)
                 .pageInfo(pageInfo)
                 .build();
     }
