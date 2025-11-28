@@ -615,7 +615,7 @@ class ContractServiceTest {
         return site;
     }
 
-    private CreateContractRequest createContractRequest(String employeeUserId) {
+    private CreateContractRequest createContractRequest(String userId) {
         ContractDetailRequest details = ContractDetailRequest.builder()
                 .workPlace("서울시 강남구 테헤란로 123")
                 .workType("일반건설현장근로자")
@@ -639,7 +639,7 @@ class ContractServiceTest {
                 .build();
 
         return CreateContractRequest.builder()
-                .employeeUserId(employeeUserId)
+                .userId(userId)
                 .empType(EmpType.PERMANENT)
                 .role("현장 관리자")
                 .employeeStartDate(LocalDate.of(2024, 1, 1))

@@ -93,8 +93,8 @@ public class ContractService {
      */
     @Transactional
     public CreateContractResponse createContract(Long siteId, CreateContractRequest request) {
-        log.info("계약 생성 시작: siteId={}, employeeUserId={}, empType={}",
-                siteId, request.getEmployeeUserId(), request.getEmpType());
+        log.info("계약 생성 시작: siteId={}, userId={}, empType={}",
+                siteId, request.getUserId(), request.getEmpType());
 
         // ========== 1. Site 조회 및 Corporation, Manager 정보 획득 ==========
 
@@ -121,12 +121,12 @@ public class ContractService {
         }
         log.debug("관리자 조회 성공: managerId={}", manager.getId());
 
-        // ========== 2. employeeUserId로 Employee 조회 ==========
+        // ========== 2. userId로 Employee 조회 ==========
 
         // 2-1. User 조회 (userId = 로그인 ID)
-        User employeeUser = userRepository.findByUserId(request.getEmployeeUserId())
+        User employeeUser = userRepository.findByUserId(request.getUserId())
                 .orElseThrow(() -> {
-                    log.warn("근로자 User를 찾을 수 없음: employeeUserId={}", request.getEmployeeUserId());
+                    log.warn("근로자 User를 찾을 수 없음: userId={}", request.getUserId());
                     return new BusinessException(ContractErrorCode.EMPLOYEE_NOT_FOUND);
                 });
         log.debug("근로자 User 조회 성공: userId={}", employeeUser.getId());
