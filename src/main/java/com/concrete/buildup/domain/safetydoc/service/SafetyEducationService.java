@@ -185,6 +185,7 @@ public class SafetyEducationService {
         // 참석자 정보 변환
         List<SafetyEducationAttendee> attendees = attendeeRepository.findBySafetyEducationLogIdWithEmployee(logId);
         List<SafetyEducationLogDetailResponse.AttendeeDto> attendeeDtos = attendees.stream()
+                .filter(a -> a.getEmployee() != null)
                 .map(a -> SafetyEducationLogDetailResponse.AttendeeDto.builder()
                         .employeeId(a.getEmployee().getId())
                         .empName(a.getEmployee().getEmpName())

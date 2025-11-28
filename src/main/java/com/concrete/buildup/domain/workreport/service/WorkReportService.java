@@ -268,8 +268,8 @@ public class WorkReportService {
         Page<WorkReportListResponse.WorkReportSummary> summaryPage = workReportPage.map(workReport ->
                 WorkReportListResponse.WorkReportSummary.builder()
                         .workReportId(workReport.getId())
-                        .workDate(workReport.getCreatedAt().toLocalDate())
-                        .writerName(workReport.getManager().getManagerName())
+                        .workDate(workReport.getCreatedAt() != null ? workReport.getCreatedAt().toLocalDate() : null)
+                        .writerName(workReport.getManager() != null ? workReport.getManager().getManagerName() : null)
                         .build()
         );
 
