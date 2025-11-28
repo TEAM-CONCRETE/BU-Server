@@ -27,7 +27,7 @@ public class SignatureRequest {
 
     @NotBlank(message = "서명 이미지 S3 키는 필수입니다")
     @Schema(
-            description = "서명 이미지 S3 키",
+            description = "서명 이미지 S3 키 (서버에서 자동으로 S3 전체 URL로 변환되어 저장됨)",
             example = "uploads/contracts/123/MANAGER.png",
             required = true
     )

@@ -411,6 +411,7 @@ public class ContractService {
                     .employeeId(contract.getEmployeeId())
                     .employeeName("알 수 없음")
                     .employeeResidentNumber(null)
+                    .employeePhone(null)
                     .empType(null)
                     .role(contract.getRole())
                     .contractState(contract.getContractState())
@@ -432,11 +433,18 @@ public class ContractService {
             }
         }
 
+        // 전화번호 추출 (User 엔티티에서)
+        String phone = null;
+        if (employee.getUser() != null) {
+            phone = employee.getUser().getPhone();
+        }
+
         return ContractSummaryDto.builder()
                 .contractId(contract.getId())
                 .employeeId(employee.getId())
                 .employeeName(employee.getEmpName())
                 .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
+                .employeePhone(phone)
                 .empType(empType)
                 .role(contract.getRole())
                 .contractState(contract.getContractState())
