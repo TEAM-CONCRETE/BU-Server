@@ -130,4 +130,18 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
            "WHERE e.empType = :empType " +
            "AND u.siteId = :siteId")
     List<Employee> findByEmpTypeAndSiteId(@Param("empType") String empType, @Param("siteId") Long siteId);
+
+    /**
+     * Employee ID 목록으로 근로자 + User 일괄 조회 (Fetch Join)
+     *
+     * <p>N+1 문제 방지를 위해 User를 함께 조회합니다.</p>
+     * <p>기본 findAllById() 대신 이 메서드를 사용하여 성능을 최적화합니다.</p>
+     *
+     * @param ids Employee ID 목록
+     * @return 근로자 + User 목록
+     */
+    @Query("SELECT e FROM Employee e " +
+           "JOIN FETCH e.user " +
+           "WHERE e.id IN :ids")
+    List<Employee> findAllByIdInWithUser(@Param("ids") List<Long> ids);
 }

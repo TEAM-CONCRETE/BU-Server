@@ -349,15 +349,15 @@ public class ContractService {
             return buildEmptyResponse(condition);
         }
 
-        // ========== 5. Employee 일괄 조회 (N+1 방지) ==========
+        // ========== 5. Employee 일괄 조회 (N+1 방지 - JOIN FETCH 사용) ==========
         List<Long> employeeIds = contracts.stream()
                 .map(Contract::getEmployeeId)
                 .distinct()
                 .toList();
 
-        Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
+        Map<Long, Employee> employeeMap = employeeRepository.findAllByIdInWithUser(employeeIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e));
-        log.debug("근로자 정보 일괄 조회 완료: count={}", employeeMap.size());
+        log.debug("근로자 정보 일괄 조회 완료 (User 포함): count={}", employeeMap.size());
 
         // ========== 6. DTO 변환 ==========
         List<ContractSummaryDto> items = contracts.stream()

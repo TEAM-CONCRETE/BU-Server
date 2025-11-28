@@ -708,7 +708,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -734,7 +734,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         );
-        verify(employeeRepository).findAllById(List.of(1L, 2L));
+        verify(employeeRepository).findAllByIdInWithUser(List.of(1L, 2L));
     }
 
     @Test
@@ -768,7 +768,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -813,7 +813,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -857,7 +857,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -903,7 +903,7 @@ class ContractServiceTest {
                 eq(to),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(2L))).willReturn(List.of(employee2));
+        given(employeeRepository.findAllByIdInWithUser(List.of(2L))).willReturn(List.of(employee2));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
