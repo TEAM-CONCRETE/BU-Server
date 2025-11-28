@@ -61,7 +61,7 @@ public final class SignatureCoordinatesConfig {
      * <p>PDF 마지막 페이지 하단 기준, 서명란 위치</p>
      * <p>footer(20pt) + 서명란(60pt) 위쪽 = 약 90pt</p>
      */
-    public static final BigDecimal MANAGER_SIGNATURE_Y = BigDecimal.valueOf(90.0);
+    public static final BigDecimal MANAGER_SIGNATURE_Y = BigDecimal.valueOf(55.0);
 
     // ========== 근로자 서명 좌표 ==========
 
@@ -75,6 +75,6 @@ public final class SignatureCoordinatesConfig {
      * 근로자 서명 Y 좌표 (포인트)
      * <p>관리자 서명과 동일한 Y 좌표 (같은 행)</p>
      */
-    public static final BigDecimal EMPLOYEE_SIGNATURE_Y = BigDecimal.valueOf(90.0);
+    public static final BigDecimal EMPLOYEE_SIGNATURE_Y = BigDecimal.valueOf(55.0);
 }
 

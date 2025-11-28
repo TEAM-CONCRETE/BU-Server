@@ -54,7 +54,8 @@
         }
         .signature-page {
             page-break-before: always;
-            min-height: calc(842pt - 120pt); /* A4 높이 - 상하 마진 고려 */
+            min-height: calc(842pt - 80pt); /* 상ㆍ하단 마진(40pt) 제외 */
+            padding-bottom: 40px;
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
