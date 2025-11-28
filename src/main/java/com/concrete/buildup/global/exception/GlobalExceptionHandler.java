@@ -345,6 +345,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * IllegalArgumentException 처리
+     * 잘못된 인자값이 전달된 경우 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("[IllegalArgumentException] Invalid argument: {}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage(), "COMMON_400"));
+    }
+
+    /**
      * IllegalStateException 처리
      * 시스템 상태 오류 시 발생하는 예외를 처리합니다.
      */

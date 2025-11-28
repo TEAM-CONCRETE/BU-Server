@@ -385,7 +385,12 @@ public class AuthService {
         Manager savedManager = managerRepository.save(manager);
         log.debug("Manager 저장 완료: id={}, managerName={}", savedManager.getId(), savedManager.getManagerName());
 
-        // 10. Response 생성
+        // 10. Site에 Manager 할당
+        site.assignManager(savedManager);
+        siteRepository.save(site);
+        log.debug("Site에 Manager 할당 완료: siteId={}, managerId={}", site.getId(), savedManager.getId());
+
+        // 11. Response 생성
         SignUpResponse response = buildManagerSignUpResponse(savedUser, savedManager, site);
 
         log.info("현장 관리자 회원가입 완료: userId={}, managerId={}, siteId={}",
