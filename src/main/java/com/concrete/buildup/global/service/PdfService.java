@@ -126,10 +126,12 @@ public class PdfService {
             // 4. 이미지 크기 설정
             image.scaleAbsolute(width.floatValue(), height.floatValue());
 
-            // 5. 첫 번째 페이지에 이미지 삽입
+            // 5. 마지막 페이지에 이미지 삽입 (서명란이 마지막 페이지에 있음)
             // PDF 좌표계: 왼쪽 하단이 (0, 0), Y축은 아래에서 위로 증가
-            // 일반적으로 Y 좌표는 페이지 높이에서 빼서 계산해야 할 수 있음
-            PdfContentByte contentByte = stamper.getOverContent(1);
+            int lastPage = reader.getNumberOfPages();
+            log.debug("PDF 총 페이지 수: {}, 서명 삽입 페이지: {}", lastPage, lastPage);
+            
+            PdfContentByte contentByte = stamper.getOverContent(lastPage);
             contentByte.addImage(image, width.floatValue(), 0, 0, height.floatValue(),
                     x.floatValue(), y.floatValue());
 

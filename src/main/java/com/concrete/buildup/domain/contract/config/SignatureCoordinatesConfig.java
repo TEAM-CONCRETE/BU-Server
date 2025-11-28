@@ -42,38 +42,39 @@ public final class SignatureCoordinatesConfig {
 
     // ========== 서명 이미지 크기 ==========
 
-    /** 서명 이미지 너비 (포인트) */
-    public static final BigDecimal SIGNATURE_WIDTH = BigDecimal.valueOf(120.0);
+    /** 서명 이미지 너비 (포인트) - 서명란 너비에 맞춤 */
+    public static final BigDecimal SIGNATURE_WIDTH = BigDecimal.valueOf(100.0);
 
-    /** 서명 이미지 높이 (포인트) */
-    public static final BigDecimal SIGNATURE_HEIGHT = BigDecimal.valueOf(40.0);
+    /** 서명 이미지 높이 (포인트) - 서명란 높이(60px)에 맞춤 */
+    public static final BigDecimal SIGNATURE_HEIGHT = BigDecimal.valueOf(35.0);
 
     // ========== 관리자(사업주) 서명 좌표 ==========
 
     /**
      * 관리자 서명 X 좌표 (포인트)
-     * <p>왼쪽 칸 중앙 정렬: 좌측 여백(40pt) + 칸 너비의 1/4 지점</p>
+     * <p>왼쪽 칸 중앙 정렬: 좌측 여백(40pt) + 서명 중앙 위치</p>
      */
-    public static final BigDecimal MANAGER_SIGNATURE_X = BigDecimal.valueOf(80.0);
+    public static final BigDecimal MANAGER_SIGNATURE_X = BigDecimal.valueOf(90.0);
 
     /**
      * 관리자 서명 Y 좌표 (포인트)
-     * <p>PDF 좌하단 기준, 서명란 위치 (문서 하단에서 약 100pt 위)</p>
+     * <p>PDF 마지막 페이지 하단 기준, 서명란 위치</p>
+     * <p>footer(20pt) + 서명란(60pt) 위쪽 = 약 90pt</p>
      */
-    public static final BigDecimal MANAGER_SIGNATURE_Y = BigDecimal.valueOf(95.0);
+    public static final BigDecimal MANAGER_SIGNATURE_Y = BigDecimal.valueOf(90.0);
 
     // ========== 근로자 서명 좌표 ==========
 
     /**
      * 근로자 서명 X 좌표 (포인트)
-     * <p>오른쪽 칸 중앙 정렬: 문서 중앙(297.5pt) + 칸 너비의 1/4 지점</p>
+     * <p>오른쪽 칸 중앙 정렬: 문서 중앙(297.5pt) + 서명 중앙 위치</p>
      */
-    public static final BigDecimal EMPLOYEE_SIGNATURE_X = BigDecimal.valueOf(370.0);
+    public static final BigDecimal EMPLOYEE_SIGNATURE_X = BigDecimal.valueOf(380.0);
 
     /**
      * 근로자 서명 Y 좌표 (포인트)
      * <p>관리자 서명과 동일한 Y 좌표 (같은 행)</p>
      */
-    public static final BigDecimal EMPLOYEE_SIGNATURE_Y = BigDecimal.valueOf(95.0);
+    public static final BigDecimal EMPLOYEE_SIGNATURE_Y = BigDecimal.valueOf(90.0);
 }
 
