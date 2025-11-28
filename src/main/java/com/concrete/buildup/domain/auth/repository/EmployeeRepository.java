@@ -144,4 +144,19 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
            "JOIN FETCH e.user " +
            "WHERE e.id IN :ids")
     List<Employee> findAllByIdInWithUser(@Param("ids") List<Long> ids);
+
+    /**
+     * 현장 ID로 모든 근로자 목록 조회
+     *
+     * <p>User 테이블의 site_id를 기준으로 해당 현장에 소속된 모든 근로자를 조회합니다.</p>
+     * <p>대시보드 인원 현황 조회에 사용됩니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return 해당 현장의 모든 근로자 목록 (Employee + User)
+     */
+    @Query("SELECT e FROM Employee e " +
+           "JOIN FETCH e.user u " +
+           "WHERE u.siteId = :siteId " +
+           "AND u.isDeleted = false")
+    List<Employee> findBySiteId(@Param("siteId") Long siteId);
 }

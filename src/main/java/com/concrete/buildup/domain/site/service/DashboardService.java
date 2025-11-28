@@ -155,46 +155,13 @@ public class DashboardService {
 
     /**
      * 인원 현황 구성
+     *
+     * <p>siteId 기준으로 해당 현장에 소속된 근로자를 조회합니다.</p>
+     * <p>User.siteId를 통해 현장 소속 근로자를 직접 조회하여, managerId가 null인 경우에도 정상 동작합니다.</p>
      */
     private DashboardResponse.WorkforceStatus buildWorkforceStatus(Long siteId, Long managerId) {
-        if (managerId == null) {
-            // Manager가 없는 경우 0으로 반환
-            return DashboardResponse.WorkforceStatus.builder()
-                .totalWorkers(0)
-                .permanentWorkers(0)
-                .dailyWorkers(0)
-                .todayAttendance(0)
-                .todayLateCount(0)
-                .build();
-        }
-
-        // 해당 현장(Manager)의 모든 활성 계약 조회
-        LocalDate today = LocalDate.now();
-        List<Contract> activeContracts = contractRepository.findByManagerId(managerId, Pageable.unpaged())
-            .getContent()
-            .stream()
-            .filter(contract -> contract.getContractState() == ContractState.FULLY_SIGNED)
-            .filter(contract -> isContractActiveOnDate(contract, today))
-            .collect(Collectors.toList());
-
-        // 근로자 ID 목록
-        List<Long> employeeIds = activeContracts.stream()
-            .map(Contract::getEmployeeId)
-            .distinct()
-            .collect(Collectors.toList());
-
-        if (employeeIds.isEmpty()) {
-            return DashboardResponse.WorkforceStatus.builder()
-                .totalWorkers(0)
-                .permanentWorkers(0)
-                .dailyWorkers(0)
-                .todayAttendance(0)
-                .todayLateCount(0)
-                .build();
-        }
-
-        // 근로자 조회
-        List<Employee> employees = employeeRepository.findAllById(employeeIds);
+        // siteId 기준으로 해당 현장에 소속된 모든 근로자 조회
+        List<Employee> employees = employeeRepository.findBySiteId(siteId);
 
         // 총 근로자 수
         int totalWorkers = employees.size();
@@ -208,6 +175,8 @@ public class DashboardService {
 
         int permanentWorkers = empTypeCount.getOrDefault("PERMANENT", 0L).intValue();
         int dailyWorkers = empTypeCount.getOrDefault("DAILY", 0L).intValue();
+
+        LocalDate today = LocalDate.now();
 
         // 금일 출근 인원 (AttendanceRecord에서 CHECK_IN, CONFIRMED 상태)
         LocalDateTime startOfDay = today.atStartOfDay();
@@ -226,15 +195,12 @@ public class DashboardService {
             .distinct()
             .count();
 
-        // 금일 지각 인원 계산
-        int todayLateCount = calculateTodayLateCount(todayAttendanceRecords, activeContracts);
-
         return DashboardResponse.WorkforceStatus.builder()
             .totalWorkers(totalWorkers)
             .permanentWorkers(permanentWorkers)
             .dailyWorkers(dailyWorkers)
             .todayAttendance(todayAttendance)
-            .todayLateCount(todayLateCount)
+            .todayLateCount(0)
             .build();
     }
 

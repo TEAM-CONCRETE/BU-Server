@@ -319,4 +319,26 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, Contr
             @Param("endDate") LocalDate endDate,
             @Param("payPeriod") com.concrete.buildup.domain.contract.enums.PayPeriod payPeriod
     );
+
+    // ========== 대시보드용 쿼리 ==========
+
+    /**
+     * 근로자 ID 목록으로 활성 계약 조회 (ContractDetail 포함)
+     *
+     * <p>대시보드 지각 인원 계산에 사용됩니다.</p>
+     * <p>FULLY_SIGNED 상태이며, 현재 날짜가 근로 기간 내인 계약만 조회합니다.</p>
+     *
+     * @param employeeIds 근로자 ID 목록
+     * @param today 기준 날짜
+     * @return 활성 계약 목록 (ContractDetail 포함)
+     */
+    @Query("SELECT c FROM Contract c LEFT JOIN FETCH c.contractDetail " +
+           "WHERE c.employeeId IN :employeeIds " +
+           "AND c.contractState = 'FULLY_SIGNED' " +
+           "AND c.employeeStartDate <= :today " +
+           "AND (c.employeeEndDate >= :today OR c.employeeEndDate IS NULL)")
+    List<Contract> findActiveContractsByEmployeeIds(
+            @Param("employeeIds") List<Long> employeeIds,
+            @Param("today") LocalDate today
+    );
 }

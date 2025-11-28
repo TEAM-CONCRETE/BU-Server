@@ -1,0 +1,225 @@
+=== 로컬 DB 스키마 요약 ===
+생성일시: $(date '+%Y-%m-%d %H:%M:%S')
+
+총 테이블 수: 25개
+
+=== 테이블 목록 (컬럼수) ===
+attendance_records (12개)
+attendances (19개)
+contract_details (33개)
+contract_sign_logs (19개)
+contracts (18개)
+corporations (8개)
+employees (11개)
+flyway_schema_history (10개)
+managers (6개)
+payrolls (27개)
+payslip_items (9개)
+roles (6개)
+safety_doc_attendees (8개)
+safety_docs (10개)
+safety_education_attendees (9개)
+safety_education_logs (18개)
+safety_education_sign_logs (19개)
+safety_sign_logs (11개)
+signing_sessions (11개)
+sites (14개)
+temporary_registrations (10개)
+users (15개)
+work_report_employees (8개)
+work_report_materials (11개)
+work_reports (16개)
+
+=== 주요 테이블 상세 구조 ===
+
+--- users ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+user_id	varchar	NO	UNI
+password	varchar	NO	
+phone	varchar	YES	
+email	varchar	YES	MUL
+secret_key	varchar	YES	
+role_id	bigint	NO	MUL
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+profile_completed	bit	NO	
+profile_token	varchar	YES	UNI
+profile_token_expires_at	datetime	YES	
+refresh_token	varchar	YES	
+refresh_token_expires_at	datetime	YES	
+
+--- employees ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+user_id	bigint	NO	UNI
+emp_name	varchar	NO	MUL
+sub_phone	varchar	YES	
+resident_num	varchar	YES	
+emp_address	varchar	YES	
+emp_type	varchar	YES	MUL
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+profile_image_url	varchar	YES	
+
+--- corporations ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+user_id	bigint	NO	UNI
+corp_name	varchar	NO	MUL
+corp_address	varchar	YES	
+corp_ceo_name	varchar	YES	
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+
+--- managers ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+user_id	bigint	NO	UNI
+manager_name	varchar	NO	MUL
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+
+--- sites ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+site_name	varchar	NO	MUL
+site_address	varchar	NO	
+corporation_id	bigint	NO	MUL
+manager_id	bigint	YES	MUL
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+employee_secret_key	varchar	YES	UNI
+manager_secret_key	varchar	YES	UNI
+secret_key_expires_at	datetime	YES	
+client_name	varchar	YES	
+end_date	date	YES	
+start_date	date	YES	
+
+--- contracts ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+employee_id	bigint	NO	MUL
+corporation_id	bigint	NO	MUL
+manager_id	bigint	NO	MUL
+role	varchar	YES	
+contract_state	varchar	NO	MUL
+employee_start_date	date	YES	MUL
+employee_end_date	date	YES	
+written_at	datetime	YES	
+corp_signed_at	datetime	YES	
+emp_signed_at	datetime	YES	
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+final_pdf_url	varchar	YES	
+final_pdf_hash	varchar	YES	
+pdf_generated_at	datetime	YES	
+emp_type	enum	NO	
+
+--- contract_details ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+created_at	datetime	NO	
+is_deleted	bit	NO	
+updated_at	datetime	NO	
+additional_holiday_pay	decimal	YES	
+additional_hour_pay	decimal	YES	
+additional_night_pay	decimal	YES	
+break_end_time	time	YES	
+break_start_time	time	YES	
+corp_address	varchar	YES	
+corp_ceo_name	varchar	YES	
+corp_name	varchar	NO	
+emp_address	varchar	YES	
+emp_name	varchar	NO	
+is_eoi_applicable	bit	YES	
+is_nhi_applicable	bit	YES	
+is_nps_applicable	bit	YES	
+is_wci_applicable	bit	YES	
+pay_period	enum	YES	
+pay_type	enum	YES	
+payday	varchar	YES	
+work_bonus	decimal	YES	
+work_end_time	time	YES	
+work_off_day	varchar	YES	
+work_on_day	varchar	YES	
+work_pay	decimal	YES	
+work_place	varchar	YES	
+work_start_time	time	YES	
+work_type	varchar	YES	
+contract_id	bigint	NO	UNI
+pay_day	int	YES	
+work_off_days	varchar	YES	
+work_on_days	varchar	YES	
+
+--- payrolls ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+employee_id	bigint	NO	MUL
+contract_id	bigint	NO	MUL
+corporation_id	bigint	NO	MUL
+search_date	date	NO	MUL
+pay_due_date	date	YES	
+emp_type	varchar	YES	
+emp_name	varchar	YES	
+resident_num	varchar	YES	
+total_work_hour	decimal	YES	
+total_pay	decimal	NO	
+total_pay_by_day	decimal	YES	
+none_tax_income	decimal	YES	
+income_tax	decimal	YES	
+resident_tax	decimal	YES	
+pay_cycle	varchar	YES	
+pay_status	varchar	NO	MUL
+created_at	datetime	NO	
+updated_at	datetime	NO	
+is_deleted	bit	NO	
+generated_at	datetime	YES	
+s3_key	varchar	YES	MUL
+salary_day	date	NO	
+salary_month	int	NO	
+salary_week	int	NO	
+salary_year	int	NO	
+site_id	bigint	NO	MUL
+
+--- attendance_records ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+created_at	datetime	NO	
+is_deleted	bit	NO	
+updated_at	datetime	NO	
+attendance_type	enum	NO	
+captured_face_image_url	varchar	NO	
+employee_id	bigint	NO	MUL
+failure_reason	varchar	YES	
+similarity_score	double	YES	
+site_id	bigint	NO	MUL
+state	enum	NO	MUL
+timestamp	datetime	NO	
+
+--- safety_education_logs ---
+COLUMN_NAME	DATA_TYPE	IS_NULLABLE	COLUMN_KEY
+id	bigint	NO	PRI
+created_at	datetime	NO	
+is_deleted	bit	NO	
+updated_at	datetime	NO	
+education_content	text	NO	
+education_location	varchar	NO	
+education_subject	varchar	NO	
+education_type	enum	NO	
+final_pdf_hash	varchar	YES	
+final_pdf_url	varchar	YES	
+instructor_name	varchar	NO	
+manager_signed_at	datetime	YES	
+pdf_generated_at	datetime	YES	
+pdf_url	varchar	YES	
+status	enum	NO	MUL
+corporation_id	bigint	NO	MUL
+manager_id	bigint	NO	MUL
+site_id	bigint	NO	MUL
