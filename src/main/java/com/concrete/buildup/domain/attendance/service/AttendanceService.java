@@ -88,6 +88,12 @@ public class AttendanceService {
         // 2. Site 조회 → managerId 획득
         Site site = siteRepository.findById(siteId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장을 찾을 수 없습니다."));
+
+        // Manager가 없는 경우 빈 응답 반환
+        if (site.getManager() == null) {
+            log.warn("Site에 Manager가 설정되지 않음 - siteId: {}", siteId);
+            return buildEmptyResponse(page, size);
+        }
         Long managerId = site.getManager().getId();
 
         // 3. 날짜 범위 계산
@@ -938,5 +944,36 @@ public class AttendanceService {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE,
                 "S3 URL 형식이 올바르지 않습니다: " + e.getMessage());
         }
+    }
+
+    /**
+     * 빈 근태 응답 생성
+     *
+     * <p>Manager가 설정되지 않았거나 조회할 데이터가 없는 경우 빈 응답을 반환합니다.</p>
+     *
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @return 빈 근태 응답
+     */
+    private AttendanceListResponseDto buildEmptyResponse(Integer page, Integer size) {
+        AttendanceSummaryDto emptySummary = AttendanceSummaryDto.builder()
+            .normalAttendance(0L)
+            .late(0L)
+            .earlyLeave(0L)
+            .absent(0L)
+            .build();
+
+        PaginationDto pagination = PaginationDto.builder()
+            .currentPage(page)
+            .totalPages(0)
+            .totalRecords(0L)
+            .pageSize(size)
+            .build();
+
+        return AttendanceListResponseDto.builder()
+            .summary(emptySummary)
+            .records(Collections.emptyList())
+            .pagination(pagination)
+            .build();
     }
 }
