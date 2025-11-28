@@ -285,6 +285,7 @@ public class SafetyEducationService {
         List<SafetyEducationAttendee> attendees = attendeeRepository.findBySafetyEducationLogIdWithEmployee(logId);
 
         List<AttendeeSignatureStatusResponse.AttendeeSignatureDto> attendeeDtos = attendees.stream()
+                .filter(a -> a.getEmployee() != null)
                 .map(a -> AttendeeSignatureStatusResponse.AttendeeSignatureDto.builder()
                         .employeeId(a.getEmployee().getId())
                         .empName(a.getEmployee().getEmpName())
@@ -294,12 +295,12 @@ public class SafetyEducationService {
                         .build())
                 .collect(Collectors.toList());
 
-        int signedCount = (int) attendees.stream().filter(SafetyEducationAttendee::getIsSigned).count();
-        int unsignedCount = attendees.size() - signedCount;
+        int signedCount = (int) attendeeDtos.stream().filter(AttendeeSignatureStatusResponse.AttendeeSignatureDto::getIsSigned).count();
+        int unsignedCount = attendeeDtos.size() - signedCount;
 
         return AttendeeSignatureStatusResponse.builder()
                 .safetyEducationLogId(logId)
-                .totalCount(attendees.size())
+                .totalCount(attendeeDtos.size())
                 .signedCount(signedCount)
                 .unsignedCount(unsignedCount)
                 .attendees(attendeeDtos)
