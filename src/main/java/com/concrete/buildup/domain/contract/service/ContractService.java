@@ -34,6 +34,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -448,7 +449,8 @@ public class ContractService {
      * 모든 유형의 근로자 조회 (UNCONTRACTED + DAILY + PERMANENT)
      *
      * <p>empType 파라미터가 없을 때, 계약된 근로자와 미계약 근로자를 모두 조회합니다.</p>
-     * <p>두 데이터 소스를 합쳐서 수동 페이징 처리합니다.</p>
+     * <p>필터 조건(employeeId, status, from, to)을 적용하고, 두 데이터 소스를 합쳐서 수동 페이징 처리합니다.</p>
+     * <p>정렬 순서: UNCONTRACTED 먼저 → from(시작일) 오름차순 → to(종료일) 오름차순</p>
      *
      * @param siteId 현장 ID
      * @param managerId 관리자 ID
@@ -456,13 +458,22 @@ public class ContractService {
      * @return ContractListResponse - 전체 근로자 목록 + 페이징 정보
      */
     private ContractListResponse getAllEmployeesWithContracts(Long siteId, Long managerId, ContractSearchCondition condition) {
-        log.info("전체 근로자 목록 조회 (UNCONTRACTED + 계약된 근로자): siteId={}", siteId);
+        log.info("전체 근로자 목록 조회 (UNCONTRACTED + 계약된 근로자): siteId={}, condition={}", siteId, condition);
 
         List<ContractSummaryDto> allItems = new java.util.ArrayList<>();
 
         // ========== 1. 미계약 근로자(UNCONTRACTED) 조회 ==========
+        // 미계약 근로자는 status, from, to 필터가 적용되지 않음 (계약이 없으므로)
+        // employeeId 필터만 적용
         List<Employee> uncontractedEmployees = employeeRepository.findUncontractedBySiteId(siteId);
         log.debug("미계약 근로자 조회: siteId={}, count={}", siteId, uncontractedEmployees.size());
+
+        // employeeId 필터 적용 (미계약 근로자)
+        if (condition.getEmployeeId() != null) {
+            uncontractedEmployees = uncontractedEmployees.stream()
+                    .filter(e -> e.getId().equals(condition.getEmployeeId()))
+                    .toList();
+        }
 
         // 미계약 근로자 DTO 변환
         List<ContractSummaryDto> uncontractedItems = uncontractedEmployees.stream()
@@ -471,9 +482,18 @@ public class ContractService {
         allItems.addAll(uncontractedItems);
 
         // ========== 2. 계약된 근로자(DAILY + PERMANENT) 조회 ==========
-        // 페이징 없이 전체 조회 (수동 페이징을 위해)
-        List<Contract> contracts = contractRepository.findByManagerId(managerId, Pageable.unpaged()).getContent();
-        log.debug("계약된 근로자 조회: managerId={}, count={}", managerId, contracts.size());
+        // 필터 조건(employeeId, status, from, to)을 적용하여 조회
+        Page<Contract> contractPage = contractRepository.findByDynamicConditions(
+                managerId,
+                condition.getEmployeeId(),
+                null, // employeeIdsByType - 전체 조회이므로 null
+                condition.getStatus(),
+                condition.getFrom(),
+                condition.getTo(),
+                Pageable.unpaged()
+        );
+        List<Contract> contracts = contractPage.getContent();
+        log.debug("계약된 근로자 조회 (필터 적용): managerId={}, count={}", managerId, contracts.size());
 
         if (!contracts.isEmpty()) {
             // Employee 일괄 조회 (N+1 방지)
@@ -492,9 +512,35 @@ public class ContractService {
             allItems.addAll(contractedItems);
         }
 
-        log.info("전체 근로자 조회 완료: totalCount={}", allItems.size());
+        log.info("전체 근로자 조회 완료 (필터 적용 후): totalCount={}", allItems.size());
 
-        // ========== 3. 수동 페이징 처리 ==========
+        // ========== 3. 정렬: UNCONTRACTED 먼저 → from 오름차순 → to 오름차순 ==========
+        allItems.sort((a, b) -> {
+            // 1순위: UNCONTRACTED(empType == UNCONTRACTED)가 먼저
+            boolean aIsUncontracted = a.getEmpType() == EmpType.UNCONTRACTED;
+            boolean bIsUncontracted = b.getEmpType() == EmpType.UNCONTRACTED;
+            if (aIsUncontracted && !bIsUncontracted) return -1;
+            if (!aIsUncontracted && bIsUncontracted) return 1;
+
+            // 2순위: from(employeeStartDate) 오름차순 (null은 맨 뒤)
+            LocalDate aFrom = a.getEmployeeStartDate();
+            LocalDate bFrom = b.getEmployeeStartDate();
+            if (aFrom == null && bFrom == null) return 0;
+            if (aFrom == null) return 1;
+            if (bFrom == null) return -1;
+            int fromCompare = aFrom.compareTo(bFrom);
+            if (fromCompare != 0) return fromCompare;
+
+            // 3순위: to(employeeEndDate) 오름차순 (null은 맨 뒤)
+            LocalDate aTo = a.getEmployeeEndDate();
+            LocalDate bTo = b.getEmployeeEndDate();
+            if (aTo == null && bTo == null) return 0;
+            if (aTo == null) return 1;
+            if (bTo == null) return -1;
+            return aTo.compareTo(bTo);
+        });
+
+        // ========== 4. 수동 페이징 처리 ==========
         int pageIndex = condition.getPageIndex();
         int pageSize = condition.getSize();
         int totalElements = allItems.size();

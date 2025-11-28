@@ -705,8 +705,16 @@ class ContractServiceTest {
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
         // 미계약 근로자 조회 (getAllEmployeesWithContracts에서 호출)
         given(employeeRepository.findUncontractedBySiteId(siteId)).willReturn(List.of(uncontractedEmployee));
-        // 계약된 근로자 조회 (getAllEmployeesWithContracts에서 호출)
-        given(contractRepository.findByManagerId(eq(managerId), any(Pageable.class))).willReturn(contractPage);
+        // 계약된 근로자 조회 - findByDynamicConditions 사용 (필터 조건 적용)
+        given(contractRepository.findByDynamicConditions(
+                eq(managerId),
+                eq(null),  // employeeId
+                eq(null),  // employeeIdsByType
+                eq(null),  // status
+                eq(null),  // from
+                eq(null),  // to
+                any(Pageable.class)
+        )).willReturn(contractPage);
         given(employeeRepository.findAllByIdInWithUser(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
 
         // when
@@ -719,15 +727,33 @@ class ContractServiceTest {
         assertThat(response.getPageInfo().getCurrentPage()).isEqualTo(1);
         assertThat(response.getPageInfo().getTotalElements()).isEqualTo(3);
 
+        // 정렬: UNCONTRACTED 먼저 → from 오름차순 → to 오름차순
         // 미계약 근로자가 먼저 나옴
         ContractSummaryDto uncontractedItem = response.getItems().get(0);
         assertThat(uncontractedItem.getEmployeeName()).isEqualTo("박미계약");
         assertThat(uncontractedItem.getEmpType()).isEqualTo(EmpType.UNCONTRACTED);
         assertThat(uncontractedItem.getContractId()).isNull();
 
+        // 그 다음 from이 빠른 순 (2024-01-01 < 2024-03-01)
+        ContractSummaryDto secondItem = response.getItems().get(1);
+        assertThat(secondItem.getEmployeeName()).isEqualTo("홍길동");
+        assertThat(secondItem.getEmployeeStartDate()).isEqualTo(LocalDate.of(2024, 1, 1));
+
+        ContractSummaryDto thirdItem = response.getItems().get(2);
+        assertThat(thirdItem.getEmployeeName()).isEqualTo("김철수");
+        assertThat(thirdItem.getEmployeeStartDate()).isEqualTo(LocalDate.of(2024, 3, 1));
+
         verify(siteRepository).findById(siteId);
         verify(employeeRepository).findUncontractedBySiteId(siteId);
-        verify(contractRepository).findByManagerId(eq(managerId), any(Pageable.class));
+        verify(contractRepository).findByDynamicConditions(
+                eq(managerId),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        );
     }
 
     @Test
