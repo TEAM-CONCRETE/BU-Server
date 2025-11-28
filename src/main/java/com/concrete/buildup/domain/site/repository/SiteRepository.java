@@ -97,4 +97,16 @@ public interface SiteRepository extends JpaRepository<Site, Long> {
      */
     @Query("SELECT s FROM Site s LEFT JOIN FETCH s.manager WHERE s.corporation.id = :corporationId AND s.isDeleted = false ORDER BY s.createdAt DESC")
     List<Site> findByCorporationIdWithManager(@Param("corporationId") Long corporationId);
+
+    /**
+     * 현장 ID로 조회 (Corporation JOIN FETCH)
+     *
+     * <p>N+1 문제 방지를 위해 Corporation을 함께 조회합니다.</p>
+     * <p>근로계약서 작성 시 기업 정보 조회에 사용됩니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return 현장 정보 (Corporation 포함)
+     */
+    @Query("SELECT s FROM Site s LEFT JOIN FETCH s.corporation WHERE s.id = :siteId")
+    Optional<Site> findByIdWithCorporation(@Param("siteId") Long siteId);
 }
