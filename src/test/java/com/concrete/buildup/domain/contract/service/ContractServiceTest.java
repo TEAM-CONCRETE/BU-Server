@@ -802,8 +802,8 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        // empType 필터를 위해 Employee 조회
-        given(employeeRepository.findByEmpType("PERMANENT")).willReturn(List.of(employee1));
+        // empType 필터를 위해 Employee 조회 (siteId 기반)
+        given(employeeRepository.findByEmpTypeAndSiteId("PERMANENT", siteId)).willReturn(List.of(employee1));
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
                 eq(null),
@@ -823,7 +823,7 @@ class ContractServiceTest {
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getEmpType()).isEqualTo(EmpType.PERMANENT);
 
-        verify(employeeRepository).findByEmpType("PERMANENT");
+        verify(employeeRepository).findByEmpTypeAndSiteId("PERMANENT", siteId);
     }
 
     @Test
