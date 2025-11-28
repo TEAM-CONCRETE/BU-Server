@@ -74,7 +74,7 @@ public class ContractSignLog extends BaseEntity {
      * 서명 이미지 URL
      * S3 등 스토리지에 저장된 서명 이미지 경로
      */
-    @Column(name = "signature_image_url", length = 255)
+    @Column(name = "signature_image_url", length = 500)
     private String signatureImageUrl;
 
     /**
