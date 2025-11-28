@@ -52,8 +52,15 @@
         td {
             width: 70%;
         }
+        .signature-page {
+            page-break-before: always;
+            min-height: calc(842pt - 120pt); /* A4 높이 - 상하 마진 고려 */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
         .signature-area {
-            margin-top: 40px;
+            margin-top: 0;
         }
         .signature-area td {
             height: 60px;
@@ -61,7 +68,7 @@
         }
         .footer {
             text-align: right;
-            margin-top: 20px;
+            margin-top: 16px;
             font-size: 10pt;
         }
     </style>
@@ -258,22 +265,24 @@
         </table>
     </div>
 
-    <!-- 서명란 (초안에는 비어있음) -->
-    <div class="section signature-area">
-        <table>
-            <tr>
-                <th style="width: 50%;">사업주 (법인) 서명</th>
-                <th style="width: 50%;">근로자 서명</th>
-            </tr>
-            <tr>
-                <td style="height: 60px;"></td>
-                <td style="height: 60px;"></td>
-            </tr>
-        </table>
-    </div>
+    <div class="signature-page">
+        <!-- 서명란 (초안에는 비어있음) -->
+        <div class="section signature-area">
+            <table>
+                <tr>
+                    <th style="width: 50%;">사업주 (법인) 서명</th>
+                    <th style="width: 50%;">근로자 서명</th>
+                </tr>
+                <tr>
+                    <td style="height: 60px;"></td>
+                    <td style="height: 60px;"></td>
+                </tr>
+            </table>
+        </div>
 
-    <div class="footer">
-        <p>작성일: <span th:text="${contract.writtenAt != null ? #temporals.format(contract.writtenAt, 'yyyy년 MM월 dd일') : '-'}"></span></p>
+        <div class="footer">
+            <p>작성일: <span th:text="${contract.writtenAt != null ? #temporals.format(contract.writtenAt, 'yyyy년 MM월 dd일') : '-'}"></span></p>
+        </div>
     </div>
 </body>
 </html>
