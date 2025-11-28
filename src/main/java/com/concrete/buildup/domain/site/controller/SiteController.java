@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.site.controller;
 
 import com.concrete.buildup.domain.site.dto.DashboardResponse;
 import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
+import com.concrete.buildup.domain.site.dto.SiteContractInfoResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
@@ -27,6 +28,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -381,5 +383,65 @@ public class SiteController {
         return ResponseEntity.ok(
                 ApiResponse.success(response, "대시보드 정보를 성공적으로 조회했습니다.")
         );
+    }
+
+    /**
+     * 근로계약서 작성용 기업/현장 정보 조회 API
+     *
+     * <p>현장 관리자가 근로계약서 작성 시 필요한 기업 및 현장 정보를 조회합니다.</p>
+     * <p>현재 로그인한 사용자의 현장 정보를 기반으로 기업 정보를 조회합니다.</p>
+     *
+     * @return SiteContractInfoResponse - 기업/현장 정보
+     */
+    @Operation(
+            summary = "근로계약서 작성용 기업/현장 정보 조회",
+            description = "현장 관리자가 근로계약서 작성 시 필요한 기업 및 현장 정보를 조회합니다. " +
+                    "현재 로그인한 사용자의 siteId를 기반으로 현장과 기업 정보를 반환합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "success": true,
+                                      "message": "기업/현장 정보 조회가 완료되었습니다",
+                                      "data": {
+                                        "siteId": 1,
+                                        "siteName": "세종대학교 AI 센터 재개발 현장",
+                                        "siteAddress": "서울시 광진구 능동로 98",
+                                        "corporation": {
+                                          "corporationId": 1,
+                                          "corpName": "빌드업건설(주)",
+                                          "corpCeoName": "김대표",
+                                          "corpAddress": "서울시 강남구 테헤란로 123"
+                                        }
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 사용자"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "현장 또는 사용자를 찾을 수 없음"
+            )
+    })
+    @GetMapping("/contract-info")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<SiteContractInfoResponse>> getContractFormInfo() {
+        String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
+        log.info("근로계약서 작성용 정보 조회 API 호출: userId={}", currentUserId);
+
+        SiteContractInfoResponse response = siteService.getContractFormInfo(currentUserId);
+
+        log.info("근로계약서 작성용 정보 조회 완료: siteId={}", response.getSiteId());
+
+        return ResponseEntity.ok(ApiResponse.success(response, "기업/현장 정보 조회가 완료되었습니다"));
     }
 }

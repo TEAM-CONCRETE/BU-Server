@@ -8,6 +8,7 @@ import com.concrete.buildup.domain.safetydoc.entity.SafetyEducationLog;
 import com.concrete.buildup.domain.safetydoc.repository.SafetyEducationLogRepository;
 import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentDto;
 import com.concrete.buildup.domain.site.dto.SafetyWorkDocumentListResponse;
+import com.concrete.buildup.domain.site.dto.SiteContractInfoResponse;
 import com.concrete.buildup.domain.site.dto.SiteCreateRequest;
 import com.concrete.buildup.domain.site.dto.SiteCreateResponse;
 import com.concrete.buildup.domain.site.dto.SiteDetailResponse;
@@ -283,6 +284,61 @@ public class SiteService {
                 .date(date)
                 .safetyEducationLog(safetySummary)
                 .workReport(workSummary)
+                .build();
+    }
+
+    /**
+     * 근로계약서 작성용 기업/현장 정보 조회
+     *
+     * <p>현장 관리자가 근로계약서 작성 시 필요한 기업 및 현장 정보를 조회합니다.</p>
+     * <p>User.siteId를 통해 현장을 조회하고, 해당 현장의 기업 정보를 함께 반환합니다.</p>
+     *
+     * @param currentUserId 현재 로그인한 사용자 ID (userId)
+     * @return SiteContractInfoResponse - 기업/현장 정보
+     */
+    public SiteContractInfoResponse getContractFormInfo(String currentUserId) {
+        log.info("근로계약서 작성용 정보 조회: userId={}", currentUserId);
+
+        // 1. User 조회
+        User user = userRepository.findByUserId(currentUserId)
+                .orElseThrow(() -> {
+                    log.warn("사용자를 찾을 수 없음: userId={}", currentUserId);
+                    return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
+                });
+
+        // 2. User의 siteId로 현장 조회 (Corporation 포함)
+        Long siteId = user.getSiteId();
+        if (siteId == null) {
+            log.warn("사용자에게 할당된 현장이 없음: userId={}", currentUserId);
+            throw new BusinessException(SiteErrorCode.SITE_NOT_FOUND, "할당된 현장이 없습니다.");
+        }
+
+        Site site = siteRepository.findByIdWithCorporation(siteId)
+                .orElseThrow(() -> {
+                    log.warn("현장을 찾을 수 없음: siteId={}", siteId);
+                    return new BusinessException(SiteErrorCode.SITE_NOT_FOUND);
+                });
+
+        // 3. Corporation 정보 추출
+        Corporation corporation = site.getCorporation();
+        SiteContractInfoResponse.CorporationInfo corpInfo = null;
+        if (corporation != null) {
+            corpInfo = SiteContractInfoResponse.CorporationInfo.builder()
+                    .corporationId(corporation.getId())
+                    .corpName(corporation.getCorpName())
+                    .corpCeoName(corporation.getCorpCeoName())
+                    .corpAddress(corporation.getCorpAddress())
+                    .build();
+        }
+
+        log.info("근로계약서 작성용 정보 조회 완료: siteId={}, corpName={}",
+                siteId, corporation != null ? corporation.getCorpName() : null);
+
+        return SiteContractInfoResponse.builder()
+                .siteId(site.getId())
+                .siteName(site.getSiteName())
+                .siteAddress(site.getSiteAddress())
+                .corporation(corpInfo)
                 .build();
     }
 }
