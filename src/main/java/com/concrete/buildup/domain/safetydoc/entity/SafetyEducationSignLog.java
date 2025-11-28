@@ -59,7 +59,7 @@ public class SafetyEducationSignLog extends BaseEntity {
     @Column(name = "signed_ip", length = 45)
     private String signedIp;
 
-    @Column(name = "signed_device", length = 100)
+    @Column(name = "signed_device", length = 500)
     private String signedDevice;
 
     @Column(name = "signed_at")

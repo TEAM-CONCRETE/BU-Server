@@ -95,7 +95,7 @@ public class ContractSignLog extends BaseEntity {
      * 서명 디바이스 정보
      * User-Agent 등 디바이스 식별 정보
      */
-    @Column(name = "signed_device", length = 100)
+    @Column(name = "signed_device", length = 500)
     private String signedDevice;
 
     /**
