@@ -665,6 +665,9 @@ public class AttendanceService {
         Site site = siteRepository.findById(siteId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장을 찾을 수 없습니다."));
 
+        if (site.getManager() == null) {
+            throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "현장에 관리자가 설정되지 않았습니다.");
+        }
         Long managerId = site.getManager().getId();
 
         // EmpType 안전하게 변환
