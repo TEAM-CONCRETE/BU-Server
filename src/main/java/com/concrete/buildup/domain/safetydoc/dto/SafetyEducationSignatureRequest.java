@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 public class SafetyEducationSignatureRequest {
 
     @Schema(
-            description = "S3에 업로드된 서명 이미지의 키. Presigned URL 발급 시 응답받은 s3Key 값을 사용",
+            description = "S3에 업로드된 서명 이미지의 키 (서버에서 자동으로 S3 전체 URL로 변환되어 저장됨). Presigned URL 발급 시 응답받은 s3Key 값을 사용",
             requiredMode = Schema.RequiredMode.REQUIRED,
             example = "uploads/safety-education/1/signatures/MANAGER/1699000000000.png"
     )

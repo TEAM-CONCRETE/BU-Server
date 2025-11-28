@@ -7,7 +7,6 @@ import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
-import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.entity.ContractSignLog;
@@ -180,14 +179,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(100.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         // Contract 상태를 MANAGER_SIGNING_PENDING으로 설정
         contract = Contract.builder()
@@ -222,7 +213,10 @@ class ContractSignatureServiceTest {
                 any(BigDecimal.class)
         )).willReturn(v2PdfBytes);
         given(s3Service.getPdfUrl(anyString()))
-                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/홍길동_PERMANENT_20250112_v2_manager_signed.pdf");
+                .willAnswer(invocation -> {
+                    String key = invocation.getArgument(0);
+                    return "https://bucket.s3.amazonaws.com/" + key;
+                });
 
         // when & then
         try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
@@ -233,7 +227,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     clientHash,
-                    coordinates,
                     "192.168.1.1",
                     "Chrome/Win10"
             );
@@ -256,7 +249,7 @@ class ContractSignatureServiceTest {
             ContractSignLog savedLog = signLogCaptor.getValue();
             assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.MANAGER);
             assertThat(savedLog.getSignerId()).isEqualTo(1L);
-            assertThat(savedLog.getSignatureImageUrl()).isEqualTo(signatureS3Key);
+            assertThat(savedLog.getSignatureImageUrl()).isEqualTo("https://bucket.s3.amazonaws.com/" + signatureS3Key);
             assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.1");
             assertThat(savedLog.getSignedDevice()).isEqualTo("Chrome/Win10");
             assertThat(savedLog.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
@@ -288,10 +281,6 @@ class ContractSignatureServiceTest {
                 contractId,
                 "uploads/CONTRACT/100/MANAGER.png",
                 "hash",
-                SignatureCoordinates.builder()
-                        .x(100.0).y(200.0).width(150.0).height(50.0)
-                        .viewWidth(800.0).viewHeight(1131.0)
-                        .build(),
                 "192.168.1.1",
                 "Chrome/Win10"
         ))
@@ -310,14 +299,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(450.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         // Contract 상태를 EMPLOYEE_SIGNING_PENDING으로 설정
         contract = Contract.builder()
@@ -363,7 +344,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     clientHash,
-                    coordinates,
                     "192.168.1.2",
                     "Safari/iOS"
             );
@@ -418,10 +398,6 @@ class ContractSignatureServiceTest {
                 contractId,
                 "uploads/CONTRACT/100/EMPLOYEE.png",
                 "hash",
-                SignatureCoordinates.builder()
-                        .x(450.0).y(200.0).width(150.0).height(50.0)
-                        .viewWidth(800.0).viewHeight(1131.0)
-                        .build(),
                 "192.168.1.2",
                 "Safari/iOS"
         ))
@@ -437,14 +413,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(100.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         contract = Contract.builder()
                 .employeeId(1L)
@@ -473,7 +441,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     wrongHash,
-                    coordinates,
                     "192.168.1.1",
                     "Chrome/Win10"
             ))
@@ -493,14 +460,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(450.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         contract = Contract.builder()
                 .employeeId(1L)
@@ -529,7 +488,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     wrongHash,
-                    coordinates,
                     "192.168.1.2",
                     "Safari/iOS"
             ))

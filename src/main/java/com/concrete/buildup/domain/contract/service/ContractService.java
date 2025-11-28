@@ -93,8 +93,8 @@ public class ContractService {
      */
     @Transactional
     public CreateContractResponse createContract(Long siteId, CreateContractRequest request) {
-        log.info("계약 생성 시작: siteId={}, employeeUserId={}, empType={}",
-                siteId, request.getEmployeeUserId(), request.getEmpType());
+        log.info("계약 생성 시작: siteId={}, userId={}, empType={}",
+                siteId, request.getUserId(), request.getEmpType());
 
         // ========== 1. Site 조회 및 Corporation, Manager 정보 획득 ==========
 
@@ -121,12 +121,12 @@ public class ContractService {
         }
         log.debug("관리자 조회 성공: managerId={}", manager.getId());
 
-        // ========== 2. employeeUserId로 Employee 조회 ==========
+        // ========== 2. userId로 Employee 조회 ==========
 
         // 2-1. User 조회 (userId = 로그인 ID)
-        User employeeUser = userRepository.findByUserId(request.getEmployeeUserId())
+        User employeeUser = userRepository.findByUserId(request.getUserId())
                 .orElseThrow(() -> {
-                    log.warn("근로자 User를 찾을 수 없음: employeeUserId={}", request.getEmployeeUserId());
+                    log.warn("근로자 User를 찾을 수 없음: userId={}", request.getUserId());
                     return new BusinessException(ContractErrorCode.EMPLOYEE_NOT_FOUND);
                 });
         log.debug("근로자 User 조회 성공: userId={}", employeeUser.getId());
@@ -298,19 +298,20 @@ public class ContractService {
                     .build();
         }
 
-        // ========== 2. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
+        // ========== 2. UNCONTRACTED 근로자 별도 처리 ==========
+        // UNCONTRACTED 근로자는 Contract 테이블에 레코드가 없으므로, Employee 기반으로 직접 조회
+        if (condition.getEmpType() == EmpType.UNCONTRACTED) {
+            return getUncontractedEmployees(siteId, condition);
+        }
+
+        // ========== 3. empType 필터링 - Employee 테이블에서 해당 타입의 employeeId 목록 조회 ==========
         List<Long> employeeIdsByType = null;
         if (condition.getEmpType() != null) {
-            List<Employee> employeesByType;
-            
-            // UNCONTRACTED인 경우 emp_type이 NULL인 근로자 조회
-            if (condition.getEmpType() == EmpType.UNCONTRACTED) {
-                employeesByType = employeeRepository.findByEmpTypeIsNull();
-                log.debug("미계약 근로자 필터링: count={}", employeesByType.size());
-            } else {
-                employeesByType = employeeRepository.findByEmpType(condition.getEmpType().name());
-                log.debug("empType 필터링 완료: empType={}, count={}", condition.getEmpType(), employeesByType.size());
-            }
+            // 계약된 근로자는 User.siteId 기준으로 현장 필터링
+            List<Employee> employeesByType = employeeRepository.findByEmpTypeAndSiteId(
+                    condition.getEmpType().name(), siteId);
+            log.debug("empType 필터링 완료 (siteId={}): empType={}, count={}",
+                    siteId, condition.getEmpType(), employeesByType.size());
             
             employeeIdsByType = employeesByType.stream()
                     .map(Employee::getId)
@@ -318,12 +319,12 @@ public class ContractService {
 
             // empType에 해당하는 근로자가 없으면 빈 목록 반환
             if (employeeIdsByType.isEmpty()) {
-                log.info("해당 empType의 근로자가 없음: empType={}", condition.getEmpType());
+                log.info("해당 empType의 근로자가 없음: siteId={}, empType={}", siteId, condition.getEmpType());
                 return buildEmptyResponse(condition);
             }
         }
 
-        // ========== 3. 동적 조건으로 Contract 조회 (페이징) ==========
+        // ========== 4. 동적 조건으로 Contract 조회 (페이징) ==========
         Pageable pageable = PageRequest.of(
                 condition.getPageIndex(),
                 condition.getSize(),
@@ -348,22 +349,22 @@ public class ContractService {
             return buildEmptyResponse(condition);
         }
 
-        // ========== 4. Employee 일괄 조회 (N+1 방지) ==========
+        // ========== 5. Employee 일괄 조회 (N+1 방지 - JOIN FETCH 사용) ==========
         List<Long> employeeIds = contracts.stream()
                 .map(Contract::getEmployeeId)
                 .distinct()
                 .toList();
 
-        Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
+        Map<Long, Employee> employeeMap = employeeRepository.findAllByIdInWithUser(employeeIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e));
-        log.debug("근로자 정보 일괄 조회 완료: count={}", employeeMap.size());
+        log.debug("근로자 정보 일괄 조회 완료 (User 포함): count={}", employeeMap.size());
 
-        // ========== 5. DTO 변환 ==========
+        // ========== 6. DTO 변환 ==========
         List<ContractSummaryDto> items = contracts.stream()
                 .map(contract -> toSummaryDto(contract, employeeMap.get(contract.getEmployeeId())))
                 .toList();
 
-        // ========== 6. PageInfo 생성 (필터링된 결과 기준) ==========
+        // ========== 7. PageInfo 생성 (필터링된 결과 기준) ==========
         ContractListResponse.PageInfo pageInfo = ContractListResponse.PageInfo.builder()
                 .currentPage(condition.getPage())
                 .pageSize(condition.getSize())
@@ -378,6 +379,92 @@ public class ContractService {
         return ContractListResponse.builder()
                 .items(items)
                 .pageInfo(pageInfo)
+                .build();
+    }
+
+    /**
+     * 미계약(UNCONTRACTED) 근로자 목록 조회
+     *
+     * <p>Contract 테이블에 레코드가 없는 미계약 근로자를 User.siteId 기준으로 조회합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param condition 검색 조건
+     * @return ContractListResponse - 미계약 근로자 목록 + 페이징 정보
+     */
+    private ContractListResponse getUncontractedEmployees(Long siteId, ContractSearchCondition condition) {
+        log.info("미계약 근로자 목록 조회: siteId={}", siteId);
+
+        // User.siteId를 기준으로 해당 현장의 미계약 근로자 조회
+        List<Employee> uncontractedEmployees = employeeRepository.findUncontractedBySiteId(siteId);
+        log.debug("미계약 근로자 조회 완료: siteId={}, count={}", siteId, uncontractedEmployees.size());
+
+        if (uncontractedEmployees.isEmpty()) {
+            return buildEmptyResponse(condition);
+        }
+
+        // 수동 페이징 처리
+        int pageIndex = condition.getPageIndex();
+        int pageSize = condition.getSize();
+        int totalElements = uncontractedEmployees.size();
+        int totalPages = (int) Math.ceil((double) totalElements / pageSize);
+
+        int startIndex = pageIndex * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, totalElements);
+
+        // 범위 벗어나면 빈 목록 반환
+        if (startIndex >= totalElements) {
+            return buildEmptyResponse(condition);
+        }
+
+        List<Employee> pagedEmployees = uncontractedEmployees.subList(startIndex, endIndex);
+
+        // DTO 변환 (Contract 없이 Employee 정보만으로 생성)
+        List<ContractSummaryDto> items = pagedEmployees.stream()
+                .map(this::toUncontractedSummaryDto)
+                .toList();
+
+        // PageInfo 생성
+        ContractListResponse.PageInfo pageInfo = ContractListResponse.PageInfo.builder()
+                .currentPage(condition.getPage())
+                .pageSize(pageSize)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .hasNext(pageIndex < totalPages - 1)
+                .hasPrevious(pageIndex > 0)
+                .build();
+
+        log.info("미계약 근로자 목록 조회 완료: itemCount={}", items.size());
+
+        return ContractListResponse.builder()
+                .items(items)
+                .pageInfo(pageInfo)
+                .build();
+    }
+
+    /**
+     * 미계약 Employee를 ContractSummaryDto로 변환
+     */
+    private ContractSummaryDto toUncontractedSummaryDto(Employee employee) {
+        // 전화번호 추출 (User 엔티티에서)
+        String phone = null;
+        if (employee.getUser() != null) {
+            phone = employee.getUser().getPhone();
+        }
+
+        return ContractSummaryDto.builder()
+                .contractId(null) // 계약이 없으므로 null
+                .employeeId(employee.getId())
+                .employeeName(employee.getEmpName())
+                .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
+                .employeePhone(phone)
+                .empType(EmpType.UNCONTRACTED) // 명시적으로 UNCONTRACTED
+                .role(null) // 계약 전이므로 역할 없음
+                .contractState(null) // 계약 상태 없음
+                .employeeStartDate(null)
+                .employeeEndDate(null)
+                .writtenAt(null)
+                .corporationSignedAt(null)
+                .employeeSignedAt(null)
                 .build();
     }
 
@@ -411,6 +498,7 @@ public class ContractService {
                     .employeeId(contract.getEmployeeId())
                     .employeeName("알 수 없음")
                     .employeeResidentNumber(null)
+                    .employeePhone(null)
                     .empType(null)
                     .role(contract.getRole())
                     .contractState(contract.getContractState())
@@ -432,11 +520,18 @@ public class ContractService {
             }
         }
 
+        // 전화번호 추출 (User 엔티티에서)
+        String phone = null;
+        if (employee.getUser() != null) {
+            phone = employee.getUser().getPhone();
+        }
+
         return ContractSummaryDto.builder()
                 .contractId(contract.getId())
                 .employeeId(employee.getId())
                 .employeeName(employee.getEmpName())
                 .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
+                .employeePhone(phone)
                 .empType(empType)
                 .role(contract.getRole())
                 .contractState(contract.getContractState())

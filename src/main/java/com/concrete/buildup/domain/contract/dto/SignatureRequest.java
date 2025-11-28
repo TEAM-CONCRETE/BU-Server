@@ -1,9 +1,7 @@
 package com.concrete.buildup.domain.contract.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,6 +12,7 @@ import lombok.NoArgsConstructor;
  * 서명 처리 요청 DTO
  *
  * <p>관리자 또는 근로자의 서명 처리 시 필요한 정보를 전달받습니다.</p>
+ * <p>서명 좌표는 서버에서 HTML 템플릿 기반으로 자동 계산됩니다.</p>
  *
  * @author Build-Up Team
  * @since 1.0
@@ -27,7 +26,7 @@ public class SignatureRequest {
 
     @NotBlank(message = "서명 이미지 S3 키는 필수입니다")
     @Schema(
-            description = "서명 이미지 S3 키",
+            description = "서명 이미지 S3 키 (서버에서 자동으로 S3 전체 URL로 변환되어 저장됨)",
             example = "uploads/contracts/123/MANAGER.png",
             required = true
     )
@@ -41,9 +40,4 @@ public class SignatureRequest {
             required = true
     )
     private String clientHash;
-
-    @NotNull(message = "서명 좌표 정보는 필수입니다")
-    @Valid
-    @Schema(description = "서명 이미지 좌표 정보", required = true)
-    private SignatureCoordinates coordinates;
 }

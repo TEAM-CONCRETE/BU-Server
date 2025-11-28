@@ -99,4 +99,49 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
                    "LIMIT 1",
            nativeQuery = true)
     Optional<Employee> findByPhoneWithUser(@Param("phone") String phone);
+
+    /**
+     * 현장 ID로 미계약 근로자 목록 조회 (emp_type이 NULL인 근로자)
+     *
+     * <p>User 테이블의 site_id를 기준으로 해당 현장에 소속된 미계약 근로자를 조회합니다.</p>
+     * <p>UNCONTRACTED 근로자는 Contract 테이블에 레코드가 없으므로,
+     * User.siteId를 통해 현장 필터링이 필요합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @return 해당 현장의 미계약 근로자 목록 (Employee + User)
+     */
+    @Query("SELECT e FROM Employee e " +
+           "JOIN FETCH e.user u " +
+           "WHERE e.empType IS NULL " +
+           "AND u.siteId = :siteId")
+    List<Employee> findUncontractedBySiteId(@Param("siteId") Long siteId);
+
+    /**
+     * 현장 ID와 근로자 유형으로 근로자 목록 조회
+     *
+     * <p>User 테이블의 site_id를 기준으로 해당 현장에 소속된 특정 유형의 근로자를 조회합니다.</p>
+     *
+     * @param siteId 현장 ID
+     * @param empType 근로자 유형 (DAILY/PERMANENT)
+     * @return 해당 현장의 근로자 목록 (Employee + User)
+     */
+    @Query("SELECT e FROM Employee e " +
+           "JOIN FETCH e.user u " +
+           "WHERE e.empType = :empType " +
+           "AND u.siteId = :siteId")
+    List<Employee> findByEmpTypeAndSiteId(@Param("empType") String empType, @Param("siteId") Long siteId);
+
+    /**
+     * Employee ID 목록으로 근로자 + User 일괄 조회 (Fetch Join)
+     *
+     * <p>N+1 문제 방지를 위해 User를 함께 조회합니다.</p>
+     * <p>기본 findAllById() 대신 이 메서드를 사용하여 성능을 최적화합니다.</p>
+     *
+     * @param ids Employee ID 목록
+     * @return 근로자 + User 목록
+     */
+    @Query("SELECT e FROM Employee e " +
+           "JOIN FETCH e.user " +
+           "WHERE e.id IN :ids")
+    List<Employee> findAllByIdInWithUser(@Param("ids") List<Long> ids);
 }

@@ -31,7 +31,7 @@ public class CreateContractRequest {
 
     @NotNull(message = "근로자 User ID는 필수입니다")
     @Schema(description = "근로자의 로그인 ID (User 테이블의 user_id)", example = "emp_daily1", required = true)
-    private String employeeUserId;
+    private String userId;
 
     @Schema(description = "계약 시 역할", example = "현장 관리자")
     private String role;

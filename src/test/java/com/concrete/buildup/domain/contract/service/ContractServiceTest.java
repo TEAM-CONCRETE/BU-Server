@@ -615,7 +615,7 @@ class ContractServiceTest {
         return site;
     }
 
-    private CreateContractRequest createContractRequest(String employeeUserId) {
+    private CreateContractRequest createContractRequest(String userId) {
         ContractDetailRequest details = ContractDetailRequest.builder()
                 .workPlace("서울시 강남구 테헤란로 123")
                 .workType("일반건설현장근로자")
@@ -639,7 +639,7 @@ class ContractServiceTest {
                 .build();
 
         return CreateContractRequest.builder()
-                .employeeUserId(employeeUserId)
+                .userId(userId)
                 .empType(EmpType.PERMANENT)
                 .role("현장 관리자")
                 .employeeStartDate(LocalDate.of(2024, 1, 1))
@@ -708,7 +708,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L, 2L))).willReturn(List.of(employee1, employee2));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -734,7 +734,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         );
-        verify(employeeRepository).findAllById(List.of(1L, 2L));
+        verify(employeeRepository).findAllByIdInWithUser(List.of(1L, 2L));
     }
 
     @Test
@@ -768,7 +768,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -802,8 +802,8 @@ class ContractServiceTest {
         Page<Contract> contractPage = new PageImpl<>(List.of(contract1));
 
         given(siteRepository.findById(siteId)).willReturn(Optional.of(site));
-        // empType 필터를 위해 Employee 조회
-        given(employeeRepository.findByEmpType("PERMANENT")).willReturn(List.of(employee1));
+        // empType 필터를 위해 Employee 조회 (siteId 기반)
+        given(employeeRepository.findByEmpTypeAndSiteId("PERMANENT", siteId)).willReturn(List.of(employee1));
         given(contractRepository.findByDynamicConditions(
                 eq(managerId),
                 eq(null),
@@ -813,7 +813,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -823,7 +823,7 @@ class ContractServiceTest {
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getEmpType()).isEqualTo(EmpType.PERMANENT);
 
-        verify(employeeRepository).findByEmpType("PERMANENT");
+        verify(employeeRepository).findByEmpTypeAndSiteId("PERMANENT", siteId);
     }
 
     @Test
@@ -857,7 +857,7 @@ class ContractServiceTest {
                 eq(null),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(1L))).willReturn(List.of(employee1));
+        given(employeeRepository.findAllByIdInWithUser(List.of(1L))).willReturn(List.of(employee1));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);
@@ -903,7 +903,7 @@ class ContractServiceTest {
                 eq(to),
                 any(Pageable.class)
         )).willReturn(contractPage);
-        given(employeeRepository.findAllById(List.of(2L))).willReturn(List.of(employee2));
+        given(employeeRepository.findAllByIdInWithUser(List.of(2L))).willReturn(List.of(employee2));
 
         // when
         ContractListResponse response = contractService.getContracts(siteId, condition);

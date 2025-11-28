@@ -128,13 +128,11 @@ public class AuthService {
         User savedUser = userRepository.save(user);
         log.debug("User 저장 완료: id={}, userId={}", savedUser.getId(), savedUser.getUserId());
 
-        // 6. Employee 생성 및 저장 (주민등록번호 AES-256-GCM 암호화)
-        String encryptedResidentNum = aesEncryptionUtil.encrypt(request.getResidentNum());
-
+        // 6. Employee 생성 및 저장 (주민등록번호는 ResidentNumConverter에서 자동 암호화)
         Employee employee = Employee.builder()
                 .user(savedUser)
                 .empName(request.getEmpName())
-                .residentNum(encryptedResidentNum)
+                .residentNum(request.getResidentNum())
                 .subPhone(request.getEmergencyPhone())
                 .empAddress(request.getEmpAddress())
                 .build();
@@ -287,18 +285,16 @@ public class AuthService {
         user.updateInfo(request.getPhone(), request.getEmail());
         log.debug("User 정보 업데이트 완료: id={}, userId={}", user.getId(), user.getUserId());
 
-        // 4. Employee 조회 및 정보 업데이트 (주민등록번호 AES-256-GCM 암호화)
+        // 4. Employee 조회 및 정보 업데이트 (주민등록번호는 ResidentNumConverter에서 자동 암호화)
         Employee employee = employeeRepository.findByUser(user)
                 .orElseThrow(() -> {
                     log.error("Employee를 찾을 수 없습니다: userId={}", user.getUserId());
                     return new BusinessException(AuthErrorCode.USER_NOT_FOUND);
                 });
 
-        String encryptedResidentNum = aesEncryptionUtil.encrypt(request.getResidentNum());
-
         // Employee 정보 업데이트
         employee.updateProfile(
-                encryptedResidentNum,
+                request.getResidentNum(),
                 request.getEmergencyPhone(),
                 request.getEmpAddress()
         );
