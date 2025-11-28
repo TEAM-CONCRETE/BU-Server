@@ -141,13 +141,16 @@ public class SafetyEducationSignatureService {
         service.uploadPdf(newS3Key, signedPdfBytes);
         String newPdfUrl = service.getPdfUrl(newS3Key);
 
-        // 11. 서명 로그 저장
+        // 11. 서명 이미지 URL 생성
+        String signatureImageUrl = service.getPdfUrl(request.getSignatureS3Key());
+
+        // 12. 서명 로그 저장
         SafetyEducationSignLog signLog = SafetyEducationSignLog.builder()
                 .safetyEducationLog(log)
                 .signerRole(SignerRole.MANAGER)
                 .signerId(manager.getId())
                 .signerName(manager.getManagerName())
-                .signatureImageUrl(request.getSignatureS3Key())
+                .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
                 .signatureX(pdfCoords.getX())
                 .signatureY(pdfCoords.getY())
@@ -161,7 +164,7 @@ public class SafetyEducationSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 12. 상태 전환 및 PDF URL 업데이트
+        // 13. 상태 전환 및 PDF URL 업데이트
         log.signByManager();
         log.updatePdf(newPdfUrl);
         safetyEducationLogRepository.save(log);
@@ -218,17 +221,20 @@ public class SafetyEducationSignatureService {
             throw new BusinessException(SafetyDocErrorCode.SIGNATURE_HASH_MISMATCH);
         }
 
-        // 6. 참석자 서명 완료 처리 (DB에 서명 이미지 URL 저장)
-        attendee.sign(request.getSignatureS3Key());
+        // 6. 서명 이미지 URL 생성
+        String signatureImageUrl = service.getPdfUrl(request.getSignatureS3Key());
+
+        // 7. 참석자 서명 완료 처리 (DB에 서명 이미지 URL 저장)
+        attendee.sign(signatureImageUrl);
         attendeeRepository.save(attendee);
 
-        // 7. 서명 로그 저장
+        // 8. 서명 로그 저장
         SafetyEducationSignLog signLog = SafetyEducationSignLog.builder()
                 .safetyEducationLog(log)
                 .signerRole(SignerRole.EMPLOYEE)
                 .signerId(employeeId)
                 .signerName(attendee.getEmployee().getEmpName())
-                .signatureImageUrl(request.getSignatureS3Key())
+                .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
                 .signedIp(signedIp)
                 .signedDevice(signedDevice)
@@ -238,7 +244,7 @@ public class SafetyEducationSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 8. 모든 참석자 서명 완료 시 최종 PDF 생성
+        // 9. 모든 참석자 서명 완료 시 최종 PDF 생성
         String pdfUrl = log.getPdfUrl();
         String pdfHash = null;
 

@@ -222,7 +222,10 @@ class ContractSignatureServiceTest {
                 any(BigDecimal.class)
         )).willReturn(v2PdfBytes);
         given(s3Service.getPdfUrl(anyString()))
-                .willReturn("https://bucket.s3.amazonaws.com/contracts/100/홍길동_PERMANENT_20250112_v2_manager_signed.pdf");
+                .willAnswer(invocation -> {
+                    String key = invocation.getArgument(0);
+                    return "https://bucket.s3.amazonaws.com/" + key;
+                });
 
         // when & then
         try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
@@ -256,7 +259,7 @@ class ContractSignatureServiceTest {
             ContractSignLog savedLog = signLogCaptor.getValue();
             assertThat(savedLog.getSignerRole()).isEqualTo(SignerRole.MANAGER);
             assertThat(savedLog.getSignerId()).isEqualTo(1L);
-            assertThat(savedLog.getSignatureImageUrl()).isEqualTo(signatureS3Key);
+            assertThat(savedLog.getSignatureImageUrl()).isEqualTo("https://bucket.s3.amazonaws.com/" + signatureS3Key);
             assertThat(savedLog.getSignedIp()).isEqualTo("192.168.1.1");
             assertThat(savedLog.getSignedDevice()).isEqualTo("Chrome/Win10");
             assertThat(savedLog.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);

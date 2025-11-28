@@ -226,13 +226,16 @@ public class ContractSignatureService {
         service.uploadPdf(v2S3Key, v2PdfBytes);
         String v2PdfUrl = service.getPdfUrl(v2S3Key);
 
-        // 9. ContractSignLog 저장
+        // 9. 서명 이미지 URL 생성
+        String signatureImageUrl = service.getPdfUrl(signatureS3Key);
+
+        // 10. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.MANAGER)
                 .signerId(contract.getManagerId())
                 .signerName("관리자") // TODO: Manager 엔티티에서 조회
-                .signatureImageUrl(signatureS3Key)
+                .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
                 .signatureX(pdfCoords.getX())
                 .signatureY(pdfCoords.getY())
@@ -246,7 +249,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 10. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
+        // 11. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
         contract.transitionToEmployeeSigningPending();
         contractRepository.save(contract);
 
@@ -370,13 +373,16 @@ public class ContractSignatureService {
         // 10. Contract.finalPdfUrl, finalPdfHash 업데이트 (최종 저장)
         contract.updateFinalPdf(v3PdfUrl, v3PdfHash);
 
-        // 11. ContractSignLog 저장
+        // 11. 서명 이미지 URL 생성
+        String signatureImageUrl = service.getPdfUrl(signatureS3Key);
+
+        // 12. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.EMPLOYEE)
                 .signerId(contract.getEmployeeId())
                 .signerName("근로자") // TODO: Employee 엔티티에서 조회
-                .signatureImageUrl(signatureS3Key)
+                .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
                 .signatureX(pdfCoords.getX())
                 .signatureY(pdfCoords.getY())
@@ -390,7 +396,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 12. Contract 상태 → FULLY_SIGNED
+        // 13. Contract 상태 → FULLY_SIGNED
         contract.transitionToFullySigned();
         contractRepository.save(contract);
 
