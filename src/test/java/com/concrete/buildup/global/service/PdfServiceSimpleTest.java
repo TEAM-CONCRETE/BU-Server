@@ -13,6 +13,8 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -20,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * private 메서드인 convertHtmlToPdf를 Reflection으로 호출하여 테스트
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @DisplayName("PdfService 간단한 폰트 테스트")
 class PdfServiceSimpleTest {
 

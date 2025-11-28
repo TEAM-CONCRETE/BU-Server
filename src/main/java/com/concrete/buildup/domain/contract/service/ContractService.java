@@ -578,15 +578,18 @@ public class ContractService {
      * 미계약 Employee를 ContractSummaryDto로 변환
      */
     private ContractSummaryDto toUncontractedSummaryDto(Employee employee) {
-        // 전화번호 추출 (User 엔티티에서)
+        // User 정보 추출
         String phone = null;
+        String userId = null;
         if (employee.getUser() != null) {
             phone = employee.getUser().getPhone();
+            userId = employee.getUser().getUserId();
         }
 
         return ContractSummaryDto.builder()
                 .contractId(null) // 계약이 없으므로 null
                 .employeeId(employee.getId())
+                .userId(userId)
                 .employeeName(employee.getEmpName())
                 .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .employeePhone(phone)
@@ -629,6 +632,7 @@ public class ContractService {
             return ContractSummaryDto.builder()
                     .contractId(contract.getId())
                     .employeeId(contract.getEmployeeId())
+                    .userId(null)
                     .employeeName("알 수 없음")
                     .employeeResidentNumber(null)
                     .employeePhone(null)
@@ -653,15 +657,18 @@ public class ContractService {
             }
         }
 
-        // 전화번호 추출 (User 엔티티에서)
+        // User 정보 추출
         String phone = null;
+        String userId = null;
         if (employee.getUser() != null) {
             phone = employee.getUser().getPhone();
+            userId = employee.getUser().getUserId();
         }
 
         return ContractSummaryDto.builder()
                 .contractId(contract.getId())
                 .employeeId(employee.getId())
+                .userId(userId)
                 .employeeName(employee.getEmpName())
                 .employeeResidentNumber(MaskingUtil.maskResidentNumber(employee.getResidentNum()))
                 .employeePhone(phone)

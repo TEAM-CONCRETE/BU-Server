@@ -12,6 +12,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -19,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 실제 PDF 생성 및 한글 폰트 렌더링을 검증합니다.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @DisplayName("PdfService 한글 폰트 렌더링 테스트")
 class PdfServiceKoreanFontTest {
 

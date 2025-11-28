@@ -29,8 +29,11 @@ public class ContractSummaryDto {
     @Schema(description = "계약 ID", example = "1")
     private Long contractId;
 
-    @Schema(description = "근로자 ID", example = "10")
+    @Schema(description = "근로자 ID (Employee PK)", example = "10")
     private Long employeeId;
+
+    @Schema(description = "사용자 ID (로그인 ID)", example = "hong123")
+    private String userId;
 
     @Schema(description = "근로자 이름", example = "홍길동")
     private String employeeName;
