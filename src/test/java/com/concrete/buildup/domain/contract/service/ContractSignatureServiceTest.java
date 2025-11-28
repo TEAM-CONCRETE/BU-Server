@@ -7,7 +7,6 @@ import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
-import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.entity.ContractSignLog;
@@ -180,14 +179,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(100.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         // Contract 상태를 MANAGER_SIGNING_PENDING으로 설정
         contract = Contract.builder()
@@ -236,7 +227,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     clientHash,
-                    coordinates,
                     "192.168.1.1",
                     "Chrome/Win10"
             );
@@ -291,10 +281,6 @@ class ContractSignatureServiceTest {
                 contractId,
                 "uploads/CONTRACT/100/MANAGER.png",
                 "hash",
-                SignatureCoordinates.builder()
-                        .x(100.0).y(200.0).width(150.0).height(50.0)
-                        .viewWidth(800.0).viewHeight(1131.0)
-                        .build(),
                 "192.168.1.1",
                 "Chrome/Win10"
         ))
@@ -313,14 +299,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(450.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         // Contract 상태를 EMPLOYEE_SIGNING_PENDING으로 설정
         contract = Contract.builder()
@@ -366,7 +344,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     clientHash,
-                    coordinates,
                     "192.168.1.2",
                     "Safari/iOS"
             );
@@ -421,10 +398,6 @@ class ContractSignatureServiceTest {
                 contractId,
                 "uploads/CONTRACT/100/EMPLOYEE.png",
                 "hash",
-                SignatureCoordinates.builder()
-                        .x(450.0).y(200.0).width(150.0).height(50.0)
-                        .viewWidth(800.0).viewHeight(1131.0)
-                        .build(),
                 "192.168.1.2",
                 "Safari/iOS"
         ))
@@ -440,14 +413,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/MANAGER.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(100.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         contract = Contract.builder()
                 .employeeId(1L)
@@ -476,7 +441,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     wrongHash,
-                    coordinates,
                     "192.168.1.1",
                     "Chrome/Win10"
             ))
@@ -496,14 +460,6 @@ class ContractSignatureServiceTest {
         // given
         Long contractId = 100L;
         String signatureS3Key = "uploads/CONTRACT/100/EMPLOYEE.png";
-        SignatureCoordinates coordinates = SignatureCoordinates.builder()
-                .x(450.0)
-                .y(200.0)
-                .width(150.0)
-                .height(50.0)
-                .viewWidth(800.0)
-                .viewHeight(1131.0)
-                .build();
 
         contract = Contract.builder()
                 .employeeId(1L)
@@ -532,7 +488,6 @@ class ContractSignatureServiceTest {
                     contractId,
                     signatureS3Key,
                     wrongHash,
-                    coordinates,
                     "192.168.1.2",
                     "Safari/iOS"
             ))

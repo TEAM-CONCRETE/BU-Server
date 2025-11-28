@@ -265,7 +265,6 @@ public class ContractController {
                 contractId,
                 request.getSignatureS3Key(),
                 request.getClientHash(),
-                request.getCoordinates(),
                 clientIp,
                 userAgent
         );
@@ -324,7 +323,6 @@ public class ContractController {
                 contractId,
                 request.getSignatureS3Key(),
                 request.getClientHash(),
-                request.getCoordinates(),
                 clientIp,
                 userAgent
         );

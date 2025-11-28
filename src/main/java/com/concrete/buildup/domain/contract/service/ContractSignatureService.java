@@ -6,8 +6,8 @@ import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
 import com.concrete.buildup.domain.auth.repository.ManagerRepository;
 import com.concrete.buildup.domain.auth.repository.UserRepository;
+import com.concrete.buildup.domain.contract.config.SignatureCoordinatesConfig;
 import com.concrete.buildup.domain.contract.dto.SignatureCompleteResponse;
-import com.concrete.buildup.domain.contract.dto.SignatureCoordinates;
 import com.concrete.buildup.domain.contract.entity.Contract;
 import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.entity.ContractSignLog;
@@ -21,7 +21,6 @@ import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.global.exception.BusinessException;
 import com.concrete.buildup.global.exception.errorcode.CommonErrorCode;
 import com.concrete.buildup.global.exception.errorcode.ContractErrorCode;
-import com.concrete.buildup.global.util.CoordinateConverter;
 import com.concrete.buildup.global.util.SecurityUtil;
 import com.concrete.buildup.global.util.SignatureVerificationUtil;
 import lombok.RequiredArgsConstructor;
@@ -130,11 +129,11 @@ public class ContractSignatureService {
      * 관리자 서명 완료 처리 (v2 생성)
      *
      * <p>관리자 서명 이미지를 검증하고, v1 PDF에 서명을 스탬핑하여 v2 PDF를 생성합니다.</p>
+     * <p>서명 좌표는 SignatureCoordinatesConfig에 정의된 고정값을 사용합니다.</p>
      *
      * @param contractId 계약 ID
      * @param signatureS3Key 서명 이미지 S3 키
      * @param clientHash 클라이언트에서 계산한 SHA-256 해시
-     * @param coordinates 서명 좌표 정보
      * @param signedIp 서명 IP 주소
      * @param signedDevice 서명 디바이스 정보
      * @return 서명 완료 응답
@@ -144,7 +143,6 @@ public class ContractSignatureService {
             Long contractId,
             String signatureS3Key,
             String clientHash,
-            SignatureCoordinates coordinates,
             String signedIp,
             String signedDevice
     ) {
@@ -199,37 +197,31 @@ public class ContractSignatureService {
         String v1S3Key = buildS3Key(contractId, contractDetail, "v1_draft");
         byte[] v1PdfBytes = service.downloadPdf(v1S3Key);
 
-        // 5. 좌표 변환 (뷰포트 → PDF)
-        CoordinateConverter.PdfCoordinates pdfCoords = CoordinateConverter.convertToPdfCoordinates(
-                coordinates.getX(), coordinates.getY(),
-                coordinates.getViewWidth(), coordinates.getViewHeight(),
-                595.0, 842.0 // A4 size
-        );
+        // 5. 고정 좌표 사용 (SignatureCoordinatesConfig에서 정의)
+        BigDecimal signatureX = SignatureCoordinatesConfig.MANAGER_SIGNATURE_X;
+        BigDecimal signatureY = SignatureCoordinatesConfig.MANAGER_SIGNATURE_Y;
+        BigDecimal signatureWidth = SignatureCoordinatesConfig.SIGNATURE_WIDTH;
+        BigDecimal signatureHeight = SignatureCoordinatesConfig.SIGNATURE_HEIGHT;
 
-        // 6. 스케일링된 서명 크기 계산
-        BigDecimal scaledWidth = BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth()));
-        BigDecimal scaledHeight = BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()));
-
-        // 7. PDF에 서명 이미지 스탬핑 → v2 생성
-        // OpenPDF는 좌하단 기준 좌표를 사용하므로, 변환된 Y(상단) 좌표에서 높이를 빼야 함
+        // 6. PDF에 서명 이미지 스탬핑 → v2 생성
         byte[] v2PdfBytes = pdfGenerationService.stampSignatureOnPdf(
                 v1PdfBytes,
                 signatureImageBytes,
-                pdfCoords.getX(),
-                pdfCoords.getY().subtract(scaledHeight), // Y 좌표 보정: 상단 → 하단
-                scaledWidth,
-                scaledHeight
+                signatureX,
+                signatureY,
+                signatureWidth,
+                signatureHeight
         );
 
-        // 8. v2 PDF를 S3에 업로드
+        // 7. v2 PDF를 S3에 업로드
         String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
         service.uploadPdf(v2S3Key, v2PdfBytes);
         String v2PdfUrl = service.getPdfUrl(v2S3Key);
 
-        // 9. 서명 이미지 URL 생성
+        // 8. 서명 이미지 URL 생성
         String signatureImageUrl = service.getPdfUrl(signatureS3Key);
 
-        // 10. ContractSignLog 저장
+        // 9. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.MANAGER)
@@ -237,10 +229,10 @@ public class ContractSignatureService {
                 .signerName("관리자") // TODO: Manager 엔티티에서 조회
                 .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
-                .signatureX(pdfCoords.getX())
-                .signatureY(pdfCoords.getY())
-                .signatureWidth(BigDecimal.valueOf(coordinates.getWidth()))
-                .signatureHeight(BigDecimal.valueOf(coordinates.getHeight()))
+                .signatureX(signatureX)
+                .signatureY(signatureY)
+                .signatureWidth(signatureWidth)
+                .signatureHeight(signatureHeight)
                 .signedIp(signedIp)
                 .signedDevice(signedDevice)
                 .signedAt(LocalDateTime.now())
@@ -249,7 +241,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 11. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
+        // 10. Contract 상태 → EMPLOYEE_SIGNING_PENDING (corpSignedAt도 자동 설정됨)
         contract.transitionToEmployeeSigningPending();
         contractRepository.save(contract);
 
@@ -269,11 +261,11 @@ public class ContractSignatureService {
      *
      * <p>근로자 서명 이미지를 검증하고, v2 PDF에 서명을 스탬핑하여 최종 v3 PDF를 생성합니다.</p>
      * <p>v3 PDF의 해시값을 계산하여 Contract에 저장하고, 계약 상태를 FULLY_SIGNED로 변경합니다.</p>
+     * <p>서명 좌표는 SignatureCoordinatesConfig에 정의된 고정값을 사용합니다.</p>
      *
      * @param contractId 계약 ID
      * @param signatureS3Key 서명 이미지 S3 키
      * @param clientHash 클라이언트에서 계산한 SHA-256 해시
-     * @param coordinates 서명 좌표 정보
      * @param signedIp 서명 IP 주소
      * @param signedDevice 서명 디바이스 정보
      * @return 서명 완료 응답 (최종 PDF URL 및 해시 포함)
@@ -283,7 +275,6 @@ public class ContractSignatureService {
             Long contractId,
             String signatureS3Key,
             String clientHash,
-            SignatureCoordinates coordinates,
             String signedIp,
             String signedDevice
     ) {
@@ -338,26 +329,20 @@ public class ContractSignatureService {
         String v2S3Key = buildS3Key(contractId, contractDetail, "v2_manager_signed");
         byte[] v2PdfBytes = service.downloadPdf(v2S3Key);
 
-        // 5. 좌표 변환 (뷰포트 → PDF)
-        CoordinateConverter.PdfCoordinates pdfCoords = CoordinateConverter.convertToPdfCoordinates(
-                coordinates.getX(), coordinates.getY(),
-                coordinates.getViewWidth(), coordinates.getViewHeight(),
-                595.0, 842.0
-        );
+        // 5. 고정 좌표 사용 (SignatureCoordinatesConfig에서 정의)
+        BigDecimal signatureX = SignatureCoordinatesConfig.EMPLOYEE_SIGNATURE_X;
+        BigDecimal signatureY = SignatureCoordinatesConfig.EMPLOYEE_SIGNATURE_Y;
+        BigDecimal signatureWidth = SignatureCoordinatesConfig.SIGNATURE_WIDTH;
+        BigDecimal signatureHeight = SignatureCoordinatesConfig.SIGNATURE_HEIGHT;
 
-        // 6. 스케일링된 서명 크기 계산
-        BigDecimal scaledWidth = BigDecimal.valueOf(coordinates.getWidth() * (595.0 / coordinates.getViewWidth()));
-        BigDecimal scaledHeight = BigDecimal.valueOf(coordinates.getHeight() * (842.0 / coordinates.getViewHeight()));
-
-        // 7. PDF에 서명 이미지 스탬핑 → v3 생성
-        // OpenPDF는 좌하단 기준 좌표를 사용하므로, 변환된 Y(상단) 좌표에서 높이를 빼야 함
+        // 6. PDF에 서명 이미지 스탬핑 → v3 생성
         byte[] v3PdfBytes = pdfGenerationService.stampSignatureOnPdf(
                 v2PdfBytes,
                 signatureImageBytes,
-                pdfCoords.getX(),
-                pdfCoords.getY().subtract(scaledHeight), // Y 좌표 보정: 상단 → 하단
-                scaledWidth,
-                scaledHeight
+                signatureX,
+                signatureY,
+                signatureWidth,
+                signatureHeight
         );
 
         // 8. v3 PDF의 SHA-256 해시 계산
@@ -373,10 +358,10 @@ public class ContractSignatureService {
         // 10. Contract.finalPdfUrl, finalPdfHash 업데이트 (최종 저장)
         contract.updateFinalPdf(v3PdfUrl, v3PdfHash);
 
-        // 11. 서명 이미지 URL 생성
+        // 10. 서명 이미지 URL 생성
         String signatureImageUrl = service.getPdfUrl(signatureS3Key);
 
-        // 12. ContractSignLog 저장
+        // 11. ContractSignLog 저장
         ContractSignLog signLog = ContractSignLog.builder()
                 .contract(contract)
                 .signerRole(SignerRole.EMPLOYEE)
@@ -384,10 +369,10 @@ public class ContractSignatureService {
                 .signerName("근로자") // TODO: Employee 엔티티에서 조회
                 .signatureImageUrl(signatureImageUrl)
                 .signatureHash(serverHash)
-                .signatureX(pdfCoords.getX())
-                .signatureY(pdfCoords.getY())
-                .signatureWidth(BigDecimal.valueOf(coordinates.getWidth()))
-                .signatureHeight(BigDecimal.valueOf(coordinates.getHeight()))
+                .signatureX(signatureX)
+                .signatureY(signatureY)
+                .signatureWidth(signatureWidth)
+                .signatureHeight(signatureHeight)
                 .signedIp(signedIp)
                 .signedDevice(signedDevice)
                 .signedAt(LocalDateTime.now())
@@ -396,7 +381,7 @@ public class ContractSignatureService {
                 .build();
         signLogRepository.save(signLog);
 
-        // 13. Contract 상태 → FULLY_SIGNED
+        // 12. Contract 상태 → FULLY_SIGNED
         contract.transitionToFullySigned();
         contractRepository.save(contract);
 
