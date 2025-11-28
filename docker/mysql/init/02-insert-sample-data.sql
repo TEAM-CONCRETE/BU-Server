@@ -10,7 +10,7 @@ INSERT INTO roles (role_name, description, is_deleted) VALUES
     ('ROLE_ADMIN', '시스템 관리자', b'0'),
     ('ROLE_MANAGER', '현장 관리자', b'0'),
     ('ROLE_EMPLOYEE', '근로자', b'0'),
-    ('ROLE_CORPORATION', '기업', b'0')
+    ('ROLE_CORPORATION', '기업 관리자', b'0')
 ON DUPLICATE KEY UPDATE
     description = VALUES(description),
     is_deleted = VALUES(is_deleted);
