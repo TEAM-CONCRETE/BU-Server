@@ -38,7 +38,8 @@ public class PayrollCalculator {
     private static final BigDecimal WORKERS_COMP_INSURANCE_RATE = new BigDecimal("0.007"); // 산재보험 0.7% (업종별 상이)
     private static final BigDecimal EMPLOYMENT_INSURANCE_RATE = new BigDecimal("0.009"); // 고용보험 0.9%
 
-    // 비과세 한도 (식대 등)
+    // 비과세 한도 (식대 등) - 향후 사용 예정
+    @SuppressWarnings("unused")
     private static final BigDecimal NON_TAXABLE_LIMIT = new BigDecimal("200000"); // 월 20만원
 
     /**
@@ -484,6 +485,11 @@ public class PayrollCalculator {
      * 일용직 세금 계산 (일별 계산)
      */
     private TaxResult calculateDailyTax(PayrollCalculationInput input, BigDecimal totalPay) {
+        // 근로일수가 0이거나 null이면 세금 0원 반환
+        if (input.getWorkDays() == null || input.getWorkDays() == 0) {
+            return new TaxResult(BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+
         // 일급 = 총 지급액 / 근로일수
         BigDecimal dailyPay = totalPay.divide(new BigDecimal(input.getWorkDays()), 0, RoundingMode.FLOOR);
 
@@ -538,6 +544,7 @@ public class PayrollCalculator {
     /**
      * Null-safe BigDecimal 반환
      */
+    @SuppressWarnings("unused") // calculate 메서드에서 사용됨
     private BigDecimal nvl(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
     }
