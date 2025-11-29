@@ -3,9 +3,11 @@ package com.concrete.buildup.domain.employee.repository;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.contract.enums.EmpType;
 import com.concrete.buildup.domain.employee.dto.EmployeeListResponseDto;
+import com.concrete.buildup.global.converter.ResidentNumConverter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -22,11 +24,13 @@ import java.util.Optional;
  * @author Build-Up Team
  * @since 1.0
  */
+@Slf4j
 @Repository
 @RequiredArgsConstructor
 public class EmployeeQueryRepository {
 
     private final EntityManager em;
+    private final ResidentNumConverter residentNumConverter = new ResidentNumConverter();
 
     /**
      * 현장 ID 기반 사원 목록 조회 (페이징, 필터링)
@@ -84,12 +88,26 @@ public class EmployeeQueryRepository {
         // Object[] → DTO 변환
         List<Object[]> results = query.getResultList();
         List<EmployeeListResponseDto> content = results.stream()
-                .map(row -> new EmployeeListResponseDto(
-                        ((Number) row[0]).longValue(),
-                        (String) row[1],
-                        (String) row[2],
-                        row[3] != null ? EmpType.valueOf((String) row[3]) : null
-                ))
+                .map(row -> {
+                    Long employeeId = ((Number) row[0]).longValue();
+                    String employeeName = (String) row[1];
+                    String encryptedResidentNum = (String) row[2];
+                    EmpType employeeEmpType = row[3] != null ? EmpType.valueOf((String) row[3]) : null;
+                    
+                    // Native Query로 조회한 주민등록번호는 암호화된 상태이므로 복호화 필요
+                    // ResidentNumConverter를 사용하여 복호화
+                    String decryptedResidentNum = null;
+                    if (encryptedResidentNum != null && !encryptedResidentNum.isEmpty()) {
+                        try {
+                            decryptedResidentNum = residentNumConverter.convertToEntityAttribute(encryptedResidentNum);
+                        } catch (Exception e) {
+                            log.error("주민등록번호 복호화 실패 - employeeId: {}, error: {}", employeeId, e.getMessage());
+                            // 복호화 실패 시 null로 처리 (마스킹 처리 시 빈 값으로 표시됨)
+                        }
+                    }
+                    
+                    return new EmployeeListResponseDto(employeeId, employeeName, decryptedResidentNum, employeeEmpType);
+                })
                 .toList();
 
         // Count 쿼리
