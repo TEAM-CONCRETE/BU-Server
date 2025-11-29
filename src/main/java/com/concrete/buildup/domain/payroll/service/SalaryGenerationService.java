@@ -360,13 +360,20 @@ public class SalaryGenerationService {
             boolean hasNightWork = nightHours.compareTo(BigDecimal.ZERO) > 0;
             boolean hasHolidayWork = holidayHours.compareTo(BigDecimal.ZERO) > 0;
 
+            // 일용직의 경우: monthlyWorkDaysAccumulated는 workDays 값 사용 (4대보험 가입 조건 판단용)
+            // 상용직의 경우: monthlyWorkDaysAccumulated는 사용하지 않으므로 0으로 설정
+            int workDaysCount = attendances.size();
+            int monthlyWorkDaysAccumulated = contract.getEmpType() == com.concrete.buildup.domain.contract.enums.EmpType.DAILY
+                    ? workDaysCount  // 일용직: 해당 기간의 근로일수 사용
+                    : 0;  // 상용직: 사용하지 않음
+
             // v1.1 계산 입력 DTO 생성
             PayrollCalculationInput calculationInput = PayrollCalculationInput.builder()
                     .empType(contract.getEmpType())
                     .payPeriod(payCycle)
                     .hourlyRate(hourlyRate)
                     .dailyWorkHours(new BigDecimal("8")) // 기본 일 근무시간 (계약상 기준)
-                    .workDays(attendances.size())
+                    .workDays(workDaysCount)
                     .overtimeHours(overtimeHours)
                     .nightHours(nightHours)
                     .holidayHours(holidayHours)
@@ -388,7 +395,7 @@ public class SalaryGenerationService {
                             .hasNightWork(hasNightWork)
                             .hasHolidayWork(hasHolidayWork)
                             .build())
-                    .monthlyWorkDaysAccumulated(0) // DEFAULT: 월 근로일수 누적 (향후 계산 가능)
+                    .monthlyWorkDaysAccumulated(monthlyWorkDaysAccumulated) // 일용직: workDays 값 사용, 상용직: 0
                     .monthlyEstimatedIncome(BigDecimal.ZERO) // DEFAULT: 월 추정소득 (향후 계산 가능)
                     .build();
 

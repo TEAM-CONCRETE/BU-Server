@@ -437,7 +437,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(false)
                             .hasHolidayWork(false)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
@@ -497,7 +497,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(false)
                             .hasHolidayWork(false)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
@@ -554,7 +554,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(true)
                             .hasHolidayWork(false)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
@@ -613,7 +613,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(true)
                             .hasHolidayWork(false)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
@@ -658,7 +658,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(true)
                             .hasHolidayWork(false)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
@@ -881,7 +881,7 @@ class PayrollCalculatorTest {
                             .hasNightWork(true)
                             .hasHolidayWork(true)
                             .build())
-                    .monthlyWorkDaysAccumulated(0)
+                    .monthlyWorkDaysAccumulated(1)  // 일용직 일급: workDays 값 사용
                     .monthlyEstimatedIncome(BigDecimal.ZERO)
                     .build();
 
