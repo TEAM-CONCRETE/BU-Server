@@ -2,6 +2,7 @@ package com.concrete.buildup.domain.payroll.util;
 
 import com.concrete.buildup.domain.contract.entity.ContractDetail;
 import com.concrete.buildup.domain.contract.enums.EmpType;
+import com.concrete.buildup.domain.contract.enums.PayPeriod;
 import com.concrete.buildup.domain.payroll.dto.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -321,11 +322,18 @@ public class PayrollCalculator {
         BigDecimal holidayPay = input.getHourlyRate().multiply(holidayHours).multiply(new BigDecimal("1.5"))
                 .setScale(0, RoundingMode.FLOOR);
 
-        // 5) 주휴수당 계산 (일용직만)
+        // 5) 주휴수당 계산
         BigDecimal weeklyHolidayPay = BigDecimal.ZERO;
-        if (EmpType.DAILY.equals(input.getEmpType()) && Boolean.TRUE.equals(input.getWeeklyHolidayEligible())) {
-            weeklyHolidayPay = input.getHourlyRate().multiply(input.getDailyWorkHours())
-                    .setScale(0, RoundingMode.FLOOR);
+        if (Boolean.TRUE.equals(input.getWeeklyHolidayEligible())) {
+            if (EmpType.DAILY.equals(input.getEmpType())) {
+                // 일용직: 하루 일당
+                weeklyHolidayPay = input.getHourlyRate().multiply(input.getDailyWorkHours())
+                        .setScale(0, RoundingMode.FLOOR);
+            } else {
+                // 상용직: 주 4회 * (시급 * 일 근무시간)
+                BigDecimal dailyPay = input.getHourlyRate().multiply(input.getDailyWorkHours());
+                weeklyHolidayPay = dailyPay.multiply(new BigDecimal("4")).setScale(0, RoundingMode.FLOOR);
+            }
         }
 
         // 6) 총 지급액
@@ -420,30 +428,39 @@ public class PayrollCalculator {
         InsuranceEligibility eligibility = input.getInsurance();
         InsuranceRates rates = input.getRates();
 
-        // 고용보험
-        BigDecimal employmentIns = Boolean.TRUE.equals(eligibility.getEmploymentInsurance())
+        // 월 근로일수 조회 (일용직 월급의 경우 8일 미만이면 전체 4대보험 미가입)
+        Integer monthlyDays = input.getMonthlyWorkDaysAccumulated() != null ? input.getMonthlyWorkDaysAccumulated() : 0;
+
+        // 고용보험: 일용직 월급의 경우 월 8일 미만이면 미가입
+        boolean employmentApplicable = Boolean.TRUE.equals(eligibility.getEmploymentInsurance());
+        if (input.getPayPeriod() == PayPeriod.MONTHLY && monthlyDays < 8) {
+            employmentApplicable = false;
+        }
+        BigDecimal employmentIns = employmentApplicable
                 ? taxableIncome.multiply(rates.getEmploymentInsurance()).setScale(0, RoundingMode.FLOOR)
                 : BigDecimal.ZERO;
 
-        // 월 근로일수 및 월 소득 기준 판정
-        Integer monthlyDays = input.getMonthlyWorkDaysAccumulated() != null ? input.getMonthlyWorkDaysAccumulated() : 0;
+        // 월 소득 기준 판정
         BigDecimal monthlyIncome = input.getMonthlyEstimatedIncome() != null ? input.getMonthlyEstimatedIncome() : BigDecimal.ZERO;
 
+        // 일용직: 월 8일 미만이면 건강보험과 국민연금 모두 미가입
+        // 단, 국민연금은 월소득 220만원 이상이면 월 8일 미만이어도 가입 가능 (단, 월 8일 미만이면 무조건 미가입으로 처리)
         boolean healthApplicable = Boolean.TRUE.equals(eligibility.getHealthInsurance()) && monthlyDays >= 8;
-        boolean pensionApplicable = Boolean.TRUE.equals(eligibility.getNationalPension())
-                && (monthlyDays >= 8 || monthlyIncome.compareTo(new BigDecimal("2200000")) >= 0);
+        boolean pensionApplicable = Boolean.TRUE.equals(eligibility.getNationalPension()) && monthlyDays >= 8;
 
-        // 건강보험 및 장기요양
+        // 건강보험 및 장기요양: 월소득이 있으면 월소득 기준, 없으면 당월 총 지급액 기준
+        // 단, 일용직 월급의 경우 총지급액 기준으로 계산
+        BigDecimal insuranceBase = taxableIncome; // 일용직은 총지급액 기준
         BigDecimal healthIns = healthApplicable
-                ? monthlyIncome.multiply(rates.getHealthInsurance()).setScale(0, RoundingMode.FLOOR)
+                ? insuranceBase.multiply(rates.getHealthInsurance()).setScale(0, RoundingMode.FLOOR)
                 : BigDecimal.ZERO;
         BigDecimal longTermCareIns = healthApplicable
-                ? healthIns.multiply(rates.getLongTermCare()).setScale(0, RoundingMode.FLOOR)
+                ? healthIns.multiply(rates.getLongTermCare()).divide(new BigDecimal("10"), 0, RoundingMode.FLOOR).multiply(new BigDecimal("10"))
                 : BigDecimal.ZERO;
 
-        // 국민연금
+        // 국민연금: 일용직은 총지급액 기준
         BigDecimal nationalPension = pensionApplicable
-                ? monthlyIncome.multiply(rates.getNationalPension()).setScale(0, RoundingMode.FLOOR)
+                ? insuranceBase.multiply(rates.getNationalPension()).setScale(0, RoundingMode.FLOOR)
                 : BigDecimal.ZERO;
 
         return new InsuranceResult(employmentIns, healthIns, longTermCareIns, nationalPension);
@@ -457,7 +474,7 @@ public class PayrollCalculator {
 
         BigDecimal employmentIns = taxableIncome.multiply(rates.getEmploymentInsurance()).setScale(0, RoundingMode.FLOOR);
         BigDecimal healthIns = taxableIncome.multiply(rates.getHealthInsurance()).setScale(0, RoundingMode.FLOOR);
-        BigDecimal longTermCareIns = healthIns.multiply(rates.getLongTermCare()).setScale(0, RoundingMode.FLOOR);
+        BigDecimal longTermCareIns = healthIns.multiply(rates.getLongTermCare()).divide(new BigDecimal("10"), 0, RoundingMode.FLOOR).multiply(new BigDecimal("10"));
         BigDecimal nationalPension = taxableIncome.multiply(rates.getNationalPension()).setScale(0, RoundingMode.FLOOR);
 
         return new InsuranceResult(employmentIns, healthIns, longTermCareIns, nationalPension);
