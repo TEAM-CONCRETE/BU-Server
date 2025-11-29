@@ -12,6 +12,11 @@ import com.concrete.buildup.domain.payroll.repository.PayrollRepository;
 import com.concrete.buildup.domain.payroll.repository.PayslipItemRepository;
 import com.concrete.buildup.domain.payroll.util.PayrollCalculator;
 import com.concrete.buildup.domain.payroll.util.PayrollPdfGenerator;
+import com.concrete.buildup.domain.payroll.dto.PayrollCalculationInput;
+import com.concrete.buildup.domain.payroll.dto.PayrollCalculationResult;
+import com.concrete.buildup.domain.payroll.dto.OvertimeConditions;
+import com.concrete.buildup.domain.payroll.dto.InsuranceEligibility;
+import com.concrete.buildup.domain.payroll.dto.InsuranceRates;
 import com.concrete.buildup.domain.upload.service.S3Service;
 import com.concrete.buildup.domain.attendance.entity.Attendance;
 import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
@@ -342,43 +347,83 @@ public class SalaryGenerationService {
                 }
             }
 
-            // 급여 항목별 계산
-            BigDecimal basePay = payrollCalculator.calculateBasePay(hourlyRate, workHours);
-            BigDecimal nightPay = payrollCalculator.calculateNightWorkPay(hourlyRate, nightHours);
-            BigDecimal overtimePay = payrollCalculator.calculateOvertimePay(hourlyRate, overtimeHours);
-            BigDecimal holidayPay = payrollCalculator.calculateHolidayPay(hourlyRate, holidayHours);
-            // weeklyHolidayPay는 이미 위에서 계산됨
+            // ========== v1.1 급여 계산 ==========
 
-            // 총 지급액 계산
-            BigDecimal totalPay = basePay.add(nightPay).add(overtimePay)
-                    .add(holidayPay).add(weeklyHolidayPay);
-
-            // 비과세 소득 계산
-            BigDecimal nonTaxIncome = payrollCalculator.calculateNonTaxableIncome(contractDetail);
-
-            // 과세 소득 = 총 지급액 - 비과세 소득
-            BigDecimal taxableIncome = totalPay.subtract(nonTaxIncome);
-
-            // 세금 계산
-            BigDecimal incomeTax = payrollCalculator.calculateIncomeTax(taxableIncome);
-            BigDecimal residentTax = payrollCalculator.calculateResidentTax(taxableIncome);
-
-            // 4대보험 계산
+            // 4대보험 가입 여부 조회
             boolean hasNationalPension = Boolean.TRUE.equals(contractDetail.getIsNpsApplicable());
             boolean hasHealthInsurance = Boolean.TRUE.equals(contractDetail.getIsNhiApplicable());
-            boolean hasWorkersCompInsurance = Boolean.TRUE.equals(contractDetail.getIsWciApplicable());
             boolean hasEmploymentInsurance = Boolean.TRUE.equals(contractDetail.getIsEoiApplicable());
 
-            BigDecimal nationalPension = payrollCalculator.calculateNationalPension(totalPay, hasNationalPension);
-            BigDecimal healthInsurance = payrollCalculator.calculateHealthInsurance(totalPay, hasHealthInsurance);
-            BigDecimal workersCompInsurance = payrollCalculator.calculateWorkersCompInsurance(totalPay, hasWorkersCompInsurance);
-            BigDecimal employmentInsurance = payrollCalculator.calculateEmploymentInsurance(totalPay, hasEmploymentInsurance);
+            // 가산수당 발생 조건 판단
+            boolean exceedsDailyLimit = overtimeHours.compareTo(BigDecimal.ZERO) > 0;
+            boolean exceedsWeeklyLimit = false; // 주 40시간 초과 여부는 주차별 집계가 필요하므로 기본값 false
+            boolean hasNightWork = nightHours.compareTo(BigDecimal.ZERO) > 0;
+            boolean hasHolidayWork = holidayHours.compareTo(BigDecimal.ZERO) > 0;
 
-            // 실수령액 계산
-            BigDecimal netPay = payrollCalculator.calculateNetPay(
-                    totalPay, incomeTax, residentTax,
-                    nationalPension, healthInsurance, workersCompInsurance, employmentInsurance
-            );
+            // v1.1 계산 입력 DTO 생성
+            PayrollCalculationInput calculationInput = PayrollCalculationInput.builder()
+                    .empType(contract.getEmpType())
+                    .payPeriod(payCycle)
+                    .hourlyRate(hourlyRate)
+                    .dailyWorkHours(new BigDecimal("8")) // 기본 일 근무시간 (계약상 기준)
+                    .workDays(attendances.size())
+                    .overtimeHours(overtimeHours)
+                    .nightHours(nightHours)
+                    .holidayHours(holidayHours)
+                    .weeklyHolidayEligible(true) // 주휴수당 자격 기본값 true
+                    .insurance(InsuranceEligibility.builder()
+                            .employmentInsurance(hasEmploymentInsurance)
+                            .healthInsurance(hasHealthInsurance)
+                            .nationalPension(hasNationalPension)
+                            .build())
+                    .dependents(0) // 부양가족 수 기본값 0 (향후 Employee 정보에서 가져올 수 있음)
+                    .rates(InsuranceRates.defaultRates2025())
+                    .overtimeConditions(OvertimeConditions.builder()
+                            .totalEmployees(5) // DEFAULT: 5인 이상 사업장으로 가정 (가산수당 의무 지급)
+                            .autoPayOvertime(true) // DEFAULT: 연장수당 자율 지급
+                            .autoPayNight(true) // DEFAULT: 야간수당 자율 지급
+                            .autoPayHoliday(true) // DEFAULT: 휴일수당 자율 지급
+                            .exceedsDailyLimit(exceedsDailyLimit)
+                            .exceedsWeeklyLimit(exceedsWeeklyLimit)
+                            .hasNightWork(hasNightWork)
+                            .hasHolidayWork(hasHolidayWork)
+                            .build())
+                    .monthlyWorkDaysAccumulated(0) // DEFAULT: 월 근로일수 누적 (향후 계산 가능)
+                    .monthlyEstimatedIncome(BigDecimal.ZERO) // DEFAULT: 월 추정소득 (향후 계산 가능)
+                    .build();
+
+            // v1.1 급여 계산 실행
+            PayrollCalculationResult calculationResult = payrollCalculator.calculate(calculationInput);
+
+            // 계산 결과 추출
+            BigDecimal basePay = calculationResult.getBasePay();
+            BigDecimal nightPay = calculationResult.getNightPay();
+            BigDecimal overtimePay = calculationResult.getOvertimePay();
+            BigDecimal holidayPay = calculationResult.getHolidayPay();
+            // v1.1에서 계산된 주휴수당 사용
+            weeklyHolidayPay = calculationResult.getWeeklyHolidayPay();
+            BigDecimal totalPay = calculationResult.getTotalPay();
+
+            // 공제 항목 추출
+            BigDecimal incomeTax = calculationResult.getIncomeTax();
+            BigDecimal residentTax = calculationResult.getResidentTax();
+            BigDecimal nationalPension = calculationResult.getNationalPension();
+            BigDecimal healthInsurance = calculationResult.getHealthInsurance();
+            BigDecimal longTermCareInsurance = calculationResult.getLongTermCareInsurance();
+            BigDecimal employmentInsurance = calculationResult.getEmploymentInsurance();
+
+            // 실수령액
+            BigDecimal netPay = calculationResult.getNetPay();
+
+            // 비과세 소득 (기존 로직 유지 - v1.1에는 없음)
+            BigDecimal nonTaxIncome = payrollCalculator.calculateNonTaxableIncome(contractDetail);
+
+            // 산재보험은 v1.1에 없으므로 기존 로직 사용
+            boolean hasWorkersCompInsurance = Boolean.TRUE.equals(contractDetail.getIsWciApplicable());
+            BigDecimal workersCompInsurance = payrollCalculator.calculateWorkersCompInsurance(totalPay, hasWorkersCompInsurance);
+
+            log.info("[급여 생성] v1.1 계산 완료 - basePay: {}, overtimePay: {}, nightPay: {}, holidayPay: {}, weeklyHolidayPay: {}, totalPay: {}, netPay: {}",
+                    basePay, overtimePay, nightPay, holidayPay, weeklyHolidayPay, totalPay, netPay);
 
             // 5. Payroll 엔티티 생성
             LocalDate searchDate = targetMonth.atDay(1); // 지급 기준월
