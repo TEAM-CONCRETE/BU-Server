@@ -251,7 +251,7 @@ public class PayrollController {
      * <p>급여 ID로 급여명세서의 전체 정보를 조회합니다.</p>
      *
      * @param payrollId 급여 ID (필수)
-     * @param page 근무일지 페이지 번호 (기본값: 1)
+     * @param page 근무일지 페이지 번호 (기본값: 0)
      * @param size 근무일지 페이지 크기 (기본값: 10)
      * @return 급여명세서 상세 정보
      */
@@ -265,8 +265,8 @@ public class PayrollController {
             @Parameter(description = "급여 ID", required = true, example = "1")
             @PathVariable @Min(1) Long payrollId,
 
-            @Parameter(description = "근무일지 페이지 번호 (1부터 시작)", example = "1")
-            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @Parameter(description = "근무일지 페이지 번호 (0부터 시작)", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) Integer page,
 
             @Parameter(description = "근무일지 페이지 크기", example = "10")
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size
@@ -275,7 +275,7 @@ public class PayrollController {
 
         PayrollDetailResponse response = payrollService.getPayrollDetail(
                 payrollId,
-                PageRequest.of(page - 1, size)
+                PageRequest.of(page, size)
         );
 
         log.info("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
