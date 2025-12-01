@@ -50,6 +50,14 @@ public interface PayrollRepository extends JpaRepository<Payroll, Long> {
     List<Payroll> findByEmployeeIdOrderByCreatedAtDesc(Long employeeId);
 
     /**
+     * 근로자 ID로 가장 최근 급여 조회
+     *
+     * @param employeeId 근로자 ID
+     * @return 가장 최근 급여 (Optional)
+     */
+    Optional<Payroll> findTopByEmployeeIdOrderByCreatedAtDesc(Long employeeId);
+
+    /**
      * 근로자 ID로 급여 목록 조회 (지급 기준월 기준 최신순)
      *
      * @param employeeId 근로자 ID

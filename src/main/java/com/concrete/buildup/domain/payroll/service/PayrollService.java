@@ -122,18 +122,20 @@ public class PayrollService {
     /**
      * 급여명세서 상세 조회
      *
-     * <p>급여 ID로 급여명세서의 전체 정보를 조회합니다.</p>
+     * <p>근로자 ID로 가장 최근 급여명세서의 전체 정보를 조회합니다.</p>
      *
-     * @param payrollId 급여 ID
+     * @param employeeId 근로자 ID
      * @param pageable 근무일지 페이징 정보
      * @return 급여명세서 상세 정보
      */
-    public PayrollDetailResponse getPayrollDetail(Long payrollId, Pageable pageable) {
-        log.debug("급여명세서 상세 조회 - payrollId: {}", payrollId);
+    public PayrollDetailResponse getPayrollDetail(Long employeeId, Pageable pageable) {
+        log.debug("급여명세서 상세 조회 - employeeId: {}", employeeId);
 
-        // 1. 급여 조회
-        Payroll payroll = payrollRepository.findById(payrollId)
+        // 1. 급여 조회 (가장 최근 급여)
+        Payroll payroll = payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(CommonErrorCode.RESOURCE_NOT_FOUND));
+
+        Long payrollId = payroll.getId();
 
         // 2. 헤더 정보 생성
         PayrollHeaderDto header = PayrollHeaderDto.builder()
@@ -169,8 +171,8 @@ public class PayrollService {
                 .size(attendancePage.getSize())
                 .build();
 
-        log.debug("급여명세서 상세 조회 완료 - payrollId: {}, 근무일지: {}건",
-                payrollId, attendanceItems.size());
+        log.debug("급여명세서 상세 조회 완료 - employeeId: {}, payrollId: {}, 근무일지: {}건",
+                employeeId, payrollId, attendanceItems.size());
 
         return PayrollDetailResponse.builder()
                 .header(header)
