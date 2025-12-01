@@ -304,8 +304,9 @@ public class SafetyEducationSignatureService {
         for (int i = 0; i < attendees.size(); i++) {
             SafetyEducationAttendee attendee = attendees.get(i);
             if (attendee.getIsSigned() && attendee.getSignatureImageUrl() != null) {
-                // 서명 이미지 다운로드
-                byte[] signatureImageBytes = service.downloadImage(attendee.getSignatureImageUrl());
+                // 서명 이미지 다운로드 (URL → S3 키 변환)
+                String imageS3Key = service.extractS3KeyFromUrl(attendee.getSignatureImageUrl());
+                byte[] signatureImageBytes = service.downloadImage(imageS3Key);
 
                 // 해당 참석자 행의 서명란 Y 좌표 계산
                 // PDF는 좌하단이 원점이므로, 페이지 높이(842)에서 빼야 함
