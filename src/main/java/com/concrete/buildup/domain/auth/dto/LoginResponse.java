@@ -46,4 +46,10 @@ public class LoginResponse {
 
     @Schema(description = "현장 ID (ROLE_MANAGER인 경우만)", example = "1")
     private Long siteId;
+
+    @Schema(description = "필수 개인정보 완성 여부 (ROLE_EMPLOYEE인 경우만) - 주민등록번호, 전화번호, 이메일, 주소, 비상연락망이 모두 입력된 경우 true", example = "true")
+    private Boolean hasRequiredInfo;
+
+    @Schema(description = "프로필 이미지 등록 여부 (ROLE_EMPLOYEE인 경우만) - 얼굴 인식 출근을 위한 프로필 이미지가 등록된 경우 true", example = "true")
+    private Boolean hasProfileImage;
 }

@@ -557,16 +557,29 @@ public class AuthService {
         Long employeeId = null;
         Long managerId = null;
         Long siteId = null;
+        Boolean hasRequiredInfo = null;
+        Boolean hasProfileImage = null;
 
         String roleName = user.getRole().getRoleName();
         if ("ROLE_EMPLOYEE".equals(roleName)) {
             // 근로자: User ID로 직접 조회
-            employeeId = employeeRepository.findByUserId(user.getId())
-                    .map(Employee::getId)
-                    .orElse(null);
+            Employee employee = employeeRepository.findByUserId(user.getId()).orElse(null);
+            if (employee != null) {
+                employeeId = employee.getId();
+
+                // 필수 정보 완성 여부 확인
+                hasRequiredInfo = isNotEmpty(employee.getResidentNum())
+                    && isNotEmpty(user.getPhone())
+                    && isNotEmpty(user.getEmail())
+                    && isNotEmpty(employee.getEmpAddress())
+                    && isNotEmpty(employee.getSubPhone());
+
+                // 프로필 이미지 등록 여부 확인
+                hasProfileImage = isNotEmpty(employee.getProfileImageUrl());
+            }
             siteId = user.getSiteId();  // 근로자는 User 테이블의 site_id 사용
-            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}",
-                      user.getUserId(), employeeId, siteId);
+            log.debug("근로자 ID 조회 완료: userId={}, employeeId={}, siteId={}, hasRequiredInfo={}, hasProfileImage={}",
+                      user.getUserId(), employeeId, siteId, hasRequiredInfo, hasProfileImage);
         } else if ("ROLE_MANAGER".equals(roleName)) {
             // 관리자: Manager 조회 후 관리하는 Site 조회
             Manager manager = managerRepository.findByUserId(user.getId()).orElse(null);
@@ -591,6 +604,8 @@ public class AuthService {
                 .employeeId(employeeId)  // 근로자인 경우만 값이 있음
                 .managerId(managerId)    // 현장 관리자인 경우만 값이 있음
                 .siteId(siteId)          // 근로자/관리자인 경우 값이 있음 (User.siteId)
+                .hasRequiredInfo(hasRequiredInfo)  // 근로자인 경우만 값이 있음
+                .hasProfileImage(hasProfileImage)  // 근로자인 경우만 값이 있음
                 .build();
 
         // 8. LoginResult 생성 (accessToken, refreshToken 포함, 평문)
@@ -945,5 +960,15 @@ public class AuthService {
             log.error("SHA-256 알고리즘을 찾을 수 없습니다", e);
             throw new RuntimeException("토큰 해시 처리 중 오류 발생", e);
         }
+    }
+
+    /**
+     * 문자열이 null이 아니고 비어있지 않은지 확인
+     *
+     * @param str 검증할 문자열
+     * @return null이 아니고 비어있지 않으면 true
+     */
+    private static boolean isNotEmpty(String str) {
+        return str != null && !str.trim().isEmpty();
     }
 }
