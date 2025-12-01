@@ -104,23 +104,23 @@ public class DocumentService {
     /**
      * 급여명세서 PDF Signed URL 발급
      *
-     * <p>급여명세서의 s3Key를 사용하여 Signed URL을 발급합니다.</p>
+     * <p>근로자의 가장 최근 급여명세서의 s3Key를 사용하여 Signed URL을 발급합니다.</p>
      *
-     * @param payrollId 급여 ID
+     * @param employeeId 근로자 ID
      * @return Signed URL 응답
      * @throws BusinessException 급여명세서가 존재하지 않거나 PDF 파일이 없는 경우
      */
-    public DocumentUrlResponseDto getPayslipPdfUrl(Long payrollId) {
-        log.info("급여명세서 PDF URL 발급 요청: payrollId={}", payrollId);
+    public DocumentUrlResponseDto getPayslipPdfUrl(Long employeeId) {
+        log.info("급여명세서 PDF URL 발급 요청: employeeId={}", employeeId);
 
-        // 급여 조회
-        Payroll payroll = payrollRepository.findById(payrollId)
+        // 근로자의 가장 최근 급여 조회
+        Payroll payroll = payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)
                 .orElseThrow(() -> new BusinessException(DocumentErrorCode.PAYROLL_NOT_FOUND));
 
         // S3 키 확인
         String s3Key = payroll.getS3Key();
         if (s3Key == null || s3Key.isBlank()) {
-            log.warn("급여명세서 S3 키가 저장되지 않음: payrollId={}", payrollId);
+            log.warn("급여명세서 S3 키가 저장되지 않음: employeeId={}, payrollId={}", employeeId, payroll.getId());
             throw new BusinessException(DocumentErrorCode.DOCUMENT_NOT_FOUND);
         }
 
@@ -138,7 +138,8 @@ public class DocumentService {
         String signedUrl = service.generatePresignedGetUrl(s3Key);
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(SIGNED_URL_EXPIRATION_MINUTES);
 
-        log.info("급여명세서 PDF URL 발급 완료: payrollId={}, expiresAt={}", payrollId, expiresAt);
+        log.info("급여명세서 PDF URL 발급 완료: employeeId={}, payrollId={}, expiresAt={}",
+                employeeId, payroll.getId(), expiresAt);
 
         return DocumentUrlResponseDto.of(signedUrl, expiresAt);
     }

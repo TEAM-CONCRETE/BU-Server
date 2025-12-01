@@ -126,10 +126,10 @@ public class DocumentController {
     /**
      * 급여명세서 PDF Signed URL 조회
      *
-     * @param payrollId 급여 ID
+     * @param employeeId 근로자 ID
      * @return Signed URL 응답
      */
-    @GetMapping("/payslips/{payrollId}")
+    @GetMapping("/payslips/{employeeId}")
     @Operation(
         summary = "급여명세서 PDF 조회",
         description = """
@@ -138,6 +138,7 @@ public class DocumentController {
             **사용 방법:**
             - 발급된 URL을 iframe 또는 PDF 뷰어에서 사용
             - URL은 15분 후 만료됩니다.
+            - 근로자의 가장 최근 급여명세서를 조회합니다.
 
             **S3 경로:**
             - payslips/{payrollId}/payslip.pdf
@@ -155,12 +156,12 @@ public class DocumentController {
         )
     })
     public ResponseEntity<ApiResponse<DocumentUrlResponseDto>> getPayslipPdf(
-            @Parameter(description = "급여 ID", required = true)
-            @PathVariable Long payrollId
+            @Parameter(description = "근로자 ID", required = true)
+            @PathVariable Long employeeId
     ) {
-        log.info("급여명세서 PDF 조회 API 호출: payrollId={}", payrollId);
+        log.info("급여명세서 PDF 조회 API 호출: employeeId={}", employeeId);
 
-        DocumentUrlResponseDto response = documentService.getPayslipPdfUrl(payrollId);
+        DocumentUrlResponseDto response = documentService.getPayslipPdfUrl(employeeId);
 
         return ResponseEntity.ok(ApiResponse.success(response, "급여명세서 PDF URL 발급에 성공했습니다"));
     }
