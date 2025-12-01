@@ -93,6 +93,15 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     List<Attendance> findByEmployeeIdAndSearchDate(Long employeeId, LocalDate searchDate);
 
     /**
+     * 현장의 특정 날짜 근태 기록 조회
+     *
+     * @param siteId 현장 ID
+     * @param searchDate 조회 날짜
+     * @return 근태 기록 리스트
+     */
+    List<Attendance> findBySiteIdAndSearchDate(Long siteId, LocalDate searchDate);
+
+    /**
      * 급여 계산용 정상 출근 기록 조회
      *
      * @param employeeId 사원 ID

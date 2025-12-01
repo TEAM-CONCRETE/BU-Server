@@ -1,9 +1,7 @@
 package com.concrete.buildup.domain.site.service;
 
-import com.concrete.buildup.domain.attendance.entity.AttendanceRecord;
-import com.concrete.buildup.domain.attendance.enums.AttendanceState;
-import com.concrete.buildup.domain.attendance.enums.AttendanceType;
-import com.concrete.buildup.domain.attendance.repository.AttendanceRecordRepository;
+import com.concrete.buildup.domain.attendance.entity.Attendance;
+import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.Manager;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
@@ -27,8 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +48,7 @@ public class DashboardService {
     private final SiteRepository siteRepository;
     private final ContractRepository contractRepository;
     private final EmployeeRepository employeeRepository;
-    private final AttendanceRecordRepository attendanceRecordRepository;
+    private final AttendanceRepository attendanceRepository;
     private final SafetyEducationLogRepository safetyEducationLogRepository;
 
     /**
@@ -178,20 +174,20 @@ public class DashboardService {
 
         LocalDate today = LocalDate.now();
 
-        // 금일 출근 인원 (AttendanceRecord에서 CHECK_IN, CONFIRMED 상태)
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(LocalTime.MAX);
+        // 금일 출근 인원 (attendances 테이블에서 현장별 조회)
+        List<Attendance> todayAttendances = attendanceRepository
+            .findBySiteIdAndSearchDate(siteId, today);
 
-        List<AttendanceRecord> todayAttendanceRecords = attendanceRecordRepository
-            .findBySiteIdAndTimestampBetween(siteId, startOfDay, endOfDay, Pageable.unpaged())
-            .getContent()
-            .stream()
-            .filter(record -> record.getAttendanceType() == AttendanceType.CHECK_IN)
-            .filter(record -> record.getState() == AttendanceState.CONFIRMED)
-            .collect(Collectors.toList());
+        // 중복 제거하여 출근 인원 수 계산 (같은 사람이 여러 기록 있을 수 있음)
+        int todayAttendance = (int) todayAttendances.stream()
+            .map(Attendance::getEmployeeId)
+            .distinct()
+            .count();
 
-        int todayAttendance = (int) todayAttendanceRecords.stream()
-            .map(AttendanceRecord::getEmployeeId)
+        // 금일 지각 인원 계산
+        int todayLateCount = (int) todayAttendances.stream()
+            .filter(a -> Boolean.TRUE.equals(a.getIsLate()))
+            .map(Attendance::getEmployeeId)
             .distinct()
             .count();
 
@@ -200,7 +196,7 @@ public class DashboardService {
             .permanentWorkers(permanentWorkers)
             .dailyWorkers(dailyWorkers)
             .todayAttendance(todayAttendance)
-            .todayLateCount(0)
+            .todayLateCount(todayLateCount)
             .build();
     }
 
@@ -222,54 +218,6 @@ public class DashboardService {
 
         // 종료일이 없거나 종료일 >= 날짜
         return endDate == null || !date.isAfter(endDate);
-    }
-
-    /**
-     * 금일 지각 인원 계산
-     * workStartTime + 5분 이후 출근한 인원
-     */
-    private int calculateTodayLateCount(List<AttendanceRecord> attendanceRecords, List<Contract> contracts) {
-        // ContractDetail을 포함한 Contract를 일괄 조회 (N+1 문제 해결)
-        List<Long> contractIds = contracts.stream()
-            .map(Contract::getId)
-            .distinct()
-            .collect(Collectors.toList());
-
-        if (contractIds.isEmpty()) {
-            return 0;
-        }
-
-        // 일괄 조회로 N+1 문제 해결
-        Map<Long, Contract> contractWithDetailsMap = contractRepository.findByIdInWithDetails(contractIds)
-            .stream()
-            .collect(Collectors.toMap(
-                Contract::getEmployeeId,
-                contract -> contract,
-                (existing, replacement) -> existing // 중복 시 기존 값 유지
-            ));
-
-        int lateCount = 0;
-        for (AttendanceRecord record : attendanceRecords) {
-            Contract contract = contractWithDetailsMap.get(record.getEmployeeId());
-            if (contract == null || contract.getContractDetail() == null) {
-                continue;
-            }
-
-            LocalTime workStartTime = contract.getContractDetail().getWorkStartTime();
-            if (workStartTime == null) {
-                continue; // 출근 시간 정보 없음
-            }
-
-            // 지각 기준: workStartTime + 5분
-            LocalTime lateThreshold = workStartTime.plusMinutes(5);
-            LocalTime checkInTime = record.getTimestamp().toLocalTime();
-
-            if (checkInTime.isAfter(lateThreshold)) {
-                lateCount++;
-            }
-        }
-
-        return lateCount;
     }
 
     /**
