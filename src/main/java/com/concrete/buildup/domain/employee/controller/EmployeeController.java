@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/sites/{siteId}/employees")
+@RequestMapping("/v1/sites/{siteId}/employees")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Employee", description = "사원 관리 API")

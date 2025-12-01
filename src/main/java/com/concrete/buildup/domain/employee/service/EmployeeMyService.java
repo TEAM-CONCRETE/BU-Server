@@ -1,9 +1,7 @@
 package com.concrete.buildup.domain.employee.service;
 
-import com.concrete.buildup.domain.attendance.entity.AttendanceRecord;
-import com.concrete.buildup.domain.attendance.enums.AttendanceState;
-import com.concrete.buildup.domain.attendance.enums.AttendanceType;
-import com.concrete.buildup.domain.attendance.repository.AttendanceRecordRepository;
+import com.concrete.buildup.domain.attendance.entity.Attendance;
+import com.concrete.buildup.domain.attendance.repository.AttendanceRepository;
 import com.concrete.buildup.domain.auth.entity.Employee;
 import com.concrete.buildup.domain.auth.entity.User;
 import com.concrete.buildup.domain.auth.repository.EmployeeRepository;
@@ -59,7 +57,7 @@ public class EmployeeMyService {
 
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
-    private final AttendanceRecordRepository attendanceRecordRepository;
+    private final AttendanceRepository attendanceRepository;
     private final SiteRepository siteRepository;
     private final ContractRepository contractRepository;
     private final PayrollRepository payrollRepository;
@@ -72,7 +70,7 @@ public class EmployeeMyService {
      * 본인 출퇴근 내역 조회
      *
      * <p>JWT에서 추출한 userId로 본인의 출퇴근 기록을 조회합니다.</p>
-     * <p>날짜별로 그룹핑하여 출근/퇴근 시간을 하나의 레코드로 반환합니다.</p>
+     * <p>attendances 테이블에서 일별 근태 기록을 조회합니다.</p>
      *
      * @param currentUserId JWT에서 추출한 로그인 ID
      * @param pageable 페이지네이션 정보
@@ -91,79 +89,44 @@ public class EmployeeMyService {
 
         Long employeeId = employee.getId();
 
-        // 3. 전체 출퇴근 기록 조회 (최근 6개월)
-        LocalDateTime endTime = LocalDateTime.now();
-        LocalDateTime startTime = endTime.minusMonths(6);
+        // 3. 전체 출퇴근 기록 조회 (최근 6개월) - attendances 테이블
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusMonths(6);
 
-        List<AttendanceRecord> allRecords = attendanceRecordRepository
-                .findByEmployeeIdAndTimestampBetween(employeeId, startTime, endTime);
+        List<Attendance> attendances = attendanceRepository
+                .findByEmployeeIdAndSearchDateBetween(employeeId, startDate, endDate);
 
-        // 4. CONFIRMED 상태만 필터링
-        List<AttendanceRecord> confirmedRecords = allRecords.stream()
-                .filter(record -> record.getState() == AttendanceState.CONFIRMED)
-                .sorted(Comparator.comparing(AttendanceRecord::getTimestamp).reversed())
-                .toList();
-
-        // 5. 날짜별로 그룹핑하여 출근/퇴근 페어 생성
-        Map<LocalDate, Map<Long, List<AttendanceRecord>>> recordsByDateAndSite = confirmedRecords.stream()
-                .collect(Collectors.groupingBy(
-                        record -> record.getTimestamp().toLocalDate(),
-                        LinkedHashMap::new,
-                        Collectors.groupingBy(AttendanceRecord::getSiteId)
-                ));
-
-        // 6. Site 정보 일괄 조회 (N+1 방지)
-        Set<Long> siteIds = confirmedRecords.stream()
-                .map(AttendanceRecord::getSiteId)
+        // 4. Site 정보 일괄 조회 (N+1 방지)
+        Set<Long> siteIds = attendances.stream()
+                .map(Attendance::getSiteId)
                 .collect(Collectors.toSet());
         Map<Long, Site> siteMap = siteRepository.findAllById(siteIds).stream()
                 .collect(Collectors.toMap(Site::getId, site -> site));
 
-        // 7. 날짜+현장별 요약 레코드 생성
-        List<MyAttendanceSummary> summaries = new ArrayList<>();
-        for (Map.Entry<LocalDate, Map<Long, List<AttendanceRecord>>> dateEntry : recordsByDateAndSite.entrySet()) {
-            LocalDate date = dateEntry.getKey();
-            for (Map.Entry<Long, List<AttendanceRecord>> siteEntry : dateEntry.getValue().entrySet()) {
-                Long siteId = siteEntry.getKey();
-                List<AttendanceRecord> records = siteEntry.getValue();
+        // 5. DTO 변환 (날짜 내림차순 정렬)
+        List<MyAttendanceSummary> summaries = attendances.stream()
+                .sorted(Comparator.comparing(Attendance::getSearchDate).reversed())
+                .map(attendance -> {
+                    Site site = siteMap.get(attendance.getSiteId());
+                    String siteName = site != null ? site.getSiteName() : "알 수 없음";
+                    String status = determineStatus(attendance);
 
-                Site site = siteMap.get(siteId);
-                String siteName = site != null ? site.getSiteName() : "알 수 없음";
-
-                // 출근/퇴근 기록 찾기
-                AttendanceRecord checkIn = records.stream()
-                        .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_IN)
-                        .findFirst()
-                        .orElse(null);
-
-                AttendanceRecord checkOut = records.stream()
-                        .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_OUT)
-                        .findFirst()
-                        .orElse(null);
-
-                // 출근 기록이 있어야 유효한 데이터
-                if (checkIn != null) {
-                    String status = determineStatus(checkIn, checkOut);
-                    Boolean isLate = determineIsLate(checkIn);
-
-                    summaries.add(MyAttendanceSummary.builder()
-                            .attendanceId(checkIn.getId())
-                            .date(date)
-                            .siteId(siteId)
+                    return MyAttendanceSummary.builder()
+                            .attendanceId(attendance.getId())
+                            .date(attendance.getSearchDate())
+                            .siteId(attendance.getSiteId())
                             .siteName(siteName)
-                            .checkInTime(checkIn.getTimestamp().format(TIME_FORMATTER))
-                            .checkOutTime(checkOut != null ? checkOut.getTimestamp().format(TIME_FORMATTER) : null)
+                            .checkInTime(attendance.getCheckInTime() != null
+                                    ? attendance.getCheckInTime().format(TIME_FORMATTER) : null)
+                            .checkOutTime(attendance.getCheckOutTime() != null
+                                    ? attendance.getCheckOutTime().format(TIME_FORMATTER) : null)
                             .status(status)
-                            .isLate(isLate)
-                            .build());
-                }
-            }
-        }
+                            .isLate(attendance.getIsLate())
+                            .build();
+                })
+                .toList();
 
-        // 8. 날짜 내림차순 정렬
-        summaries.sort(Comparator.comparing(MyAttendanceSummary::getDate).reversed());
-
-        // 9. 페이지네이션 적용
+        // 6. 페이지네이션 적용
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), summaries.size());
 
@@ -181,31 +144,19 @@ public class EmployeeMyService {
     /**
      * 근태 상태 결정
      */
-    private String determineStatus(AttendanceRecord checkIn, AttendanceRecord checkOut) {
-        if (checkOut != null) {
+    private String determineStatus(Attendance attendance) {
+        if (attendance.getCheckOutTime() != null) {
             return "COMPLETED"; // 퇴근 완료
         }
 
         // 출근만 있는 경우 - 당일이면 근무중, 과거면 미퇴근
         LocalDate today = LocalDate.now();
-        LocalDate checkInDate = checkIn.getTimestamp().toLocalDate();
 
-        if (checkInDate.equals(today)) {
+        if (attendance.getSearchDate().equals(today)) {
             return "WORKING"; // 근무중
         } else {
             return "INCOMPLETE"; // 미퇴근 (과거 데이터)
         }
-    }
-
-    /**
-     * 지각 여부 결정
-     * <p>현재는 단순히 9시 이후 출근을 지각으로 판단합니다.</p>
-     * <p>TODO: 계약서의 출근 시간 기준으로 변경 필요</p>
-     */
-    private Boolean determineIsLate(AttendanceRecord checkIn) {
-        LocalTime checkInTime = checkIn.getTimestamp().toLocalTime();
-        LocalTime standardTime = LocalTime.of(9, 5); // 9시 5분 기준 (5분 유예)
-        return checkInTime.isAfter(standardTime);
     }
 
     /**
@@ -334,46 +285,30 @@ public class EmployeeMyService {
      */
     private TodayAttendanceInfo getTodayAttendance(Long employeeId) {
         LocalDate today = LocalDate.now();
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(23, 59, 59);
 
-        List<AttendanceRecord> todayRecords = attendanceRecordRepository
-                .findByEmployeeIdAndTimestampBetween(employeeId, startOfDay, endOfDay);
+        // attendances 테이블에서 금일 근태 조회
+        List<Attendance> todayAttendances = attendanceRepository
+                .findByEmployeeIdAndSearchDate(employeeId, today);
 
-        // CONFIRMED 상태만 필터링
-        List<AttendanceRecord> confirmedRecords = todayRecords.stream()
-                .filter(r -> r.getState() == AttendanceState.CONFIRMED)
-                .toList();
-
-        if (confirmedRecords.isEmpty()) {
+        if (todayAttendances.isEmpty()) {
             return null;
         }
 
-        // 출근/퇴근 기록 찾기
-        AttendanceRecord checkIn = confirmedRecords.stream()
-                .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_IN)
-                .findFirst()
-                .orElse(null);
+        // 첫 번째 근태 기록 사용 (하루에 여러 현장 근무 가능성 고려)
+        Attendance attendance = todayAttendances.get(0);
 
-        AttendanceRecord checkOut = confirmedRecords.stream()
-                .filter(r -> r.getAttendanceType() == AttendanceType.CHECK_OUT)
-                .findFirst()
-                .orElse(null);
-
-        if (checkIn == null) {
-            return null;
-        }
-
-        Site site = siteRepository.findById(checkIn.getSiteId()).orElse(null);
-        String status = checkOut != null ? "COMPLETED" : "WORKING";
+        Site site = siteRepository.findById(attendance.getSiteId()).orElse(null);
+        String status = attendance.getCheckOutTime() != null ? "COMPLETED" : "WORKING";
 
         return TodayAttendanceInfo.builder()
-                .siteId(checkIn.getSiteId())
+                .siteId(attendance.getSiteId())
                 .siteName(site != null ? site.getSiteName() : "알 수 없음")
-                .checkInTime(checkIn.getTimestamp().format(TIME_FORMATTER))
-                .checkOutTime(checkOut != null ? checkOut.getTimestamp().format(TIME_FORMATTER) : null)
+                .checkInTime(attendance.getCheckInTime() != null
+                        ? attendance.getCheckInTime().format(TIME_FORMATTER) : null)
+                .checkOutTime(attendance.getCheckOutTime() != null
+                        ? attendance.getCheckOutTime().format(TIME_FORMATTER) : null)
                 .status(status)
-                .isLate(determineIsLate(checkIn))
+                .isLate(attendance.getIsLate())
                 .build();
     }
 
