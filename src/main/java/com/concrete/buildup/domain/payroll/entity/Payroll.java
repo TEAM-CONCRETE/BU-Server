@@ -75,8 +75,9 @@ public class Payroll extends BaseEntity {
     /**
      * 현장 ID
      * TODO: Site 엔티티 구현 후 @ManyToOne 연관관계로 변경
+     * nullable: Employee/User에서 siteId를 조회하여 설정 필요 (현재는 null 허용)
      */
-    @Column(name = "site_id", nullable = false)
+    @Column(name = "site_id")
     private Long siteId;
 
     // ========== 급여 대상 기간 ==========
