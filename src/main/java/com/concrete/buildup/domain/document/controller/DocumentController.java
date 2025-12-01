@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/documents")
+@RequestMapping("/v1/documents")
 @RequiredArgsConstructor
 @Tag(name = "Document", description = "문서 조회 API")
 public class DocumentController {
