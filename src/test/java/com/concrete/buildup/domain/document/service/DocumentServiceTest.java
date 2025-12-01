@@ -268,7 +268,7 @@ class DocumentServiceTest {
         @DisplayName("성공")
         void success() {
             // given
-            Long payrollId = 1L;
+            Long employeeId = 100L;
             String expectedS3Key = "payroll/EMP100/2025/09/payslip-1.pdf";
             String expectedSignedUrl = "https://bucket.s3.amazonaws.com/signed-url";
 
@@ -286,19 +286,19 @@ class DocumentServiceTest {
                     .s3Key(expectedS3Key)
                     .build();
 
-            given(payrollRepository.findById(payrollId)).willReturn(Optional.of(payroll));
+            given(payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)).willReturn(Optional.of(payroll));
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(true);
             given(s3Service.generatePresignedGetUrl(expectedS3Key)).willReturn(expectedSignedUrl);
 
             // when
-            DocumentUrlResponseDto response = documentService.getPayslipPdfUrl(payrollId);
+            DocumentUrlResponseDto response = documentService.getPayslipPdfUrl(employeeId);
 
             // then
             assertThat(response).isNotNull();
             assertThat(response.getUrl()).isEqualTo(expectedSignedUrl);
             assertThat(response.getExpiresAt()).isNotNull();
 
-            verify(payrollRepository).findById(payrollId);
+            verify(payrollRepository).findTopByEmployeeIdOrderByCreatedAtDesc(employeeId);
             verify(s3Service).doesObjectExist(expectedS3Key);
             verify(s3Service).generatePresignedGetUrl(expectedS3Key);
         }
@@ -307,15 +307,15 @@ class DocumentServiceTest {
         @DisplayName("실패 - 급여명세서 없음")
         void fail_payrollNotFound() {
             // given
-            Long payrollId = 999L;
-            given(payrollRepository.findById(payrollId)).willReturn(Optional.empty());
+            Long employeeId = 999L;
+            given(payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(payrollId))
+            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(employeeId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.PAYROLL_NOT_FOUND);
 
-            verify(payrollRepository).findById(payrollId);
+            verify(payrollRepository).findTopByEmployeeIdOrderByCreatedAtDesc(employeeId);
             verify(s3Service, never()).doesObjectExist(anyString());
         }
 
@@ -323,7 +323,7 @@ class DocumentServiceTest {
         @DisplayName("실패 - s3Key 없음")
         void fail_noS3Key() {
             // given
-            Long payrollId = 1L;
+            Long employeeId = 100L;
             Payroll payroll = Payroll.builder()
                     .employeeId(100L)
                     .contractId(1L)
@@ -337,14 +337,14 @@ class DocumentServiceTest {
                     .payStatus(PayStatus.PENDING)
                     .build();
 
-            given(payrollRepository.findById(payrollId)).willReturn(Optional.of(payroll));
+            given(payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)).willReturn(Optional.of(payroll));
 
             // when & then
-            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(payrollId))
+            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(employeeId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
 
-            verify(payrollRepository).findById(payrollId);
+            verify(payrollRepository).findTopByEmployeeIdOrderByCreatedAtDesc(employeeId);
             verify(s3Service, never()).doesObjectExist(anyString());
         }
 
@@ -352,7 +352,7 @@ class DocumentServiceTest {
         @DisplayName("실패 - S3 파일 없음")
         void fail_s3FileNotFound() {
             // given
-            Long payrollId = 1L;
+            Long employeeId = 100L;
             String expectedS3Key = "payroll/EMP100/2025/09/payslip-1.pdf";
 
             Payroll payroll = Payroll.builder()
@@ -369,15 +369,15 @@ class DocumentServiceTest {
                     .s3Key(expectedS3Key)
                     .build();
 
-            given(payrollRepository.findById(payrollId)).willReturn(Optional.of(payroll));
+            given(payrollRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)).willReturn(Optional.of(payroll));
             given(s3Service.doesObjectExist(expectedS3Key)).willReturn(false);
 
             // when & then
-            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(payrollId))
+            assertThatThrownBy(() -> documentService.getPayslipPdfUrl(employeeId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", DocumentErrorCode.DOCUMENT_NOT_FOUND);
 
-            verify(payrollRepository).findById(payrollId);
+            verify(payrollRepository).findTopByEmployeeIdOrderByCreatedAtDesc(employeeId);
             verify(s3Service).doesObjectExist(expectedS3Key);
             verify(s3Service, never()).generatePresignedGetUrl(anyString());
         }
